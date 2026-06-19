@@ -1,0 +1,48 @@
+<Project>
+  <PropertyGroup>
+    <DeYasPackageVersion>1.0.1</DeYasPackageVersion>
+
+    <!--
+      Dev ortamı (UseProjectReferences=true veya DEYAS_USE_PROJECT_REFS=true):
+        → PackageReference satırları devre dışı (Condition false)
+        → ProjectReference satırları etkin
+        → Kaynak kod doğrudan derlenir
+
+      Release / CI (UseProjectReferences=false):
+        → PackageReference satırları etkin
+        → ProjectReference satırları devre dışı
+        → nuget.config'deki deyas-local veya github-deyas kaynağından paket alınır
+
+      Kullanım:
+        dotnet build                          → dev modu (proje referansı)
+        dotnet build -p:UseProjectReferences=false → paket modu
+    -->
+    <UseProjectReferences Condition="'$(UseProjectReferences)' == '' AND '$(DEYAS_USE_PROJECT_REFS)' == 'true'">true</UseProjectReferences>
+    <UseProjectReferences Condition="'$(UseProjectReferences)' == ''">true</UseProjectReferences>
+
+    <!-- Shared projenin kök dizini — ktu-de-yas-shared, panel reposunun 2 seviye üstünde -->
+    <DeYasSharedRoot Condition="'$(DeYasSharedRoot)' == ''">$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)..\..\ktu-de-yas-shared\src'))</DeYasSharedRoot>
+  </PropertyGroup>
+
+  <!-- ── PAKET referansları (release / CI modu) ─────────────────────── -->
+  <ItemGroup Condition="'$(UseProjectReferences)' != 'true'">
+    <PackageReference Include="DeYas.Contracts"      Version="$(DeYasPackageVersion)" />
+    <PackageReference Include="DeYas.Realtime"       Version="$(DeYasPackageVersion)" />
+    <PackageReference Include="DeYas.EventBus"       Version="$(DeYasPackageVersion)" />
+    <PackageReference Include="DeYas.Authentication" Version="$(DeYasPackageVersion)" />
+    <PackageReference Include="DeYas.Observability"  Version="$(DeYasPackageVersion)" />
+    <PackageReference Include="DeYas.SharedKernel"   Version="$(DeYasPackageVersion)" />
+  </ItemGroup>
+
+  <!-- ── PROJE referansları (dev modu — kaynak doğrudan derlenir) ───── -->
+  <ItemGroup Condition="'$(UseProjectReferences)' == 'true'">
+    <ProjectReference Include="$(DeYasSharedRoot)\DeYas.Realtime\DeYas.Realtime.csproj" />
+    <ProjectReference Include="$(DeYasSharedRoot)\DeYas.EventBus\DeYas.EventBus.csproj" />
+    <ProjectReference Include="$(DeYasSharedRoot)\DeYas.Authentication\DeYas.Authentication.csproj" />
+    <ProjectReference Include="$(DeYasSharedRoot)\DeYas.Observability\DeYas.Observability.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Contracts ve SharedKernel transitive gelir, burada sadece uyarıyı bastırmak için -->
+  </ItemGroup>
+</Project>

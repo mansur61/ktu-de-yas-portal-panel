@@ -14,19 +14,34 @@
         "outputPath": "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-portal-panel\\KtuDeYasPortal.Panel\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
+          "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-portal-panel\\KtuDeYasPortal.Panel\\NuGet.Config",
           "C:\\Users\\FatihYeseviOKUR\\AppData\\Roaming\\NuGet\\NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net10.0"
         ],
         "sources": {
+          "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\artifacts": {},
           "https://api.nuget.org/v3/index.json": {},
           "https://nuget.pkg.github.com/mansur61/index.json": {}
         },
         "frameworks": {
           "net10.0": {
             "targetAlias": "net10.0",
-            "projectReferences": {}
+            "projectReferences": {
+              "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.Authentication\\DeYas.Authentication.csproj": {
+                "projectPath": "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.Authentication\\DeYas.Authentication.csproj"
+              },
+              "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.EventBus\\DeYas.EventBus.csproj": {
+                "projectPath": "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.EventBus\\DeYas.EventBus.csproj"
+              },
+              "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.Observability\\DeYas.Observability.csproj": {
+                "projectPath": "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.Observability\\DeYas.Observability.csproj"
+              },
+              "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.Realtime\\DeYas.Realtime.csproj": {
+                "projectPath": "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.Realtime\\DeYas.Realtime.csproj"
+              }
+            }
           }
         },
         "warningProperties": {
@@ -486,6 +501,475 @@
             "System.Xml.XPath": "(,4.3.32767]",
             "System.Xml.XPath.XDocument": "(,5.0.32767]"
           }
+        }
+      }
+    },
+    "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.Authentication\\DeYas.Authentication.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.Authentication\\DeYas.Authentication.csproj",
+        "projectName": "DeYas.Authentication",
+        "projectPath": "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.Authentication\\DeYas.Authentication.csproj",
+        "packagesPath": "C:\\Users\\FatihYeseviOKUR\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.Authentication\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\FatihYeseviOKUR\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {},
+          "https://nuget.pkg.github.com/mansur61/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "10.0.200"
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "Microsoft.AspNetCore.Authentication.JwtBearer": {
+              "target": "Package",
+              "version": "[8.0.11, )"
+            },
+            "Microsoft.Extensions.Options.ConfigurationExtensions": {
+              "target": "Package",
+              "version": "[8.0.0, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.AspNetCore.App": {
+              "privateAssets": "none"
+            },
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.203/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.Contracts\\DeYas.Contracts.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.Contracts\\DeYas.Contracts.csproj",
+        "projectName": "DeYas.Contracts",
+        "projectPath": "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.Contracts\\DeYas.Contracts.csproj",
+        "packagesPath": "C:\\Users\\FatihYeseviOKUR\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.Contracts\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\FatihYeseviOKUR\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {},
+          "https://nuget.pkg.github.com/mansur61/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "10.0.200"
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.203/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.EventBus\\DeYas.EventBus.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.EventBus\\DeYas.EventBus.csproj",
+        "projectName": "DeYas.EventBus",
+        "projectPath": "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.EventBus\\DeYas.EventBus.csproj",
+        "packagesPath": "C:\\Users\\FatihYeseviOKUR\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.EventBus\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\FatihYeseviOKUR\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {},
+          "https://nuget.pkg.github.com/mansur61/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "10.0.200"
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "Confluent.Kafka": {
+              "target": "Package",
+              "version": "[2.14.0, )"
+            },
+            "Microsoft.Extensions.Configuration.Abstractions": {
+              "target": "Package",
+              "version": "[9.0.0, )"
+            },
+            "Microsoft.Extensions.DependencyInjection.Abstractions": {
+              "target": "Package",
+              "version": "[9.0.0, )"
+            },
+            "Microsoft.Extensions.Hosting.Abstractions": {
+              "target": "Package",
+              "version": "[9.0.0, )"
+            },
+            "Microsoft.Extensions.Logging.Abstractions": {
+              "target": "Package",
+              "version": "[9.0.0, )"
+            },
+            "Microsoft.Extensions.Options.ConfigurationExtensions": {
+              "target": "Package",
+              "version": "[9.0.0, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.203/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.Observability\\DeYas.Observability.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.Observability\\DeYas.Observability.csproj",
+        "projectName": "DeYas.Observability",
+        "projectPath": "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.Observability\\DeYas.Observability.csproj",
+        "packagesPath": "C:\\Users\\FatihYeseviOKUR\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.Observability\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\FatihYeseviOKUR\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {},
+          "https://nuget.pkg.github.com/mansur61/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {
+              "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.Realtime\\DeYas.Realtime.csproj": {
+                "projectPath": "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.Realtime\\DeYas.Realtime.csproj"
+              },
+              "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.SharedKernel\\DeYas.SharedKernel.csproj": {
+                "projectPath": "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.SharedKernel\\DeYas.SharedKernel.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "10.0.200"
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "Microsoft.Extensions.Diagnostics.HealthChecks": {
+              "target": "Package",
+              "version": "[8.0.11, )"
+            },
+            "OpenTelemetry.Exporter.OpenTelemetryProtocol": {
+              "target": "Package",
+              "version": "[1.11.2, )"
+            },
+            "OpenTelemetry.Extensions.Hosting": {
+              "target": "Package",
+              "version": "[1.11.2, )"
+            },
+            "OpenTelemetry.Instrumentation.AspNetCore": {
+              "target": "Package",
+              "version": "[1.11.1, )"
+            },
+            "OpenTelemetry.Instrumentation.Http": {
+              "target": "Package",
+              "version": "[1.11.1, )"
+            },
+            "OpenTelemetry.Instrumentation.Runtime": {
+              "target": "Package",
+              "version": "[1.11.1, )"
+            },
+            "Serilog.AspNetCore": {
+              "target": "Package",
+              "version": "[8.0.3, )"
+            },
+            "Serilog.Settings.Configuration": {
+              "target": "Package",
+              "version": "[8.0.4, )"
+            },
+            "StackExchange.Redis": {
+              "target": "Package",
+              "version": "[2.8.16, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.AspNetCore.App": {
+              "privateAssets": "none"
+            },
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.203/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.Realtime\\DeYas.Realtime.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.Realtime\\DeYas.Realtime.csproj",
+        "projectName": "DeYas.Realtime",
+        "projectPath": "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.Realtime\\DeYas.Realtime.csproj",
+        "packagesPath": "C:\\Users\\FatihYeseviOKUR\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.Realtime\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\FatihYeseviOKUR\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {},
+          "https://nuget.pkg.github.com/mansur61/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {
+              "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.Contracts\\DeYas.Contracts.csproj": {
+                "projectPath": "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.Contracts\\DeYas.Contracts.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "10.0.200"
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "Microsoft.Extensions.Hosting.Abstractions": {
+              "target": "Package",
+              "version": "[9.0.0, )"
+            },
+            "Microsoft.Extensions.Logging.Abstractions": {
+              "target": "Package",
+              "version": "[9.0.0, )"
+            },
+            "Microsoft.Extensions.Options.ConfigurationExtensions": {
+              "target": "Package",
+              "version": "[9.0.0, )"
+            },
+            "StackExchange.Redis": {
+              "target": "Package",
+              "version": "[2.8.16, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.203/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.SharedKernel\\DeYas.SharedKernel.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.SharedKernel\\DeYas.SharedKernel.csproj",
+        "projectName": "DeYas.SharedKernel",
+        "projectPath": "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.SharedKernel\\DeYas.SharedKernel.csproj",
+        "packagesPath": "C:\\Users\\FatihYeseviOKUR\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.SharedKernel\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\FatihYeseviOKUR\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {},
+          "https://nuget.pkg.github.com/mansur61/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "10.0.200"
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.203/PortableRuntimeIdentifierGraph.json"
         }
       }
     }

@@ -1,0 +1,49 @@
+# .NET build output
+bin/
+obj/
+Debug/
+Release/
+x64/
+x86/
+artifacts/
+TestResults/
+*.user
+*.rsuser
+*.suo
+*.userosscache
+*.sln.docstates
+*.nupkg
+*.snupkg
+*.lscache
+**/node_modules/
+*.csproj.lscache
+
+# Visual Studio / Rider / VS Code
+.vs/
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+*.DotSettings.user
+.dotnet-home/
+
+# Logs and runtime files
+*.log
+logs/
+*.pid
+*.seed
+*.stackdump
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+appsettings.Local.json
+appsettings.*.Local.json
+secrets.json
+
+# OS noise
+Thumbs.db
+Desktop.ini
+.DS_Store

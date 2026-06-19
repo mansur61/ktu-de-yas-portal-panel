@@ -1,0 +1,8 @@
+C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\obj\Debug\net10.0\EmbeddedAttribute.cs
+C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\obj\Debug\net10.0\ValidatableTypeAttribute.cs
+C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\obj\Debug\net10.0\rpswa.dswa.cache.json
+C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\obj\Debug\net10.0\KtuDeYasPortal.Panel.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\obj\Debug\net10.0\KtuDeYasPortal.Panel.AssemblyInfoInputs.cache
+C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\obj\Debug\net10.0\KtuDeYasPortal.Panel.AssemblyInfo.cs
+C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\obj\Debug\net10.0\KtuDeYasPortal.Panel.csproj.CoreCompileInputs.cache
+C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\obj\Debug\net10.0\KtuDeYasPortal.Panel.MvcApplicationPartsAssemblyInfo.cache

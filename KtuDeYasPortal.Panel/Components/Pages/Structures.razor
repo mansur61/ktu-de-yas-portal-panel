@@ -1,0 +1,326 @@
+@page "/structures"
+@rendermode InteractiveServer
+@inject StructureUseCases StructureUC
+@inject IJSRuntime JS
+
+<PageTitle>Yapı Yönetimi</PageTitle>
+
+<h3>Yapı Yönetimi</h3>
+
+<div class="mb-3">
+    <button class="btn btn-primary" @onclick="ShowCreateForm">
+        <span class="bi bi-plus-lg me-1"></span>+ Yeni Yapı
+    </button>
+</div>
+
+@if (_showForm)
+{
+    <div class="card mb-4 border-primary">
+        <div class="card-header bg-primary text-white">
+            <strong>@(_editId == Guid.Empty ? "Yeni Yapı Oluştur" : "Yapıyı Düzenle")</strong>
+        </div>
+        <div class="card-body">
+            <EditForm Model="_editModel" OnValidSubmit="SaveAsync">
+                <DataAnnotationsValidator />
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Yapı Adı <span class="text-danger">*</span></label>
+                        <InputText class="form-control" @bind-Value="_editModel.Name" placeholder="Örn: Yusufeli Barajı" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Sensör Sayısı</label>
+                        <InputNumber class="form-control" @bind-Value="_sensorCount" min="1" max="50" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Durum</label>
+                        <div class="mt-2">
+                            <InputCheckbox @bind-Value="_editModel.IsActive" /> Aktif
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">İl <span class="text-danger">*</span></label>
+                        <select class="form-select" @bind="_selectedProvince" @onchange="OnProvinceChanged">
+                            <option value="">-- İl Seçin --</option>
+                            @foreach (var p in _provinces)
+                            {
+                                <option value="@p">@p</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">İlçe</label>
+                        <select class="form-select" @bind="_selectedDistrict">
+                            <option value="">-- İlçe Seçin --</option>
+                            @foreach (var d in _districts)
+                            {
+                                <option value="@d">@d</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Adres</label>
+                        <InputText class="form-control" @bind-Value="_editModel.Address" placeholder="Adres bilgisi" />
+                    </div>
+                </div>
+
+                @* ── Harita ── *@
+                <div class="mt-3">
+                    <label class="form-label">Konum Seç (Haritaya tıklayın)</label>
+                    <div id="map" class="map-container"></div>
+                    <div class="row mt-2">
+                        <div class="col-md-4">
+                            <label class="form-label">Enlem</label>
+                            <input type="number" class="form-control" @bind="_editModel.Latitude" step="0.0001" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Boylam</label>
+                            <input type="number" class="form-control" @bind="_editModel.Longitude" step="0.0001" />
+                        </div>
+                    </div>
+                </div>
+
+                @* ── Sensör Seçimi ── *@
+                <div class="mt-3">
+                    <label class="form-label">Sensörler</label>
+                    <div class="row g-2">
+                        @foreach (var sensor in _availableSensors)
+                        {
+                            var isSelected = _selectedSensorIds.Contains(sensor.Id);
+                            <div class="col-md-4 col-lg-3">
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input"
+                                           checked="@isSelected"
+                                           @onchange="e => ToggleSensor(sensor.Id, e.Value)" />
+                                    <label class="form-check-label">
+                                        <small>@sensor.Name</small>
+                                        <span class="badge bg-secondary">@sensor.SensorType</span>
+                                    </label>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-success me-2">
+                        <span class="bi bi-check-lg me-1"></span>Kaydet
+                    </button>
+                    <button type="button" class="btn btn-secondary" @onclick="Cancel">İptal</button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@if (_structures is null)
+{
+    <p><em>Yükleniyor...</em></p>
+}
+else if (_structures.Count == 0)
+{
+    <div class="alert alert-info">Henüz yapı tanımlanmamış.</div>
+}
+else
+{
+    <div class="row g-3">
+        @foreach (var s in _structures)
+        {
+            <div class="col-md-6 col-lg-4">
+                <div class="card card-structure h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h5 class="card-title mb-0">@s.Name</h5>
+                            @if (s.IsActive)
+                            { <span class="badge bg-success">Aktif</span> }
+                            else
+                            { <span class="badge bg-secondary">Pasif</span> }
+                        </div>
+                        @if (!string.IsNullOrEmpty(s.Description))
+                        {
+                            <p class="card-text text-muted small">@s.Description</p>
+                        }
+                        <div class="d-flex gap-2 flex-wrap small mb-2">
+                            <span class="badge bg-info">@s.Province @(!string.IsNullOrEmpty(s.District) ? "/ " + s.District : "")</span>
+                            <span class="badge bg-primary">@s.SensorCount Sensör</span>
+                            @if (s.Latitude.HasValue && s.Longitude.HasValue)
+                            {
+                                <span class="badge bg-secondary">📍 @s.Latitude.Value.ToString("F4"), @s.Longitude.Value.ToString("F4")</span>
+                            }
+                        </div>
+                    </div>
+                    <div class="card-footer bg-transparent d-flex gap-2 justify-content-end">
+                        <button class="btn btn-sm btn-outline-primary" @onclick="() => Edit(s.Id)">
+                            <span class="bi bi-pencil"></span> Düzenle
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(s.Id)">
+                            <span class="bi bi-trash"></span> Sil
+                        </button>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<Domain.Entities.Structure>? _structures;
+    private List<Sensor> _availableSensors = new();
+    private List<Guid> _selectedSensorIds = new();
+    private Guid _editId;
+    private bool _showForm;
+    private int _sensorCount = 1;
+
+    private Structure _editModel = new();
+
+    // İl/İlçe
+    private string _selectedProvince = "";
+    private string _selectedDistrict = "";
+    private readonly List<string> _provinces = new()
+    {
+        "Artvin", "Erzurum", "Rize", "Trabzon", "Bayburt",
+        "Gümüşhane", "Giresun", "Ordu", "Samsun", "Amasya",
+        "Tokat", "Sivas", "Erzincan", "Kars", "Ardahan", "Iğdır"
+    };
+    private List<string> _districts = new();
+
+    private readonly Dictionary<string, List<string>> _districtMap = new()
+    {
+        ["Artvin"] = new() { "Merkez", "Ardanuç", "Arhavi", "Borçka", "Hopa", "Murgul", "Şavşat", "Yusufeli" },
+        ["Erzurum"] = new() { "Merkez", "Aşkale", "Çat", "Hınıs", "Horasan", "İspir", "Karaçoban", "Karayazı", "Köprüköy", "Narman", "Oltu", "Olur", "Palandöken", "Pasinler", "Pazaryolu", "Şenkaya", "Tekman", "Tortum", "Uzundere" },
+        ["Rize"] = new() { "Merkez", "Ardeşen", "Çamlıhemşin", "Çayeli", "Derepazarı", "Fındıklı", "Güneysu", "Hemşin", "İkizdere", "İyidere", "Kalkandere", "Pazar" },
+        ["Trabzon"] = new() { "Merkez", "Akçaabat", "Araklı", "Arsin", "Beşikdüzü", "Çarşıbaşı", "Çaykara", "Dernekpazarı", "Düzköy", "Hayrat", "Köprübaşı", "Maçka", "Of", "Ortahisar", "Sürmene", "Şalpazarı", "Tonya", "Vakfıkebir", "Yomra" },
+        ["Bayburt"] = new() { "Merkez", "Aydıntepe", "Demirözü" },
+        ["Gümüşhane"] = new() { "Merkez", "Kelkit", "Köse", "Kürtün", "Şiran", "Torul" },
+        ["Giresun"] = new() { "Merkez", "Alucra", "Bulancak", "Çamoluk", "Dereli", "Doğankent", "Espiye", "Eynesil", "Görele", "Güce", "Keşap", "Piraziz", "Şebinkarahisar", "Tirebolu", "Yağlıdere" },
+        ["Ordu"] = new() { "Merkez", "Altınordu", "Aybastı", "Çamaş", "Çatalpınar", "Çaybaşı", "Fatsa", "Gölköy", "Gülyalı", "Gürgentepe", "İkizce", "Kabadüz", "Kabataş", "Korgan", "Kumru", "Mesudiye", "Perşembe", "Ulubey", "Ünye" },
+        ["Samsun"] = new() { "Merkez", "Alaçam", "Asarcık", "Atakum", "Ayvacık", "Bafra", "Canik", "Çarşamba", "Havza", "İlkadım", "Kavak", "Ladik", "Ondokuzmayıs", "Salıpazarı", "Tekkeköy", "Terme", "Vezirköprü", "Yakakent" }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && _showForm)
+        {
+            await InitMap();
+        }
+    }
+
+    private async Task InitMap()
+    {
+        try
+        {
+            var lat = _editModel.Latitude ?? 40.0;
+            var lng = _editModel.Longitude ?? 35.0;
+            await JS.InvokeVoidAsync("initMap", "map", lat, lng);
+        }
+        catch { /* Leaflet yüklenmediyse sessiz kal */ }
+    }
+
+    private async Task LoadAsync()
+    {
+        var list = await StructureUC.GetAllAsync();
+        _structures = list.OrderByDescending(s => s.CreatedAt).ToList();
+        _availableSensors = await StructureUC.GetAllSensorsAsync();
+    }
+
+    private async Task ShowCreateForm()
+    {
+        _editId = Guid.Empty;
+        _editModel = new Structure { IsActive = true };
+        _sensorCount = 1;
+        _selectedSensorIds = new();
+        _selectedProvince = "";
+        _selectedDistrict = "";
+        _districts = new();
+        _showForm = true;
+        StateHasChanged();
+        await Task.Delay(100);
+        await InitMap();
+    }
+
+    private async Task Edit(Guid id)
+    {
+        var s = await StructureUC.GetByIdAsync(id);
+        if (s is null) return;
+
+        _editId = s.Id;
+        _editModel = new Structure
+        {
+            Id = s.Id,
+            Name = s.Name,
+            Description = s.Description,
+            SensorCount = s.SensorCount,
+            Province = s.Province,
+            District = s.District,
+            Latitude = s.Latitude,
+            Longitude = s.Longitude,
+            Address = s.Address,
+            IsActive = s.IsActive,
+            CreatedAt = s.CreatedAt,
+            UpdatedAt = s.UpdatedAt
+        };
+        _sensorCount = s.SensorCount;
+        _selectedSensorIds = s.Sensors?.Select(x => x.SensorId).ToList() ?? new();
+        _selectedProvince = s.Province;
+        _selectedDistrict = s.District ?? "";
+        OnProvinceChanged(_selectedProvince);
+        _showForm = true;
+        StateHasChanged();
+        await Task.Delay(100);
+        await InitMap();
+    }
+
+    private void OnProvinceChanged(ChangeEventArgs e)
+    {
+        var val = e.Value?.ToString() ?? "";
+        OnProvinceChanged(val);
+    }
+
+    private void OnProvinceChanged(string province)
+    {
+        _selectedProvince = province;
+        _editModel.Province = province;
+        _districts = _districtMap.ContainsKey(province) ? _districtMap[province] : new();
+        if (!_districts.Contains(_selectedDistrict))
+            _selectedDistrict = "";
+    }
+
+    private void ToggleSensor(Guid sensorId, object? value)
+    {
+        var checked = value is bool b && b;
+        if (checked && !_selectedSensorIds.Contains(sensorId))
+            _selectedSensorIds.Add(sensorId);
+        else if (!checked)
+            _selectedSensorIds.Remove(sensorId);
+    }
+
+    private async Task SaveAsync()
+    {
+        _editModel.Province = _selectedProvince;
+        _editModel.District = _selectedDistrict;
+
+        if (_editId == Guid.Empty)
+            await StructureUC.CreateAsync(_editModel, _selectedSensorIds);
+        else
+            await StructureUC.UpdateAsync(_editId, _editModel, _selectedSensorIds);
+
+        _showForm = false;
+        await LoadAsync();
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        await StructureUC.DeleteAsync(id);
+        await LoadAsync();
+    }
+
+    private void Cancel()
+    {
+        _showForm = false;
+    }
+}

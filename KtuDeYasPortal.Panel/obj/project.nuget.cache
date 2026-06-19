@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "dgSpecHash": "c8mTGWSt/fE=",
+  "success": true,
+  "projectFilePath": "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-portal-panel\\KtuDeYasPortal.Panel\\KtuDeYasPortal.Panel.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\FatihYeseviOKUR\\.nuget\\packages\\microsoft.aspnetcore.app.internal.assets\\10.0.7\\microsoft.aspnetcore.app.internal.assets.10.0.7.nupkg.sha512"
+  ],
+  "logs": []
+}

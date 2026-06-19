@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+  </PropertyGroup>
+
+  <Import Project="$(MSBuildThisFileDirectory)..\..\ktu-de-yas\DeYas.References.props"
+          Condition="Exists('$(MSBuildThisFileDirectory)..\..\ktu-de-yas\DeYas.References.props')" />
+
+</Project>

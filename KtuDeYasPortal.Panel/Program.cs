@@ -23,6 +23,13 @@ builder.Services.AddHttpClient("timeseries-api", c =>
     c.Timeout = TimeSpan.FromSeconds(30);
 });
 
+builder.Services.AddHttpClient("edge-api", c =>
+{
+    c.BaseAddress = new Uri(
+        builder.Configuration["Services:EdgeApi"] ?? "http://localhost:5080");
+    c.Timeout = TimeSpan.FromSeconds(30);
+});
+
 // ── SignalR Hubs ──
 builder.Services.AddSignalR(options =>
 {
@@ -33,6 +40,7 @@ builder.Services.AddSignalR(options =>
 
 // ── Repositories & Use Cases ──
 builder.Services.AddScoped<IStructureRepository, StructureHttpRepository>();
+builder.Services.AddScoped<IStructureSimulationClient, StructureSimulationHttpClient>();
 builder.Services.AddScoped<ISensorRepository, SensorHttpRepository>();
 builder.Services.AddScoped<ITimeseriesRepository, TimeseriesRepository>();
 builder.Services.AddScoped<StructureUseCases>();

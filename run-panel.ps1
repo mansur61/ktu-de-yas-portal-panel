@@ -50,6 +50,17 @@ else {
     Start-Sleep -Seconds 4
 }
 
+# edge-layer (port 5080) — panel'den structure simulation tetikleme hedefi
+if (Test-PortInUse 5080) {
+    Write-Host "  [SKIP] edge-layer (port 5080)" -ForegroundColor Yellow
+}
+else {
+    $cmd = "`$env:DOTNET_ENVIRONMENT='Development'; dotnet run --project `"$($backendRoot.Path)\src\edge-layer\EdgeLayer.csproj`" -c Release --no-build"
+    $script:processes += Start-LoggedPowerShell -Name "edge-layer" -Command $cmd
+    Write-Host "  [OK] edge-layer" -ForegroundColor Green
+    Start-Sleep -Seconds 4
+}
+
 # Admin Panel (port 5056)
 if (Test-PortInUse 5056) {
     Write-Host "  [SKIP] panel (port 5056)" -ForegroundColor Yellow
@@ -64,6 +75,7 @@ else {
 Write-Host ""
 Write-Host "=== PANEL ACTIVE ===" -ForegroundColor Green
 Write-Host "  Admin Panel    : http://localhost:5056" -ForegroundColor White
+Write-Host "  Edge API       : http://localhost:5080/api/simulation/start/{structureId}" -ForegroundColor White
 Write-Host "  Sensor API     : http://localhost:5000/api/sensors" -ForegroundColor White
 Write-Host "  Structures API : http://localhost:5000/api/structures" -ForegroundColor White
 Write-Host ""

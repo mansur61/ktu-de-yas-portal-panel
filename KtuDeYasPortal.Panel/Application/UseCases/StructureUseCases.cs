@@ -39,4 +39,7 @@ public class StructureUseCases
 
     public Task<List<Sensor>> GetAllSensorsAsync(CancellationToken ct = default) =>
         _sensorRepo.GetAllAsync(ct);
+
+    public Task<Sensor> CreateSensorAsync(Sensor sensor, CancellationToken ct = default) =>
+        _sensorRepo.CreateAsync(sensor, ct);
 }

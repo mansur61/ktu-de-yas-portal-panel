@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="500" viewBox="0 0 800 500">
+  <rect width="800" height="500" fill="#f0f0f0"/>
+  <path d="M0 250 Q200 100 400 200 Q600 300 800 180 L800 500 L0 500Z" fill="#8B7355" opacity="0.3"/>
+  <rect x="300" y="200" width="200" height="250" rx="100" fill="#343a40"/>
+  <rect x="320" y="220" width="160" height="230" rx="80" fill="#212529"/>
+  <rect x="340" y="240" width="120" height="200" rx="60" fill="#000" opacity="0.6"/>
+  <circle cx="360" cy="280" r="8" fill="#ffc107"/>
+  <circle cx="400" cy="280" r="8" fill="#ffc107"/>
+  <circle cx="440" cy="280" r="8" fill="#ffc107"/>
+  <rect x="340" y="370" width="120" height="40" fill="#495057" rx="2"/>
+  <line x1="400" y1="370" x2="400" y2="410" stroke="#ffc107" stroke-dasharray="8,8" stroke-width="2"/>
+  <text x="400" y="100" font-size="28" text-anchor="middle" fill="#495057" font-weight="bold">Tünel Yapısı</text>
+  <text x="400" y="140" font-size="14" text-anchor="middle" fill="#6c757d">Tünel Görseli</text>
+</svg>

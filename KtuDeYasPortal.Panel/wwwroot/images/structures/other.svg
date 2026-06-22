@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="500" viewBox="0 0 800 500">
+  <rect width="800" height="500" fill="#f8f9fa"/>
+  <rect x="300" y="150" width="200" height="300" fill="#dee2e6" stroke="#adb5bd" stroke-width="2" rx="8"/>
+  <circle cx="400" cy="250" r="50" fill="#0d6efd" opacity="0.2"/>
+  <text x="400" y="260" font-size="40" text-anchor="middle" fill="#0d6efd">?</text>
+  <text x="400" y="100" font-size="28" text-anchor="middle" fill="#495057" font-weight="bold">Diğer Yapı</text>
+  <text x="400" y="480" font-size="14" text-anchor="middle" fill="#6c757d">Diğer Yapı Görseli</text>
+</svg>

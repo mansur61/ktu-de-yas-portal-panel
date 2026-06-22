@@ -92,8 +92,6 @@ C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal
 C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\obj\Debug\net10.0\scopedcss\Components\Layout\ReconnectModal.razor.rz.scp.css
 C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\obj\Debug\net10.0\scopedcss\bundle\KtuDeYasPortal.Panel.styles.css
 C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\obj\Debug\net10.0\scopedcss\projectbundle\KtuDeYasPortal.Panel.bundle.scp.css
-C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\obj\Debug\net10.0\compressed\cefgn2g2ir-{0}-khy4lop6wu-khy4lop6wu.gz
-C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\obj\Debug\net10.0\compressed\dpl97lizoc-{0}-zfsgkjqzuv-zfsgkjqzuv.gz
 C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\obj\Debug\net10.0\compressed\e6pgr9arol-{0}-pw7za1ekhl-pw7za1ekhl.gz
 C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\obj\Debug\net10.0\compressed\6xb67x7dko-{0}-bqjiyaj88i-bqjiyaj88i.gz
 C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\obj\Debug\net10.0\compressed\3jdeak202s-{0}-c2jlpeoesf-c2jlpeoesf.gz
@@ -142,8 +140,6 @@ C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal
 C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\obj\Debug\net10.0\compressed\newhp6xauc-{0}-abdmv1u4y3-abdmv1u4y3.gz
 C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\obj\Debug\net10.0\compressed\fkux3afx4c-{0}-hwaxidwiwj-hwaxidwiwj.gz
 C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\obj\Debug\net10.0\compressed\kpsmbtmh1s-{0}-xbbil6v7co-xbbil6v7co.gz
-C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\obj\Debug\net10.0\compressed\vg7qehrcqj-{0}-coahvflu04-coahvflu04.gz
-C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\obj\Debug\net10.0\compressed\g1em7wwbhl-{0}-coahvflu04-coahvflu04.gz
 C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\obj\Debug\net10.0\staticwebassets.build.json
 C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\obj\Debug\net10.0\staticwebassets.build.json.cache
 C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\obj\Debug\net10.0\staticwebassets.development.json
@@ -155,3 +151,12 @@ C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal
 C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\obj\Debug\net10.0\KtuDeYasPortal.Panel.pdb
 C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\obj\Debug\net10.0\KtuDeYasPortal.Panel.genruntimeconfig.cache
 C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\obj\Debug\net10.0\ref\KtuDeYasPortal.Panel.dll
+C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\obj\Debug\net10.0\compressed\hcfzusvwki-{0}-qyjxu4rqy0-qyjxu4rqy0.gz
+C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\obj\Debug\net10.0\compressed\hv6heb5vpa-{0}-pybx97rf3m-pybx97rf3m.gz
+C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\obj\Debug\net10.0\compressed\zdgz9x3xrh-{0}-285cj6z2bk-285cj6z2bk.gz
+C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\obj\Debug\net10.0\compressed\vi3jhogw54-{0}-lvl5mh4kpy-lvl5mh4kpy.gz
+C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\obj\Debug\net10.0\compressed\8y0amjewm8-{0}-s1kxg6gvqh-s1kxg6gvqh.gz
+C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\obj\Debug\net10.0\compressed\dpl97lizoc-{0}-ry7q6dwoi6-ry7q6dwoi6.gz
+C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\obj\Debug\net10.0\compressed\cefgn2g2ir-{0}-9acv3en18j-9acv3en18j.gz
+C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\obj\Debug\net10.0\compressed\vg7qehrcqj-{0}-sqaql2lm12-sqaql2lm12.gz
+C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\obj\Debug\net10.0\compressed\g1em7wwbhl-{0}-sqaql2lm12-sqaql2lm12.gz

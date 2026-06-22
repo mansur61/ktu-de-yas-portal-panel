@@ -2,7 +2,28 @@ namespace KtuDeYasPortal.Panel.Domain.Entities;
 
 public enum SensorType
 {
-    Vibration, Temperature, Pressure, Humidity, Camera, Image, Generic
+    // ── Temel tipler (test-sensor-worker ve StructureTestData ile uyumlu) ──
+    Vibration,
+    Accelerometer,
+    Temperature,
+    Pressure,
+    Humidity,
+    Lidar,
+    Ultrasonic,
+    Camera,
+    Image,
+    Gps,
+    Water,
+    Wind,
+    Generic
+}
+
+public enum SensorStatus
+{
+    Online,
+    Warning,
+    Alarm,
+    Offline
 }
 
 public class Sensor
@@ -15,6 +36,8 @@ public class Sensor
     public string Topic { get; set; } = string.Empty;
     public string Unit { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
+    /// <summary>Bu sensörün yayınladığı metrik key'leri (CSV). Örnek: "temperature,humidity"</summary>
+    public string Metrics { get; set; } = string.Empty;
     public bool IsEnabled { get; set; } = true;
     public bool IsActive { get; set; } = true;
     public string ProtocolType { get; set; } = string.Empty;
@@ -24,6 +47,17 @@ public class Sensor
     public double RotationX { get; set; }
     public double RotationY { get; set; }
     public double RotationZ { get; set; }
+
+    // ── Görsel üzerinde pozisyon (2D pin) ──
+    public double? ImagePositionX { get; set; }
+    public double? ImagePositionY { get; set; }
+
+    // ── Anlık durum (runtime, DB'ye kaydedilmez) ──
+    public SensorStatus Status { get; set; } = SensorStatus.Offline;
+    public double? LastValue { get; set; }
+    public DateTime? LastUpdated { get; set; }
+    public string? AlertMessage { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

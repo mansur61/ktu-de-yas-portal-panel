@@ -2,318 +2,1372 @@
 @rendermode InteractiveServer
 @inject StructureUseCases StructureUC
 @inject IJSRuntime JS
+@implements IAsyncDisposable
 
 <PageTitle>Yapı Yönetimi</PageTitle>
 
-<h3>Yapı Yönetimi</h3>
-
-<div class="mb-3">
-    <button class="btn btn-primary" @onclick="ShowCreateForm">
-        <span class="bi bi-plus-lg me-1"></span>+ Yeni Yapı
-    </button>
-</div>
-
-@if (_showForm)
+@* ══════════════════════════════════════════════════════════════════
+   ANA SAYFA — Liste + Başlık
+   ══════════════════════════════════════════════════════════════════ *@
+@if (_editingStructure == null && !_showCreateWizard)
 {
-    <div class="card mb-4 border-primary">
-        <div class="card-header bg-primary text-white">
-            <strong>@(_editId == Guid.Empty ? "Yeni Yapı Oluştur" : "Yapıyı Düzenle")</strong>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h4 class="mb-0 fw-bold">Yapı Yönetimi</h4>
+            <small class="text-muted">Kayıtlı yapılar, sensörler ve konum bilgileri</small>
         </div>
-        <div class="card-body">
-            <EditForm Model="_editModel" OnValidSubmit="SaveAsync">
-                <DataAnnotationsValidator />
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <label class="form-label">Yapı Adı <span class="text-danger">*</span></label>
-                        <InputText class="form-control" @bind-Value="_editModel.Name" placeholder="Örn: Yusufeli Barajı" />
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Sensör Sayısı</label>
-                        <InputNumber class="form-control" @bind-Value="_sensorCount" min="1" max="50" />
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Durum</label>
-                        <div class="mt-2">
-                            <InputCheckbox @bind-Value="_editModel.IsActive" /> Aktif
+        <button class="btn btn-primary" @onclick="ShowCreateWizard">
+            <span class="bi bi-plus-lg me-1"></span> Yeni Yapı
+        </button>
+    </div>
+
+    @if (_structures is null)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-2 text-muted">Yükleniyor…</p>
+        </div>
+    }
+    else if (_structures.Count == 0)
+    {
+        <div class="alert alert-info d-flex align-items-center gap-3">
+            <span class="bi bi-info-circle-fill fs-4"></span>
+            <div>Henüz yapı tanımlanmamış. <strong>Yeni Yapı</strong> butonuyla ekleyebilirsiniz.</div>
+        </div>
+    }
+    else
+    {
+        <div class="row g-3">
+            @foreach (var s in _structures)
+            {
+                <div class="col-sm-6 col-xl-4">
+                    <div class="structure-card @(s.IsActive ? "" : "opacity-60")" @onclick="() => OpenStructureDetail(s.Id)">
+                        @if (!string.IsNullOrEmpty(s.ImageUrl))
+                        {
+                            <img src="@s.ImageUrl" class="structure-card-img" alt="@s.Name" />
+                        }
+                        else
+                        {
+                            <div class="structure-card-img-placeholder">
+                                <span>@GetStructureEmoji(s.StructureType)</span>
+                            </div>
+                        }
+                        <div class="structure-card-body">
+                            <div class="structure-card-title">@s.Name</div>
+                            <div class="structure-card-sub">
+                                <span class="bi bi-geo-alt me-1"></span>
+                                @s.Province@(string.IsNullOrEmpty(s.District) ? "" : " / " + s.District)
+                            </div>
+                            <div class="structure-card-badges">
+                                <span class="badge" style="background:#6f42c1">@GetStructureLabel(s.StructureType)</span>
+                                <span class="badge bg-primary">@s.SensorCount sensör</span>
+                                @if (s.IsActive)
+                                { <span class="badge bg-success">Aktif</span> }
+                                else
+                                { <span class="badge bg-secondary">Pasif</span> }
+                            </div>
                         </div>
                     </div>
+                </div>
+            }
+        </div>
+    }
+}
 
+@* ══════════════════════════════════════════════════════════════════
+   YENİ YAPI OLUŞTURMA — 3 ADIM
+   ══════════════════════════════════════════════════════════════════ *@
+@if (_showCreateWizard)
+{
+    <div class="create-structure-panel mb-4">
+        <div class="create-panel-header">
+            <strong><span class="bi bi-plus-circle me-2"></span>Yeni Yapı Oluştur</strong>
+            <button class="btn btn-sm btn-outline-light" @onclick="CancelCreate">İptal</button>
+        </div>
+
+        <div class="create-steps">
+            <div class="create-step @(_wizardStep >= 1 ? (_wizardStep > 1 ? "done" : "active") : "")">
+                <div class="create-step-num">@(_wizardStep > 1 ? "✓" : "1")</div>
+                <div>Yapı Tipi</div>
+            </div>
+            <div class="create-step @(_wizardStep >= 2 ? (_wizardStep > 2 ? "done" : "active") : "")">
+                <div class="create-step-num">@(_wizardStep > 2 ? "✓" : "2")</div>
+                <div>Bilgiler &amp; Konum</div>
+            </div>
+            <div class="create-step @(_wizardStep >= 3 ? "active" : "")">
+                <div class="create-step-num">3</div>
+                <div>Sensör Ekle</div>
+            </div>
+        </div>
+
+        <div class="p-4">
+            @* ADIM 1 — Yapı tipi *@
+            @if (_wizardStep == 1)
+            {
+                <p class="text-muted mb-3">Oluşturmak istediğiniz yapının tipini seçin:</p>
+                <div class="structure-type-grid">
+                    @foreach (var st in _structureTypes)
+                    {
+                        <div class="structure-type-card @(st.Key == _newType ? "selected" : "")"
+                             @onclick="() => SelectNewType(st.Key)">
+                            <span class="type-icon">@st.Value.Emoji</span>
+                            <span class="type-label">@st.Value.Label</span>
+                        </div>
+                    }
+                </div>
+                <div class="mt-3">
+                    <button class="btn btn-primary" disabled="@(_newType == null)"
+                            @onclick="GoToStep2">
+                        İleri <span class="bi bi-arrow-right ms-1"></span>
+                    </button>
+                </div>
+            }
+
+            @* ADIM 2 — Temel bilgiler *@
+            @if (_wizardStep == 2)
+            {
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Yapı Adı <span class="text-danger">*</span></label>
+                        <input class="form-control" @bind="_newName" placeholder="Örn: Yusufeli Barajı" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Durum</label>
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="checkbox" @bind="_newIsActive" id="chkActive" />
+                            <label class="form-check-label" for="chkActive">Aktif</label>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-semibold">Açıklama</label>
+                        <input class="form-control" @bind="_newDescription" placeholder="Yapı hakkında kısa bir açıklama" />
+                    </div>
+                    @* ── Konum bilgileri de burada ── *@
+                    <div class="col-12"><hr class="my-1" /><small class="text-muted fw-semibold">Konum Bilgileri</small></div>
                     <div class="col-md-4">
                         <label class="form-label">İl <span class="text-danger">*</span></label>
-                    <select class="form-select" @bind="_selectedProvince" @bind:after="() => OnProvinceChanged(_selectedProvince)">
+                        <select class="form-select" value="@_newProvince" @onchange="OnNewProvinceChanged">
                             <option value="">-- İl Seçin --</option>
                             @foreach (var p in _provinces)
-                            {
-                                <option value="@p">@p</option>
-                            }
+                            { <option value="@p">@p</option> }
                         </select>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">İlçe</label>
-                        <select class="form-select" @bind="_selectedDistrict">
+                        <select class="form-select" value="@_newDistrict" @onchange="OnNewDistrictChanged"
+                                disabled="@(string.IsNullOrEmpty(_newProvince))">
                             <option value="">-- İlçe Seçin --</option>
-                            @foreach (var d in _districts)
-                            {
-                                <option value="@d">@d</option>
-                            }
+                            @foreach (var d in _newDistricts)
+                            { <option value="@d">@d</option> }
                         </select>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Adres</label>
-                        <InputText class="form-control" @bind-Value="_editModel.Address" placeholder="Adres bilgisi" />
+                        <input id="address-input" class="form-control" @bind="_newAddress" placeholder="Cadde / mahalle" />
                     </div>
-                </div>
-
-                @* ── Harita ── *@
-                <div class="mt-3">
-                    <label class="form-label">Konum Seç (Haritaya tıklayın)</label>
-                    <div id="map" class="map-container"></div>
-                    <div class="row mt-2">
-                        <div class="col-md-4">
-                            <label class="form-label">Enlem</label>
-                            <input type="number" class="form-control" @bind="_editModel.Latitude" step="0.0001" />
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Boylam</label>
-                            <input type="number" class="form-control" @bind="_editModel.Longitude" step="0.0001" />
-                        </div>
-                    </div>
-                </div>
-
-                @* ── Sensör Seçimi ── *@
-                <div class="mt-3">
-                    <label class="form-label">Sensörler</label>
-                    <div class="row g-2">
-                        @foreach (var sensor in _availableSensors)
-                        {
-                            <div class="col-md-4 col-lg-3">
-                                <div class="form-check">
-                                    <input type="checkbox" class="form-check-input"
-                                           checked="@_selectedSensorIds.Contains(sensor.Id)"
-                                           @onchange="e => ToggleSensor(sensor.Id, e.Value)" />
-                                    <label class="form-check-label">
-                                        <small>@sensor.Name</small>
-                                        <span class="badge bg-secondary">@sensor.SensorType</span>
-                                    </label>
-                                </div>
+                    @* ── Harita ── *@
+                    <div class="col-12">
+                        <label class="form-label">
+                            <span class="bi bi-map me-1"></span>Konum Seç
+                            <small class="text-muted fw-normal"> — Haritaya tıklayın ya da marker'ı sürükleyin</small>
+                        </label>
+                        <div id="new-map" class="map-container"></div>
+                        <div class="row mt-2 g-2">
+                            <div class="col-md-4">
+                                <label class="form-label small">Enlem</label>
+                                <input id="lat-input" type="number" class="form-control form-control-sm" @bind="_newLat" step="0.000001" />
                             </div>
-                        }
+                            <div class="col-md-4">
+                                <label class="form-label small">Boylam</label>
+                                <input id="lng-input" type="number" class="form-control form-control-sm" @bind="_newLng" step="0.000001" />
+                            </div>
+                        </div>
                     </div>
                 </div>
-
-                <div class="mt-4">
-                    <button type="submit" class="btn btn-success me-2">
-                        <span class="bi bi-check-lg me-1"></span>Kaydet
+                <div class="mt-3 d-flex gap-2">
+                    <button class="btn btn-outline-secondary" @onclick="BackFromStep2">
+                        <span class="bi bi-arrow-left me-1"></span> Geri
                     </button>
-                    <button type="button" class="btn btn-secondary" @onclick="Cancel">İptal</button>
+                    <button class="btn btn-primary" disabled="@(string.IsNullOrWhiteSpace(_newName) || string.IsNullOrEmpty(_newProvince))"
+                            @onclick="GoToSensorStep">
+                        İleri — Sensör Ekle <span class="bi bi-arrow-right ms-1"></span>
+                    </button>
+                    <button class="btn btn-success ms-auto" disabled="@(string.IsNullOrWhiteSpace(_newName) || string.IsNullOrEmpty(_newProvince) || _isSaving)"
+                            @onclick="SaveNewStructureAsync">
+                        @if (_isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        <span class="bi bi-check-lg me-1"></span> Kaydet (Sensörsüz)
+                    </button>
                 </div>
-            </EditForm>
+            }
+
+            @* ADIM 3 — Yapı resmi üzerinde sensör ekleme *@
+            @if (_wizardStep == 3)
+            {
+                <div class="mb-3 d-flex align-items-center gap-3">
+                    <div>
+                        <strong>@_newName</strong>
+                        <span class="badge ms-2" style="background:#6f42c1">@(_newType.HasValue ? GetStructureLabel(_newType.Value) : "")</span>
+                        @if (!string.IsNullOrEmpty(_newProvince))
+                        { <span class="badge bg-info ms-1">@_newProvince@(string.IsNullOrEmpty(_newDistrict) ? "" : " / " + _newDistrict)</span> }
+                    </div>
+                    <div class="ms-auto d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="BackFromStep3">
+                            <span class="bi bi-arrow-left me-1"></span> Geri
+                        </button>
+                        <button class="btn btn-success" @onclick="() => _showSaveConfirm = true" disabled="@_isSaving">
+                            @if (_isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                            <span class="bi bi-check-lg me-1"></span> Tamamla &amp; Kaydet
+                        </button>
+                    </div>
+                </div>
+                <div class="alert alert-info d-flex align-items-center gap-2 py-2 small mb-2">
+                    <span class="bi bi-cursor-fill text-primary"></span>
+                    Resme tıklayarak sensör konumlandırın. İstediğiniz kadar sensör ekleyebilirsiniz, daha sonra da eklenebilir.
+                </div>
+                @* Yapı resmi — JS tarafından doldurulur (initStructureImage), burada sadece container *@
+                <div class="wizard-image-wrapper" id="wizard-image">
+                    @* JS initStructureImage() bu div'in içini doldurur *@
+                </div>
+                @* Eklenen sensörler listesi *@
+                @if (_newStructureSensors.Any())
+                {
+                    <div class="mt-3">
+                        <h6 class="fw-semibold mb-2"><span class="bi bi-cpu me-1"></span>Eklenen Sensörler (@_newStructureSensors.Count)</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered mb-0">
+                                <thead class="table-dark">
+                                    <tr><th>#</th><th>Tip</th><th>Ad</th><th>Device ID</th><th>Topic</th><th>Metrikler</th><th>X/Y</th><th></th></tr>
+                                </thead>
+                                <tbody>
+                                    @for (int i = 0; i < _newStructureSensors.Count; i++)
+                                    {
+                                        var idx = i;
+                                        var s = _newStructureSensors[idx];
+                                        var icon = _sensorTypeInfos.TryGetValue(s.SensorType.ToString(), out var ti) ? ti.Emoji : "🔘";
+                                        <tr>
+                                            <td>@(idx + 1)</td>
+                                            <td><span title="@s.SensorType">@icon</span></td>
+                                            <td>@s.Name</td>
+                                            <td><code style="font-size:0.75rem">@s.DeviceId</code></td>
+                                            <td><small class="font-monospace">@s.Topic</small></td>
+                                            <td><small>@s.Description</small></td>
+                                            <td><small>@(s.ImagePositionX?.ToString("F1") ?? "-"), @(s.ImagePositionY?.ToString("F1") ?? "-")</small></td>
+                                            <td>
+                                                <button class="btn btn-outline-danger py-0 px-1" style="font-size:0.7rem;line-height:1.4"
+                                                        @onclick="() => RemoveWizardSensor(idx)">✕</button>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                }
+            }
         </div>
     </div>
 }
 
-@if (_structures is null)
+@* ══════════════════════════════════════════════════════════════════
+   YAPI DETAY — Görsel + Sensör Overlay
+   ══════════════════════════════════════════════════════════════════ *@
+@if (_editingStructure != null)
 {
-    <p><em>Yükleniyor...</em></p>
-}
-else if (_structures.Count == 0)
-{
-    <div class="alert alert-info">Henüz yapı tanımlanmamış.</div>
-}
-else
-{
-    <div class="row g-3">
-        @foreach (var s in _structures)
+    <div class="structure-detail-panel mb-4">
+        <div class="structure-detail-header">
+            <div class="d-flex align-items-center gap-2 overflow-hidden">
+                <span style="font-size:1.4rem">@GetStructureEmoji(_editingStructure.StructureType)</span>
+                <div class="overflow-hidden">
+                    <h5 class="mb-0 text-truncate">@_editingStructure.Name</h5>
+                    <small class="text-white-50">
+                        @_editingStructure.Province
+                        @(string.IsNullOrEmpty(_editingStructure.District) ? "" : " / " + _editingStructure.District)
+                        · @GetStructureLabel(_editingStructure.StructureType)
+                    </small>
+                </div>
+            </div>
+            <div class="d-flex gap-2 flex-shrink-0">
+                <button class="btn btn-sm btn-outline-light" @onclick="EditStructureInfo" title="Bilgileri düzenle">
+                    <span class="bi bi-pencil me-1"></span>Düzenle
+                </button>
+                <button class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmDelete(_editingStructure.Id)" title="Sil">
+                    <span class="bi bi-trash"></span>
+                </button>
+                <button class="btn btn-sm btn-outline-light" @onclick="CloseDetail">
+                    <span class="bi bi-x-lg"></span>
+                </button>
+            </div>
+        </div>
+
+        @* ── Görsel Overlay — JS initStructureImage() doldurur ── *@
+        <div class="structure-image-wrapper" id="structure-image">
+            @* JS tarafından doldurulur *@
+        </div>
+        <div class="structure-image-click-hint">
+            <span class="bi bi-plus-circle me-1"></span>Resme tıklayarak sensör ekleyin
+        </div>
+
+        @* ── Alt bilgi + Kayıtlı Sensörler ── *@
+        <div class="structure-detail-info">
+            @if (!string.IsNullOrEmpty(_editingStructure.Description))
+            {
+                <span><span class="bi bi-info-circle me-1 text-muted"></span>@_editingStructure.Description</span>
+            }
+            @if (_editingStructure.Latitude.HasValue)
+            {
+                <span><span class="bi bi-crosshair me-1 text-muted"></span>
+                    @_editingStructure.Latitude.Value.ToString("F5"), @_editingStructure.Longitude!.Value.ToString("F5")
+                </span>
+            }
+            <span><span class="bi bi-cpu me-1 text-muted"></span>@(_editingStructure.Sensors?.Count ?? 0) sensör</span>
+            <span class="ms-auto">
+                <button class="btn btn-sm btn-outline-secondary" @onclick="RefreshMarkersAsync">
+                    <span class="bi bi-arrow-clockwise me-1"></span>Yenile
+                </button>
+            </span>
+        </div>
+
+        @* ── Kayıtlı Sensör Listesi ── *@
+        @if (_editingStructure.Sensors?.Any() == true)
         {
-            <div class="col-md-6 col-lg-4">
-                <div class="card card-structure h-100">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-start mb-2">
-                            <h5 class="card-title mb-0">@s.Name</h5>
-                            @if (s.IsActive)
-                            { <span class="badge bg-success">Aktif</span> }
-                            else
-                            { <span class="badge bg-secondary">Pasif</span> }
-                        </div>
-                        @if (!string.IsNullOrEmpty(s.Description))
-                        {
-                            <p class="card-text text-muted small">@s.Description</p>
-                        }
-                        <div class="d-flex gap-2 flex-wrap small mb-2">
-                            <span class="badge bg-info">@s.Province @(!string.IsNullOrEmpty(s.District) ? "/ " + s.District : "")</span>
-                            <span class="badge bg-primary">@s.SensorCount Sensör</span>
-                            @if (s.Latitude.HasValue && s.Longitude.HasValue)
+            <div class="px-3 pb-3">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0" style="font-size:0.83rem">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width:32px"></th>
+                                <th>Sensör Adı</th>
+                                <th>Tip</th>
+                                <th>Device ID</th>
+                                <th>Topic</th>
+                                <th>Metrikler</th>
+                                <th style="width:40px"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var ss in _editingStructure.Sensors)
                             {
-                                <span class="badge bg-secondary">📍 @s.Latitude.Value.ToString("F4"), @s.Longitude.Value.ToString("F4")</span>
+                                var icon = GetSensorEmoji(ss.SensorType);
+                                <tr>
+                                    <td class="text-center">@icon</td>
+                                    <td>@ss.Name</td>
+                                    <td><span class="badge bg-secondary">@ss.SensorType</span></td>
+                                    <td><code style="font-size:0.75rem">@ss.DeviceId</code></td>
+                                    <td><small class="font-monospace" title="@ss.Topic" style="font-size:0.72rem">@(ss.Topic.Length > 32 ? ss.Topic[..30] + "…" : ss.Topic)</small></td>
+                                    <td>
+                                        @if (!string.IsNullOrEmpty(ss.Description))
+                                        {
+                                            @foreach (var m in ss.Description.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                                            {
+                                                <span class="badge bg-info text-dark me-1" style="font-size:0.65rem">@m</span>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <small class="text-muted">-</small>
+                                        }
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-outline-danger btn-sm py-0 px-1"
+                                                style="font-size:0.7rem;line-height:1.5"
+                                                title="Sensörü sil"
+                                                @onclick="() => RemoveSensorFromStructureAsync(ss.SensorId)">
+                                            <span class="bi bi-trash"></span>
+                                        </button>
+                                    </td>
+                                </tr>
                             }
-                        </div>
-                    </div>
-                    <div class="card-footer bg-transparent d-flex gap-2 justify-content-end">
-                        <button class="btn btn-sm btn-outline-primary" @onclick="() => Edit(s.Id)">
-                            <span class="bi bi-pencil"></span> Düzenle
-                        </button>
-                        <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(s.Id)">
-                            <span class="bi bi-trash"></span> Sil
-                        </button>
-                    </div>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         }
     </div>
 }
 
+@* ══════════════════════════════════════════════════════════════════
+   SENSÖR EKLEME POPUP
+   ══════════════════════════════════════════════════════════════════ *@
+@if (_showSensorPopup)
+{
+    <div class="popup-overlay" @onclick="CloseSensorPopup"></div>
+    <div class="sensor-add-popup">
+        <div class="sensor-add-popup-header">
+            <span><span class="bi bi-plus-circle me-2"></span>Yeni Sensör Ekle</span>
+            <button style="background:none;border:none;color:rgba(255,255,255,0.8);font-size:20px;cursor:pointer;padding:0 4px"
+                    @onclick="CloseSensorPopup">&times;</button>
+        </div>
+        <div class="sensor-add-popup-body">
+            <div class="alert alert-light border small d-flex align-items-center gap-2 mb-3 py-2">
+                <span class="bi bi-crosshair text-primary"></span>
+                Konum: X=@(_pendingPos?.x.ToString("F1") ?? "—"), Y=@(_pendingPos?.y.ToString("F1") ?? "—")
+            </div>
+
+            @* Sensör tipi seçici *@
+            <label class="form-label fw-semibold mb-2">Sensör Tipi</label>
+            <div class="sensor-type-selector mb-3">
+                @foreach (var st in _sensorTypeInfos)
+                {
+                    <div class="sensor-type-btn @(_sensorFormType == st.Key ? "active" : "")"
+                         @onclick="() => OnSensorTypeSelected(st.Key)">
+                        <span class="stype-icon">@st.Value.Emoji</span>
+                        @st.Value.Label
+                    </div>
+                }
+            </div>
+
+            @* Metrik seçimi (çoklu) *@
+            <label class="form-label fw-semibold mb-1">
+                Metrikler
+                <small class="text-muted fw-normal"> — bu sensörün yayınlayacağı veri tipleri</small>
+            </label>
+            <div class="d-flex flex-wrap gap-2 mb-3">
+                @foreach (var m in _allMetrics)
+                {
+                    var selected = _sensorFormMetrics.Contains(m.Key);
+                    <button type="button"
+                            class="btn btn-sm @(selected ? "btn-primary" : "btn-outline-secondary")"
+                            @onclick="() => ToggleMetric(m.Key)">
+                        @m.Value.Emoji @m.Value.Label
+                        @if (selected) { <span class="bi bi-check ms-1"></span> }
+                    </button>
+                }
+            </div>
+
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Sensör Adı <span class="text-danger">*</span></label>
+                    <input class="form-control" @bind="_sensorFormName" placeholder="Örn: Kuzey Ayak Titreşim" />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Device ID <span class="text-danger">*</span></label>
+                    <input class="form-control" @bind="_sensorFormDeviceId" placeholder="sensor-001" />
+                </div>
+                <div class="col-12">
+                    <label class="form-label">
+                        MQTT Topic
+                        <small class="text-muted fw-normal"> — tip seçince otomatik dolar</small>
+                    </label>
+                    <input class="form-control" @bind="_sensorFormTopic" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Birim</label>
+                    <input class="form-control" @bind="_sensorFormUnit" placeholder="mm/s, °C…" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Protokol</label>
+                    <select class="form-select" @bind="_sensorFormProtocol">
+                        <option value="MQTT">MQTT</option>
+                        <option value="Modbus">Modbus</option>
+                        <option value="HTTP">HTTP</option>
+                        <option value="Serial">Seri Port</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Konum Etiketi</label>
+                    <input class="form-control" @bind="_sensorFormLabel" placeholder="Örn: Kuzey Ayak" />
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Açıklama</label>
+                    <input class="form-control" @bind="_sensorFormDescription" />
+                </div>
+            </div>
+
+            @if (!string.IsNullOrEmpty(_saveError))
+            {
+                <div class="alert alert-danger mt-2 py-2 small">@_saveError</div>
+            }
+
+            <div class="mt-3 d-flex gap-2">
+                <button class="btn btn-success" disabled="@(string.IsNullOrWhiteSpace(_sensorFormName) || string.IsNullOrWhiteSpace(_sensorFormDeviceId) || _isSaving)"
+                        @onclick="SaveSensorAsync">
+                    @if (_isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                    <span class="bi bi-check-lg me-1"></span>
+                    @(_isWizardSensorMode ? "Listeye Ekle" : "DB'ye Kaydet")
+                </button>
+                <button class="btn btn-secondary" @onclick="CloseSensorPopup">İptal</button>
+            </div>
+        </div>
+    </div>
+}
+
+@* ══════════════════════════════════════════════════════════════════
+   YAPI BİLGİ DÜZENLEME POPUP
+   ══════════════════════════════════════════════════════════════════ *@
+@if (_showEditPopup && _editingStructure != null)
+{
+    <div class="popup-overlay" @onclick="CloseEditPopup"></div>
+    <div class="sensor-add-popup">
+        <div class="sensor-add-popup-header edit-popup-header">
+            <span><span class="bi bi-pencil me-2"></span>Yapı Bilgilerini Düzenle</span>
+            <button style="background:none;border:none;color:rgba(255,255,255,0.8);font-size:20px;cursor:pointer;padding:0 4px"
+                    @onclick="CloseEditPopup">&times;</button>
+        </div>
+        <div class="sensor-add-popup-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Yapı Adı</label>
+                    <input class="form-control" @bind="_editName" />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Yapı Tipi</label>
+                    <select class="form-select" @bind="_editType">
+                        @foreach (var st in _structureTypes)
+                        {
+                            <option value="@st.Key">@st.Value.Label</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Açıklama</label>
+                    <input class="form-control" @bind="_editDescription" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">İl</label>
+                    <select class="form-select" value="@_editProvince" @onchange="OnEditProvinceChanged">
+                        <option value="">-- Seçin --</option>
+                        @foreach (var p in _provinces)
+                        { <option value="@p">@p</option> }
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">İlçe</label>
+                    <select class="form-select" @bind="_editDistrict">
+                        <option value="">-- Seçin --</option>
+                        @foreach (var d in _editDistricts)
+                        { <option value="@d">@d</option> }
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Adres</label>
+                    <input class="form-control" @bind="_editAddress" />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Durum</label>
+                    <div class="form-check mt-2">
+                        <input class="form-check-input" type="checkbox" @bind="_editIsActive" id="chkEditActive" />
+                        <label class="form-check-label" for="chkEditActive">Aktif</label>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-3 d-flex gap-2">
+                <button class="btn btn-success" @onclick="SaveEditAsync" disabled="@_isSaving">
+                    @if (_isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                    <span class="bi bi-check-lg me-1"></span> Kaydet
+                </button>
+                <button class="btn btn-secondary" @onclick="CloseEditPopup">İptal</button>
+            </div>
+        </div>
+    </div>
+}
+
+@* Kaydet onay modalı (Wizard adım 3) *@
+@if (_showSaveConfirm)
+{
+    <div class="popup-overlay" @onclick="() => _showSaveConfirm = false"></div>
+    <div class="sensor-add-popup" style="max-width:480px">
+        <div class="sensor-add-popup-header" style="background:linear-gradient(90deg,#198754,#0f6241)">
+            <span><span class="bi bi-save me-2"></span>Yapıyı Kaydet</span>
+            <button style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer" @onclick="() => _showSaveConfirm = false">&times;</button>
+        </div>
+        <div class="sensor-add-popup-body">
+            <p class="mb-3">
+                <strong>@_newName</strong> yapısı ve
+                <strong>@_newStructureSensors.Count</strong> sensör birlikte veritabanına kaydedilecek.
+            </p>
+            <div class="table-responsive mb-3" style="max-height:200px;overflow-y:auto">
+                <table class="table table-sm table-bordered mb-0 small">
+                    <thead class="table-secondary">
+                        <tr><th>Sensör</th><th>Tip</th><th>Topic</th><th>Metrikler</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var s in _newStructureSensors)
+                        {
+                            <tr>
+                                <td>@s.Name</td>
+                                <td><span class="badge bg-secondary">@s.SensorType</span></td>
+                                <td><small class="font-monospace">@(s.Topic.Length > 30 ? s.Topic[..28] + "…" : s.Topic)</small></td>
+                                <td><small class="text-muted">@(string.IsNullOrEmpty(s.Metrics) ? "-" : s.Metrics)</small></td>
+                            </tr>
+                        }
+                        @if (!_newStructureSensors.Any())
+                        {
+                            <tr><td colspan="4" class="text-center text-muted">Sensör eklenmedi (sonradan eklenebilir)</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            @if (!string.IsNullOrEmpty(_saveError))
+            {
+                <div class="alert alert-danger py-2 small">@_saveError</div>
+            }
+            <div class="d-flex gap-2">
+                <button class="btn btn-success" @onclick="ConfirmedSaveAsync" disabled="@_isSaving">
+                    @if (_isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                    <span class="bi bi-check-lg me-1"></span> Evet, Kaydet
+                </button>
+                <button class="btn btn-secondary" @onclick="() => _showSaveConfirm = false">İptal</button>
+            </div>
+        </div>
+    </div>
+}
+
+@* Silme onay modalı *@
+@if (_deletingId.HasValue)
+{
+    <div class="popup-overlay" @onclick="() => _deletingId = null"></div>
+    <div class="sensor-add-popup" style="max-width:400px">
+        <div class="sensor-add-popup-header" style="background:linear-gradient(90deg,#dc3545,#a71d2a)">
+            <span><span class="bi bi-trash me-2"></span>Yapıyı Sil</span>
+            <button style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer" @onclick="() => _deletingId = null">&times;</button>
+        </div>
+        <div class="sensor-add-popup-body">
+            <p class="mb-3">Bu yapı ve tüm sensör bağlantıları kalıcı olarak silinecek. Devam etmek istiyor musunuz?</p>
+            <div class="d-flex gap-2">
+                <button class="btn btn-danger" @onclick="DoDeleteAsync" disabled="@_isSaving">
+                    @if (_isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                    Evet, Sil
+                </button>
+                <button class="btn btn-secondary" @onclick="() => _deletingId = null">İptal</button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
-    private List<Domain.Entities.Structure>? _structures;
-    private List<Sensor> _availableSensors = new();
-    private List<Guid> _selectedSensorIds = new();
-    private Guid _editId;
-    private bool _showForm;
-    private int _sensorCount = 1;
+    // ── State ────────────────────────────────────────────────────────────────
+    private List<Structure>? _structures;
+    private Structure?       _editingStructure;
+    private bool             _showCreateWizard;
+    private bool             _showSensorPopup;
+    private bool             _showEditPopup;
+    private bool             _showSaveConfirm; // wizard adım 3 onay modalı
+    private bool             _isSaving;
+    private Guid?            _deletingId;
+    private string?          _saveError;
 
-    private Structure _editModel = new();
+    // ── Wizard ───────────────────────────────────────────────────────────────
+    private int           _wizardStep  = 1;
+    private StructureType? _newType;
+    private string        _newName        = "";
+    private string        _newDescription = "";
+    private bool          _newIsActive    = true;
+    private string        _newProvince    = "";
+    private string        _newDistrict    = "";
+    private string        _newAddress     = "";
+    private double        _newLat         = 40.5;
+    private double        _newLng         = 40.0;
+    private List<string>  _newDistricts   = new();
+    private List<Sensor>  _newStructureSensors = new(); // wizard adım 3'te eklenenler
 
-    // İl/İlçe
-    private string _selectedProvince = "";
-    private string _selectedDistrict = "";
+    // ── Sensör popup ─────────────────────────────────────────────────────────
+    private string _sensorFormName        = "";
+    private string _sensorFormDeviceId    = "";
+    private string _sensorFormTopic       = "";
+    private string _sensorFormUnit        = "";
+    private string _sensorFormProtocol    = "MQTT";
+    private string _sensorFormLabel       = "";
+    private string _sensorFormDescription = "";
+    private string _sensorFormType        = "Generic";
+    private HashSet<string> _sensorFormMetrics = new(); // seçili metrikler
+    private (double x, double y)? _pendingPos;
+
+    // ── Edit popup ────────────────────────────────────────────────────────────
+    private string        _editName        = "";
+    private string        _editDescription = "";
+    private StructureType _editType        = StructureType.Other;
+    private string        _editProvince    = "";
+    private string        _editDistrict    = "";
+    private string        _editAddress     = "";
+    private bool          _editIsActive    = true;
+    private List<string>  _editDistricts   = new();
+
+    // ── Timer (click polling) ─────────────────────────────────────────────────
+    private PeriodicTimer?           _clickTimer;
+    private CancellationTokenSource? _timerCts;
+    // ── Render flags (OnAfterRenderAsync tekrar çalışmasın) ──────────────────
+    private bool _mapInitialized          = false;
+    private bool _wizardImageInitialized  = false;
+    private bool _detailImageInitialized  = false;
+
+    // ── Lookup tables ─────────────────────────────────────────────────────────
+    private record TypeInfo(string Label, string Emoji, string ImagePath);
+    private record SensorTypeInfo(string Label, string Emoji);
+
+    private readonly Dictionary<StructureType, TypeInfo> _structureTypes = new()
+    {
+        [StructureType.Bridge]   = new("Köprü",   "🌉", "/images/structures/bridge.jpg"),
+        [StructureType.Dam]      = new("Baraj",    "🏔️", "/images/structures/dam.svg"),
+        [StructureType.Tunnel]   = new("Tünel",    "🚇", "/images/structures/tunnel.svg"),
+        [StructureType.Building] = new("Bina",     "🏢", "/images/structures/building.svg"),
+        [StructureType.Other]    = new("Diğer",    "📍", "/images/structures/other.svg"),
+    };
+
+    private readonly Dictionary<string, SensorTypeInfo> _sensorTypeInfos = new()
+    {
+        ["Vibration"]     = new("Titreşim",     "📳"),
+        ["Accelerometer"] = new("İvme Ölçer",   "📐"),
+        ["Temperature"]   = new("Sıcaklık",     "🌡️"),
+        ["Humidity"]      = new("Nem",           "💧"),
+        ["Pressure"]      = new("Basınç",        "🔽"),
+        ["Lidar"]         = new("Lidar",         "📡"),
+        ["Ultrasonic"]    = new("Ultrasonik",    "🔊"),
+        ["Camera"]        = new("Kamera",        "📷"),
+        ["Gps"]           = new("GPS",           "📍"),
+        ["Water"]         = new("Su Seviyesi",   "🌊"),
+        ["Wind"]          = new("Rüzgar",        "💨"),
+        ["Generic"]       = new("Genel",         "🔘"),
+    };
+
+    // ── Metrik tanımları (test-sensor-worker RandomMetrics + StructureTestData sensorTypes) ───
+    private record MetricInfo(string Label, string Emoji, string Unit);
+    private readonly Dictionary<string, MetricInfo> _allMetrics = new()
+    {
+        ["temperature"] = new("Sıcaklık",         "🌡️", "°C"),
+        ["humidity"]    = new("Nem",               "💧",  "%"),
+        ["pressure"]    = new("Basınç",            "🔽",  "hPa"),
+        ["vibration"]   = new("Titreşim",          "📳",  "mm/s"),
+        ["wind_speed"]  = new("Rüzgar Hızı",       "💨",  "m/s"),
+        ["water_level"] = new("Su Seviyesi",        "🌊",  "m"),
+        ["strain"]      = new("Gerinim (Strain)",   "📏",  "με"),
+        ["tilt"]        = new("Eğim (Tilt)",        "📐",  "°"),
+        ["acceleration"]= new("İvme",              "🚀",  "m/s²"),
+        ["distance"]    = new("Mesafe (Lidar)",     "📡",  "m"),
+    };
+
+    // Sensör tipine göre varsayılan metrikler + topic + birim
+    private static readonly Dictionary<string, (string[] Metrics, string TopicSuffix, string Unit)> _typeDefaults = new()
+    {
+        ["Vibration"]     = (["vibration"],                     "vibration",     "mm/s"),
+        ["Accelerometer"] = (["acceleration", "vibration"],      "accelerometer", "m/s²"),
+        ["Temperature"]   = (["temperature"],                    "temperature",   "°C"),
+        ["Humidity"]      = (["humidity", "temperature"],         "humidity",      "%"),
+        ["Pressure"]      = (["pressure"],                       "pressure",      "hPa"),
+        ["Lidar"]         = (["distance"],                       "lidar",         "m"),
+        ["Ultrasonic"]    = (["distance"],                       "ultrasonic",    "m"),
+        ["Camera"]        = (new string[0],                      "camera",        ""),
+        ["Gps"]           = (new string[0],                      "gps",           ""),
+        ["Water"]         = (["water_level"],                    "water",         "m"),
+        ["Wind"]          = (["wind_speed"],                     "wind",          "m/s"),
+        ["Generic"]       = (["temperature"],                    "sensor",        ""),
+    };
+
     private readonly List<string> _provinces = new()
     {
-        "Artvin", "Erzurum", "Rize", "Trabzon", "Bayburt",
-        "Gümüşhane", "Giresun", "Ordu", "Samsun", "Amasya",
-        "Tokat", "Sivas", "Erzincan", "Kars", "Ardahan", "Iğdır"
+        "Artvin","Erzurum","Rize","Trabzon","Bayburt","Gümüşhane",
+        "Giresun","Ordu","Samsun","Amasya","Tokat","Sivas",
+        "Erzincan","Kars","Ardahan","Iğdır"
     };
-    private List<string> _districts = new();
 
     private readonly Dictionary<string, List<string>> _districtMap = new()
     {
-        ["Artvin"] = new() { "Merkez", "Ardanuç", "Arhavi", "Borçka", "Hopa", "Murgul", "Şavşat", "Yusufeli" },
-        ["Erzurum"] = new() { "Merkez", "Aşkale", "Çat", "Hınıs", "Horasan", "İspir", "Karaçoban", "Karayazı", "Köprüköy", "Narman", "Oltu", "Olur", "Palandöken", "Pasinler", "Pazaryolu", "Şenkaya", "Tekman", "Tortum", "Uzundere" },
-        ["Rize"] = new() { "Merkez", "Ardeşen", "Çamlıhemşin", "Çayeli", "Derepazarı", "Fındıklı", "Güneysu", "Hemşin", "İkizdere", "İyidere", "Kalkandere", "Pazar" },
-        ["Trabzon"] = new() { "Merkez", "Akçaabat", "Araklı", "Arsin", "Beşikdüzü", "Çarşıbaşı", "Çaykara", "Dernekpazarı", "Düzköy", "Hayrat", "Köprübaşı", "Maçka", "Of", "Ortahisar", "Sürmene", "Şalpazarı", "Tonya", "Vakfıkebir", "Yomra" },
-        ["Bayburt"] = new() { "Merkez", "Aydıntepe", "Demirözü" },
-        ["Gümüşhane"] = new() { "Merkez", "Kelkit", "Köse", "Kürtün", "Şiran", "Torul" },
-        ["Giresun"] = new() { "Merkez", "Alucra", "Bulancak", "Çamoluk", "Dereli", "Doğankent", "Espiye", "Eynesil", "Görele", "Güce", "Keşap", "Piraziz", "Şebinkarahisar", "Tirebolu", "Yağlıdere" },
-        ["Ordu"] = new() { "Merkez", "Altınordu", "Aybastı", "Çamaş", "Çatalpınar", "Çaybaşı", "Fatsa", "Gölköy", "Gülyalı", "Gürgentepe", "İkizce", "Kabadüz", "Kabataş", "Korgan", "Kumru", "Mesudiye", "Perşembe", "Ulubey", "Ünye" },
-        ["Samsun"] = new() { "Merkez", "Alaçam", "Asarcık", "Atakum", "Ayvacık", "Bafra", "Canik", "Çarşamba", "Havza", "İlkadım", "Kavak", "Ladik", "Ondokuzmayıs", "Salıpazarı", "Tekkeköy", "Terme", "Vezirköprü", "Yakakent" }
+        ["Artvin"]     = new(){"Merkez","Ardanuç","Arhavi","Borçka","Hopa","Murgul","Şavşat","Yusufeli"},
+        ["Erzurum"]    = new(){"Merkez","Aşkale","Çat","Hınıs","Horasan","İspir","Karaçoban","Karayazı","Köprüköy","Narman","Oltu","Olur","Palandöken","Pasinler","Pazaryolu","Şenkaya","Tekman","Tortum","Uzundere"},
+        ["Rize"]       = new(){"Merkez","Ardeşen","Çamlıhemşin","Çayeli","Derepazarı","Fındıklı","Güneysu","Hemşin","İkizdere","İyidere","Kalkandere","Pazar"},
+        ["Trabzon"]    = new(){"Merkez","Akçaabat","Araklı","Arsin","Beşikdüzü","Çarşıbaşı","Çaykara","Dernekpazarı","Düzköy","Hayrat","Köprübaşı","Maçka","Of","Ortahisar","Sürmene","Şalpazarı","Tonya","Vakfıkebir","Yomra"},
+        ["Bayburt"]    = new(){"Merkez","Aydıntepe","Demirözü"},
+        ["Gümüşhane"]  = new(){"Merkez","Kelkit","Köse","Kürtün","Şiran","Torul"},
+        ["Giresun"]    = new(){"Merkez","Alucra","Bulancak","Çamoluk","Dereli","Doğankent","Espiye","Eynesil","Görele","Güce","Keşap","Piraziz","Şebinkarahisar","Tirebolu","Yağlıdere"},
+        ["Ordu"]       = new(){"Merkez","Altınordu","Aybastı","Çamaş","Çatalpınar","Çaybaşı","Fatsa","Gölköy","Gülyalı","Gürgentepe","İkizce","Kabadüz","Kabataş","Korgan","Kumru","Mesudiye","Perşembe","Ulubey","Ünye"},
+        ["Samsun"]     = new(){"Merkez","Alaçam","Asarcık","Atakum","Ayvacık","Bafra","Canik","Çarşamba","Havza","İlkadım","Kavak","Ladik","Ondokuzmayıs","Salıpazarı","Tekkeköy","Terme","Vezirköprü","Yakakent"},
+        ["Amasya"]     = new(){"Merkez","Göynücek","Gümüşhacıköy","Hamamözü","Merzifon","Suluova","Taşova"},
+        ["Tokat"]      = new(){"Merkez","Almus","Artova","Başçiftlik","Erbaa","Niksar","Pazar","Reşadiye","Sulusaray","Turhal","Yeşilyurt","Zile"},
+        ["Sivas"]      = new(){"Merkez","Akıncılar","Altınyayla","Divriği","Doğanşar","Gemerek","Gölova","Gürun","Hafik","İmranlı","Kangal","Koyulhisar","Şarkışla","Ulaş","Yıldızeli","Zara"},
+        ["Erzincan"]   = new(){"Merkez","Çayırlı","İliç","Kemah","Kemaliye","Otlukbeli","Refahiye","Tercan","Üzümlü"},
+        ["Kars"]       = new(){"Merkez","Akyaka","Arpaçay","Digor","Kağızman","Sarıkamış","Selim","Susuz"},
+        ["Ardahan"]    = new(){"Merkez","Çıldır","Damal","Göle","Hanak","Posof"},
+        ["Iğdır"]      = new(){"Merkez","Aralık","Karakoyunlu","Tuzluca"},
     };
 
+    // ── Lifecycle ─────────────────────────────────────────────────────────────
     protected override async Task OnInitializedAsync()
     {
-        await LoadAsync();
+        await LoadStructuresAsync();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender && _showForm)
+        if (firstRender)
         {
-            await InitMap();
+            _timerCts   = new CancellationTokenSource();
+            _clickTimer = new PeriodicTimer(TimeSpan.FromMilliseconds(400));
+            _ = PollClicksAsync(_timerCts.Token);
+        }
+
+        // Wizard adım 2 — harita DOM'a gelince init et
+        if (_showCreateWizard && _wizardStep == 2 && !_mapInitialized)
+        {
+            _mapInitialized = true;
+            try
+            {
+                await JS.InvokeVoidAsync("initMap", "new-map", _newLat, _newLng);
+                if (!string.IsNullOrEmpty(_newProvince))
+                    await JS.InvokeVoidAsync("panToProvince", _newProvince);
+            }
+            catch { }
+        }
+        // Wizard adım 2 dışında harita flag'ini sıfırla
+        else if (!(_showCreateWizard && _wizardStep == 2))
+        {
+            _mapInitialized = false;
+        }
+
+        // Wizard adım 3 — yapı resmi DOM'a gelince init et
+        if (_showCreateWizard && _wizardStep == 3 && !_wizardImageInitialized && _newType.HasValue)
+        {
+            _wizardImageInitialized = true;
+            try
+            {
+                var imgPath = _structureTypes[_newType.Value].ImagePath;
+                var markers = _newStructureSensors.Select(s => new {
+                    id = s.Id.ToString(), deviceId = s.DeviceId,
+                    name = s.Name, sensorType = s.SensorType.ToString(),
+                    unit = s.Unit, topic = s.Topic,
+                    imagePositionX = s.ImagePositionX, imagePositionY = s.ImagePositionY,
+                    status = s.IsActive ? "Online" : "Offline",
+                    lastValue = (double?)null,
+                    lastUpdated = (DateTime?)null, alertMessage = (string?)null
+                }).ToList();
+                await JS.InvokeVoidAsync("initStructureImage", "wizard-image", imgPath, markers);
+            }
+            catch { }
+        }
+        else if (!(_showCreateWizard && _wizardStep == 3))
+        {
+            _wizardImageInitialized = false;
+        }
+
+        // Yapı detayı — resmi init et
+        if (_editingStructure != null && !_detailImageInitialized)
+        {
+            _detailImageInitialized = true;
+            await RenderStructureImageAsync();
+        }
+        else if (_editingStructure == null)
+        {
+            _detailImageInitialized = false;
         }
     }
 
-    private async Task InitMap()
+    private async Task PollClicksAsync(CancellationToken ct)
     {
+        while (await _clickTimer!.WaitForNextTickAsync(ct))
+        {
+            // Mevcut yapı detay sayfasında sensör ekle
+            if (_editingStructure != null && !_showSensorPopup)
+                await InvokeAsync(CheckPendingClickAsync);
+            // Wizard adım 3'te sensör ekle
+            else if (_showCreateWizard && _wizardStep == 3 && !_showSensorPopup)
+                await InvokeAsync(CheckWizardPendingClickAsync);
+        }
+    }
+
+    // ── Data ──────────────────────────────────────────────────────────────────
+    private async Task LoadStructuresAsync()
+    {
+        _structures = (await StructureUC.GetAllAsync()).OrderByDescending(s => s.CreatedAt).ToList();
+    }
+
+    // ── Wizard ────────────────────────────────────────────────────────────────
+    private void ShowCreateWizard()
+    {
+        _showCreateWizard       = true;
+        _wizardStep             = 1;
+        _newType                = null;
+        _newName                = "";
+        _newDescription         = "";
+        _newIsActive            = true;
+        _newProvince            = "";
+        _newDistrict            = "";
+        _newAddress             = "";
+        _newLat                 = 40.5;
+        _newLng                 = 40.0;
+        _newDistricts           = new();
+        _newStructureSensors    = new();
+        _mapInitialized         = false;
+        _wizardImageInitialized = false;
+        _editingStructure       = null;
+    }
+
+    private void CancelCreate()
+    {
+        _showCreateWizard       = false;
+        _mapInitialized         = false;
+        _wizardImageInitialized = false;
+        _ = JS.InvokeVoidAsync("destroyMap");
+    }
+
+    private void SelectNewType(StructureType t)
+    {
+        _newType = t;
+    }
+
+    // Adım 1 → 2: haritayı hemen göster
+    private void GoToStep2()
+    {
+        _mapInitialized = false; // flag sıfırla ki OnAfterRenderAsync tekrar init etsin
+        _wizardStep = 2;
+    }
+
+    // Adım 2 → 3: yapı resmini aç, sensör ekleme modu
+    private void GoToSensorStep()
+    {
+        _wizardImageInitialized = false; // flag sıfırla
+        _wizardStep = 3;
+        _newStructureSensors = new();
+    }
+
+    private void BackFromStep2()
+    {
+        _wizardStep = 1;
+        _mapInitialized = false;
+        _ = JS.InvokeVoidAsync("destroyMap");
+    }
+
+    private async Task BackFromStep3()
+    {
+        _wizardImageInitialized = false;
+        _mapInitialized = false; // haritayı tekrar init et
+        _wizardStep = 2;
+        StateHasChanged();
+        await Task.Delay(50);
         try
         {
-            var lat = _editModel.Latitude ?? 40.0;
-            var lng = _editModel.Longitude ?? 35.0;
-            await JS.InvokeVoidAsync("initMap", "map", lat, lng);
+            await JS.InvokeVoidAsync("initMap", "new-map", _newLat, _newLng);
+            if (!string.IsNullOrEmpty(_newProvince))
+                await JS.InvokeVoidAsync("panToProvince", _newProvince);
+            if (!string.IsNullOrEmpty(_newDistrict))
+                await JS.InvokeVoidAsync("panToDistrict", _newProvince, _newDistrict);
+            _mapInitialized = true;
         }
-        catch { /* Leaflet yüklenmediyse sessiz kal */ }
+        catch { }
     }
 
-    private async Task LoadAsync()
+    private async Task RemoveWizardSensor(int idx)
     {
-        var list = await StructureUC.GetAllAsync();
-        _structures = list.OrderByDescending(s => s.CreatedAt).ToList();
-        _availableSensors = await StructureUC.GetAllSensorsAsync();
+        if (idx < 0 || idx >= _newStructureSensors.Count) return;
+        _newStructureSensors.RemoveAt(idx);
+        // Marker'ları resim üzerinde de yenile
+        if (_newType.HasValue)
+        {
+            var allMarkers = _newStructureSensors.Select(s => new {
+                id = s.Id.ToString(), deviceId = s.DeviceId,
+                name = s.Name, sensorType = s.SensorType.ToString(),
+                unit = s.Unit, topic = s.Topic,
+                imagePositionX = s.ImagePositionX, imagePositionY = s.ImagePositionY,
+                status = s.IsActive ? "Online" : "Offline",
+                lastValue = (double?)null,
+                lastUpdated = (DateTime?)null, alertMessage = (string?)null
+            }).ToList();
+            try { await JS.InvokeVoidAsync("initStructureImage", "wizard-image",
+                    _structureTypes[_newType.Value].ImagePath, allMarkers); }
+            catch { }
+        }
     }
 
-    private async Task ShowCreateForm()
+    // ── Sensör tipi seçilince topic + unit + metrik otomatik doldur ────────────
+    private void OnSensorTypeSelected(string typeKey)
     {
-        _editId = Guid.Empty;
-        _editModel = new Structure { IsActive = true };
-        _sensorCount = 1;
-        _selectedSensorIds = new();
-        _selectedProvince = "";
-        _selectedDistrict = "";
-        _districts = new();
-        _showForm = true;
+        ResetSensorTypeDefaults(typeKey);
+    }
+
+    private void ToggleMetric(string key)
+    {
+        if (_sensorFormMetrics.Contains(key))
+            _sensorFormMetrics.Remove(key);
+        else
+            _sensorFormMetrics.Add(key);
+    }
+
+    // ── Wizard onay: tüm sensörleri DB'ye toplu kaydet ────────────────────────
+    private async Task ConfirmedSaveAsync()
+    {
+        _saveError = null;
+        await SaveNewStructureAsync();
+        if (string.IsNullOrEmpty(_saveError))
+            _showSaveConfirm = false;
+    }
+
+    private async Task OnNewProvinceChanged(ChangeEventArgs e)
+    {
+        _newProvince  = e.Value?.ToString() ?? "";
+        _newDistrict  = "";
+        _newDistricts = _districtMap.TryGetValue(_newProvince, out var d) ? d : new();
         StateHasChanged();
-        await Task.Delay(100);
-        await InitMap();
+        if (!string.IsNullOrEmpty(_newProvince))
+            await JS.InvokeVoidAsync("panToProvince", _newProvince);
     }
 
-    private async Task Edit(Guid id)
+    private async Task OnNewDistrictChanged(ChangeEventArgs e)
+    {
+        _newDistrict = e.Value?.ToString() ?? "";
+        if (!string.IsNullOrEmpty(_newDistrict))
+            await JS.InvokeVoidAsync("panToDistrict", _newProvince, _newDistrict);
+    }
+
+    private async Task SaveNewStructureAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newName) || string.IsNullOrEmpty(_newProvince) || _newType == null) return;
+        _isSaving = true;
+        try
+        {
+            var s = new Structure
+            {
+                Name          = _newName.Trim(),
+                Description   = _newDescription.Trim(),
+                IsActive      = _newIsActive,
+                Province      = _newProvince,
+                District      = _newDistrict,
+                Address       = _newAddress.Trim(),
+                Latitude      = _newLat,
+                Longitude     = _newLng,
+                StructureType = _newType.Value,
+                ImageUrl      = _structureTypes[_newType.Value].ImagePath,
+                SensorCount   = _newStructureSensors.Count,
+            };
+            var created = await StructureUC.CreateAsync(s, new List<Guid>());
+
+            // Wizard'da eklenen sensörleri önce DB'ye oluştur, sonra yapıya bağla
+            if (_newStructureSensors.Any())
+            {
+                var createdIds = new List<Guid>();
+                foreach (var sensor in _newStructureSensors)
+                {
+                    var createdSensor = await StructureUC.CreateSensorAsync(sensor);
+                    createdIds.Add(createdSensor.Id);
+                }
+                await StructureUC.UpdateAsync(created.Id, created, createdIds);
+            }
+
+            _showCreateWizard       = false;
+            _wizardImageInitialized = false;
+            _mapInitialized         = false;
+            _newStructureSensors    = new();
+            await JS.InvokeVoidAsync("destroyMap");
+            await LoadStructuresAsync();
+        }
+        catch (Exception ex)
+        {
+            _saveError = $"Kayıt hatası: {ex.Message}";
+        }
+        finally { _isSaving = false; }
+    }
+
+    // ── Detay açma ────────────────────────────────────────────────────────────
+    private async Task OpenStructureDetail(Guid id)
     {
         var s = await StructureUC.GetByIdAsync(id);
         if (s is null) return;
-
-        _editId = s.Id;
-        _editModel = new Structure
-        {
-            Id = s.Id,
-            Name = s.Name,
-            Description = s.Description,
-            SensorCount = s.SensorCount,
-            Province = s.Province,
-            District = s.District,
-            Latitude = s.Latitude,
-            Longitude = s.Longitude,
-            Address = s.Address,
-            IsActive = s.IsActive,
-            CreatedAt = s.CreatedAt,
-            UpdatedAt = s.UpdatedAt
-        };
-        _sensorCount = s.SensorCount;
-        _selectedSensorIds = s.Sensors?.Select(x => x.SensorId).ToList() ?? new();
-        _selectedProvince = s.Province;
-        _selectedDistrict = s.District ?? "";
-        OnProvinceChanged(_selectedProvince);
-        _showForm = true;
+        _detailImageInitialized = false; // yeniden render etsin
+        _editingStructure = s;
         StateHasChanged();
-        await Task.Delay(100);
-        await InitMap();
+        try { await JS.InvokeVoidAsync("connectSensorHub"); await JS.InvokeVoidAsync("joinStructureGroup", id.ToString()); }
+        catch { }
     }
 
-    private void OnProvinceChanged(string province)
+    private async Task RenderStructureImageAsync()
     {
-        _selectedProvince = province;
-        _editModel.Province = province;
-        _districts = _districtMap.ContainsKey(province) ? _districtMap[province] : new();
-        if (!_districts.Contains(_selectedDistrict))
-            _selectedDistrict = "";
+        if (_editingStructure is null) return;
+
+        var sensors = _editingStructure.Sensors?.Select(ss => new
+        {
+            id             = ss.Id.ToString(),
+            deviceId       = ss.DeviceId,
+            name           = ss.Name,
+            sensorType     = ss.SensorType,
+            unit           = ss.Unit,
+            topic          = ss.Topic,
+            imagePositionX = ss.ImagePositionX,
+            imagePositionY = ss.ImagePositionY,
+            // is_active=true ise Çevrimiçi, değilse Çevrimdışı — SignalR ile gerçek zamanlı güncellenecek
+            status         = ss.IsActive ? "Online" : "Offline",
+            lastValue      = (double?)null,
+            lastUpdated    = (DateTime?)null,
+            alertMessage   = (string?)null
+        }).ToList() ?? new();
+
+        var imgUrl = _editingStructure.ImageUrl ?? "";
+        try { await JS.InvokeVoidAsync("initStructureImage", "structure-image", imgUrl, sensors); }
+        catch { }
     }
 
-    private void ToggleSensor(Guid sensorId, object? value)
+    private async Task RefreshMarkersAsync()
     {
-        var isChecked = value is true;
-        if (isChecked && !_selectedSensorIds.Contains(sensorId))
-            _selectedSensorIds.Add(sensorId);
-        else if (!isChecked)
-            _selectedSensorIds.Remove(sensorId);
+        _detailImageInitialized = false;
+        await RenderStructureImageAsync();
+        _detailImageInitialized = true;
     }
 
-    private async Task SaveAsync()
+    private void CloseDetail()
     {
-        _editModel.Province = _selectedProvince;
-        _editModel.District = _selectedDistrict;
+        if (_editingStructure != null)
+        {
+            _ = JS.InvokeVoidAsync("leaveStructureGroup", _editingStructure.Id.ToString());
+            _ = JS.InvokeVoidAsync("disconnectSensorHub");
+        }
+        _editingStructure       = null;
+        _detailImageInitialized = false;
+    }
 
-        if (_editId == Guid.Empty)
-            await StructureUC.CreateAsync(_editModel, _selectedSensorIds);
+    // ── Sensör ekleme ─────────────────────────────────────────────────────────
+    private bool _isWizardSensorMode = false; // true = wizard adım 3, false = mevcut yapı detayı
+
+    private async Task CheckPendingClickAsync()
+    {
+        try
+        {
+            if (!await JS.InvokeAsync<bool>("getHasPendingClickPosition")) return;
+            double x = await JS.InvokeAsync<double>("getPendingClickPositionX");
+            double y = await JS.InvokeAsync<double>("getPendingClickPositionY");
+            await JS.InvokeVoidAsync("clearPendingClickPosition");
+            _isWizardSensorMode    = false;
+            _pendingPos            = (x, y);
+            _sensorFormDeviceId    = $"sensor-{DateTime.UtcNow:yyMMddHHmmss}";
+            _sensorFormName        = $"{_editingStructure?.Name ?? ""} Sensör";
+            _sensorFormLabel       = "";
+            _sensorFormDescription = "";
+            _sensorFormProtocol    = "MQTT";
+            _saveError             = null;
+            ResetSensorTypeDefaults("Generic");
+            _showSensorPopup = true;
+            StateHasChanged();
+        }
+        catch { }
+    }
+
+    private async Task CheckWizardPendingClickAsync()
+    {
+        try
+        {
+            if (!await JS.InvokeAsync<bool>("getHasPendingClickPosition")) return;
+            double x = await JS.InvokeAsync<double>("getPendingClickPositionX");
+            double y = await JS.InvokeAsync<double>("getPendingClickPositionY");
+            await JS.InvokeVoidAsync("clearPendingClickPosition");
+            _isWizardSensorMode    = true;
+            _pendingPos            = (x, y);
+            _sensorFormDeviceId    = $"sensor-{DateTime.UtcNow:yyMMddHHmmss}";
+            _sensorFormName        = $"{_newName} Sensör {_newStructureSensors.Count + 1}";
+            _sensorFormLabel       = "";
+            _sensorFormDescription = "";
+            _sensorFormProtocol    = "MQTT";
+            _saveError             = null;
+            ResetSensorTypeDefaults("Generic");
+            _showSensorPopup = true;
+            StateHasChanged();
+        }
+        catch { }
+    }
+
+    // Sensör tipi değişince topic/unit/metrik otomatik doldur
+    private void ResetSensorTypeDefaults(string typeKey)
+    {
+        _sensorFormType = typeKey;
+        if (_typeDefaults.TryGetValue(typeKey, out var def))
+        {
+            var devId = string.IsNullOrWhiteSpace(_sensorFormDeviceId) ? "sensor" : _sensorFormDeviceId;
+            _sensorFormTopic   = $"nodered/processed/default/{devId}/{def.TopicSuffix}/data";
+            _sensorFormUnit    = def.Unit;
+            _sensorFormMetrics = new HashSet<string>(def.Metrics);
+        }
+    }
+
+    private void CloseSensorPopup()
+    {
+        _showSensorPopup = false;
+        _pendingPos      = null;
+        _ = JS.InvokeVoidAsync("clearPendingClickPosition");
+    }
+
+    private async Task SaveSensorAsync()
+    {
+        if (_pendingPos == null) return;
+        if (string.IsNullOrWhiteSpace(_sensorFormName) || string.IsNullOrWhiteSpace(_sensorFormDeviceId)) return;
+
+        var metricsStr = _sensorFormMetrics.Any()
+            ? string.Join(",", _sensorFormMetrics)
+            : "";
+
+        // Topic'te device ID placeholder varsa güncelle
+        var finalTopic = _sensorFormTopic.Trim();
+        if (finalTopic.Contains("sensor") && !string.IsNullOrWhiteSpace(_sensorFormDeviceId))
+            finalTopic = finalTopic.Replace("sensor", _sensorFormDeviceId.Trim());
+
+        var newSensor = new Sensor
+        {
+            Id             = Guid.NewGuid(),
+            Name           = _sensorFormName.Trim(),
+            DeviceId       = _sensorFormDeviceId.Trim(),
+            Topic          = finalTopic,
+            Unit           = _sensorFormUnit.Trim(),
+            Description    = _sensorFormDescription.Trim(),
+            Metrics        = metricsStr,    // CSV metrik key'leri — ayrı alanda
+            ProtocolType   = string.IsNullOrEmpty(_sensorFormProtocol) ? "MQTT" : _sensorFormProtocol,
+            LocationId     = _sensorFormLabel.Trim().Length > 0 ? _sensorFormLabel.Trim() : "default",
+            ImagePositionX = _pendingPos.Value.x,
+            ImagePositionY = _pendingPos.Value.y,
+            IsActive       = true,
+            IsEnabled      = true,
+        };
+        if (Enum.TryParse<SensorType>(_sensorFormType, out var st))
+            newSensor.SensorType = st;
+
+        if (_isWizardSensorMode)
+        {
+            // Wizard: listeye ekle, resim üzerinde marker göster
+            _newStructureSensors.Add(newSensor);
+            _showSensorPopup = false;
+            _pendingPos      = null;
+            StateHasChanged();
+            // Tüm marker'ları resim üzerinde yeniden render et (yeni eklenen dahil)
+            var allMarkers = _newStructureSensors.Select(s => new {
+                id = s.Id.ToString(), deviceId = s.DeviceId,
+                name = s.Name, sensorType = s.SensorType.ToString(),
+                unit = s.Unit, topic = s.Topic,
+                imagePositionX = s.ImagePositionX, imagePositionY = s.ImagePositionY,
+                status = s.IsActive ? "Online" : "Offline",
+                lastValue = (double?)null,
+                lastUpdated = (DateTime?)null, alertMessage = (string?)null
+            }).ToList();
+            try { await JS.InvokeVoidAsync("initStructureImage", "wizard-image",
+                _structureTypes[_newType!.Value].ImagePath, allMarkers); }
+            catch { }
+        }
         else
-            await StructureUC.UpdateAsync(_editId, _editModel, _selectedSensorIds);
-
-        _showForm = false;
-        await LoadAsync();
+        {
+            // Mevcut yapı detayı: sensörü önce DB'ye oluştur, sonra yapıya bağla
+            if (_editingStructure == null) return;
+            _isSaving = true;
+            try
+            {
+                var createdSensor = await StructureUC.CreateSensorAsync(newSensor);
+                var sensorIds = _editingStructure.Sensors?.Select(x => x.SensorId).ToList() ?? new();
+                sensorIds.Add(createdSensor.Id);
+                await StructureUC.UpdateAsync(_editingStructure.Id, _editingStructure, sensorIds);
+                _showSensorPopup        = false;
+                _pendingPos             = null;
+                _detailImageInitialized = false;
+                await OpenStructureDetail(_editingStructure.Id);
+            }
+            catch (Exception ex)
+            {
+                _saveError = $"Sensör kaydedilemedi: {ex.Message}";
+            }
+            finally { _isSaving = false; }
+        }
     }
 
-    private async Task DeleteAsync(Guid id)
+    // ── Yapıdan sensör kaldır (resim üzerinden + listeden) ───────────────────
+    private async Task RemoveSensorFromStructureAsync(Guid sensorId)
     {
-        await StructureUC.DeleteAsync(id);
-        await LoadAsync();
+        if (_editingStructure is null) return;
+        _isSaving = true;
+        try
+        {
+            // Sensör ID'sini listeden çıkar
+            var remainingIds = _editingStructure.Sensors?
+                .Where(s => s.SensorId != sensorId)
+                .Select(s => s.SensorId)
+                .ToList() ?? new();
+
+            await StructureUC.UpdateAsync(_editingStructure.Id, _editingStructure, remainingIds);
+            _detailImageInitialized = false;
+            await OpenStructureDetail(_editingStructure.Id);
+        }
+        catch (Exception ex)
+        {
+            _saveError = $"Sensör silinemedi: {ex.Message}";
+        }
+        finally { _isSaving = false; }
     }
 
-    private void Cancel()
+    private string GetSensorEmoji(string sensorTypeStr)
     {
-        _showForm = false;
+        if (_sensorTypeInfos.TryGetValue(sensorTypeStr, out var info))
+            return info.Emoji;
+        // lowercase fallback
+        var match = _sensorTypeInfos.FirstOrDefault(kv =>
+            kv.Key.Equals(sensorTypeStr, StringComparison.OrdinalIgnoreCase));
+        return match.Value?.Emoji ?? "🔘";
+    }
+
+    // ── Düzenleme ─────────────────────────────────────────────────────────────
+    private void EditStructureInfo()
+    {
+        if (_editingStructure is null) return;
+        _editName        = _editingStructure.Name;
+        _editDescription = _editingStructure.Description ?? "";
+        _editType        = _editingStructure.StructureType;
+        _editProvince    = _editingStructure.Province;
+        _editDistrict    = _editingStructure.District ?? "";
+        _editAddress     = _editingStructure.Address ?? "";
+        _editIsActive    = _editingStructure.IsActive;
+        _editDistricts   = _districtMap.TryGetValue(_editProvince, out var d) ? d : new();
+        _showEditPopup   = true;
+    }
+
+    private void OnEditProvinceChanged(ChangeEventArgs e)
+    {
+        _editProvince  = e.Value?.ToString() ?? "";
+        _editDistrict  = "";
+        _editDistricts = _districtMap.TryGetValue(_editProvince, out var d) ? d : new();
+    }
+
+    private async Task SaveEditAsync()
+    {
+        if (_editingStructure is null) return;
+        _isSaving = true;
+        try
+        {
+            _editingStructure.Name         = _editName;
+            _editingStructure.Description  = _editDescription;
+            _editingStructure.Province     = _editProvince;
+            _editingStructure.District     = _editDistrict;
+            _editingStructure.Address      = _editAddress;
+            _editingStructure.StructureType = _editType;
+            _editingStructure.IsActive     = _editIsActive;
+            _editingStructure.ImageUrl     = _structureTypes[_editType].ImagePath;
+
+            var ids = _editingStructure.Sensors?.Select(s => s.SensorId).ToList() ?? new();
+            await StructureUC.UpdateAsync(_editingStructure.Id, _editingStructure, ids);
+            _showEditPopup = false;
+            await LoadStructuresAsync();
+        }
+        finally { _isSaving = false; }
+    }
+
+    private void CloseEditPopup() => _showEditPopup = false;
+
+    // ── Silme ─────────────────────────────────────────────────────────────────
+    private void ConfirmDelete(Guid id) => _deletingId = id;
+
+    private async Task DoDeleteAsync()
+    {
+        if (_deletingId is null) return;
+        _isSaving = true;
+        try
+        {
+            await StructureUC.DeleteAsync(_deletingId.Value);
+            _deletingId       = null;
+            _editingStructure = null;
+            await LoadStructuresAsync();
+        }
+        finally { _isSaving = false; }
+    }
+
+    // ── Yardımcılar ───────────────────────────────────────────────────────────
+    private string GetStructureEmoji(StructureType t) =>
+        _structureTypes.TryGetValue(t, out var v) ? v.Emoji : "📍";
+
+    private string GetStructureLabel(StructureType t) =>
+        _structureTypes.TryGetValue(t, out var v) ? v.Label : t.ToString();
+
+    // ── Dispose ───────────────────────────────────────────────────────────────
+    public async ValueTask DisposeAsync()
+    {
+        _timerCts?.Cancel();
+        _clickTimer?.Dispose();
+        _timerCts?.Dispose();
+        try { await JS.InvokeVoidAsync("disconnectSensorHub"); } catch { }
+        try { await JS.InvokeVoidAsync("destroyMap"); } catch { }
     }
 }

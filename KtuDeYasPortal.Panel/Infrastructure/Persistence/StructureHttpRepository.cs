@@ -10,7 +10,8 @@ public class StructureHttpRepository : IStructureRepository
     private readonly HttpClient _http;
     private static readonly JsonSerializerOptions _json = new()
     {
-        PropertyNameCaseInsensitive = true
+        PropertyNameCaseInsensitive = true,
+        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
     };
 
     public StructureHttpRepository(IHttpClientFactory factory)
@@ -41,6 +42,10 @@ public class StructureHttpRepository : IStructureRepository
             latitude = structure.Latitude,
             longitude = structure.Longitude,
             address = structure.Address,
+            structureType = structure.StructureType.ToString(),
+            imageUrl = structure.ImageUrl,
+            sensorCount = structure.SensorCount,
+            isActive = structure.IsActive,
             sensorIds
         };
         var resp = await _http.PostAsJsonAsync("api/structures", payload, _json, ct);
@@ -59,6 +64,9 @@ public class StructureHttpRepository : IStructureRepository
             latitude = structure.Latitude,
             longitude = structure.Longitude,
             address = structure.Address,
+            structureType = structure.StructureType.ToString(),
+            imageUrl = structure.ImageUrl,
+            isActive = structure.IsActive,
             sensorIds
         };
         var resp = await _http.PutAsJsonAsync($"api/structures/{id}", payload, _json, ct);

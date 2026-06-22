@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="500" viewBox="0 0 800 500">
+  <rect width="800" height="500" fill="#e8f4f8"/>
+  <rect x="200" y="150" width="400" height="250" fill="#6c757d" rx="4"/>
+  <rect x="250" y="200" width="300" height="200" fill="#adb5bd" rx="2"/>
+  <rect x="100" y="380" width="600" height="80" fill="#0d6efd" opacity="0.5" rx="4"/>
+  <rect x="280" y="250" width="40" height="100" fill="#495057" rx="2"/>
+  <rect x="360" y="250" width="40" height="100" fill="#495057" rx="2"/>
+  <rect x="440" y="250" width="40" height="100" fill="#495057" rx="2"/>
+  <rect x="520" y="250" width="40" height="100" fill="#495057" rx="2"/>
+  <text x="400" y="100" font-size="28" text-anchor="middle" fill="#495057" font-weight="bold">Baraj Yapısı</text>
+  <text x="400" y="460" font-size="14" text-anchor="middle" fill="#6c757d">Baraj Görseli</text>
+</svg>

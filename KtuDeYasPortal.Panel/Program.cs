@@ -2,6 +2,7 @@ using KtuDeYasPortal.Panel.Application.Settings;
 using KtuDeYasPortal.Panel.Application.UseCases;
 using KtuDeYasPortal.Panel.Components;
 using KtuDeYasPortal.Panel.Domain.Interfaces;
+using KtuDeYasPortal.Panel.Infrastructure.Hubs;
 using KtuDeYasPortal.Panel.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -20,6 +21,14 @@ builder.Services.AddHttpClient("timeseries-api", c =>
     c.BaseAddress = new Uri(
         builder.Configuration["Services:TimeseriesApi"] ?? "http://localhost:5000");
     c.Timeout = TimeSpan.FromSeconds(30);
+});
+
+// ── SignalR Hubs ──
+builder.Services.AddSignalR(options =>
+{
+    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
+    options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+    options.ClientTimeoutInterval = TimeSpan.FromSeconds(30);
 });
 
 // ── Repositories & Use Cases ──
@@ -41,6 +50,9 @@ app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages:
 app.UseHttpsRedirection();
 app.UseAntiforgery();
 app.MapStaticAssets();
+
+// ── SignalR Hub Endpoint ──
+app.MapHub<SensorHub>(SensorHub.HubPath);
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();

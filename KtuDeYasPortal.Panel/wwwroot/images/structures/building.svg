@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="500" viewBox="0 0 800 500">
+  <rect width="800" height="500" fill="#f8f9fa"/>
+  <rect x="250" y="100" width="300" height="350" fill="#e9ecef" stroke="#adb5bd" stroke-width="2"/>
+  <rect x="280" y="140" width="50" height="60" fill="#0d6efd" opacity="0.3" rx="2"/>
+  <rect x="350" y="140" width="50" height="60" fill="#0d6efd" opacity="0.3" rx="2"/>
+  <rect x="420" y="140" width="50" height="60" fill="#0d6efd" opacity="0.3" rx="2"/>
+  <rect x="280" y="220" width="50" height="60" fill="#0d6efd" opacity="0.3" rx="2"/>
+  <rect x="350" y="220" width="50" height="60" fill="#0d6efd" opacity="0.3" rx="2"/>
+  <rect x="420" y="220" width="50" height="60" fill="#0d6efd" opacity="0.3" rx="2"/>
+  <rect x="280" y="300" width="50" height="60" fill="#0d6efd" opacity="0.3" rx="2"/>
+  <rect x="350" y="300" width="50" height="60" fill="#0d6efd" opacity="0.3" rx="2"/>
+  <rect x="420" y="300" width="50" height="60" fill="#0d6efd" opacity="0.3" rx="2"/>
+  <rect x="355" y="380" width="40" height="70" fill="#6c757d" rx="2"/>
+  <polygon points="230,100 400,40 570,100" fill="#495057"/>
+  <text x="400" y="40" font-size="28" text-anchor="middle" fill="#495057" font-weight="bold">Bina Yapısı</text>
+  <text x="400" y="480" font-size="14" text-anchor="middle" fill="#6c757d">Bina Görseli</text>
+</svg>

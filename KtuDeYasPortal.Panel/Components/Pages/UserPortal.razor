@@ -1,0 +1,21 @@
+@page "/kullanici-portali"
+@rendermode InteractiveServer
+
+<PageTitle>Kullanıcı Portalı</PageTitle>
+
+<div class="portal-container">
+    <div class="portal-header">
+        <span class="bi bi-globe me-2" style="font-size:1.2rem"></span>
+        <strong>Kullanıcı Portalı</strong>
+        <small class="text-muted ms-2">— KtuDeYasPortal</small>
+        <a href="http://localhost:5050" target="_blank" class="btn btn-outline-secondary btn-sm ms-auto" title="Yeni sekmede aç">
+            <span class="bi bi-box-arrow-up-right me-1"></span>Ayrı Pencere
+        </a>
+    </div>
+    <div class="portal-iframe-wrapper">
+        <iframe src="http://localhost:5050"
+                class="portal-iframe"
+                title="Kullanıcı Portalı"
+                allow="fullscreen"></iframe>
+    </div>
+</div>

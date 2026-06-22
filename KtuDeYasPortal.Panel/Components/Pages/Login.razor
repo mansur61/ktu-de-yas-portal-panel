@@ -1,0 +1,37 @@
+@page "/login"
+@rendermode InteractiveServer
+
+<PageTitle>Panel Girişi</PageTitle>
+
+<div class="login-wrapper">
+    <div class="login-card">
+        <div class="login-header">
+            <span class="bi bi-shield-lock-fill login-icon"></span>
+            <h4>KTU DeYas</h4>
+            <p class="text-muted">Yönetim Paneli</p>
+        </div>
+        <div class="login-body">
+            <div class="mb-3">
+                <label class="form-label fw-semibold">Kullanıcı Adı</label>
+                <div class="input-group">
+                    <span class="input-group-text"><span class="bi bi-person"></span></span>
+                    <input type="text" class="form-control" placeholder="admin" />
+                </div>
+            </div>
+            <div class="mb-4">
+                <label class="form-label fw-semibold">Şifre</label>
+                <div class="input-group">
+                    <span class="input-group-text"><span class="bi bi-lock"></span></span>
+                    <input type="password" class="form-control" placeholder="••••••••" />
+                </div>
+            </div>
+            <button class="btn btn-primary w-100 py-2 fw-semibold" disabled>
+                <span class="bi bi-box-arrow-in-right me-2"></span>Giriş Yap
+            </button>
+            <p class="text-muted small mt-3 mb-0 text-center">
+                <span class="bi bi-info-circle me-1"></span>
+                Giriş sistemi henüz aktif değil. Panel'i kullanmak için navigasyon menüsünü kullanın.
+            </p>
+        </div>
+    </div>
+</div>

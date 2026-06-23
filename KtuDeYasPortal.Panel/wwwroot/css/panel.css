@@ -571,3 +571,129 @@
     border: none;
     display: block;
 }
+
+/* Media dashboard */
+.media-dashboard-layout {
+    display: grid;
+    grid-template-columns: 220px minmax(0, 1fr);
+    gap: 16px;
+    min-height: calc(100vh - 180px);
+}
+
+.media-dashboard-sidebar {
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    background: #fff;
+    padding: 10px;
+    align-self: start;
+}
+
+.media-nav-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: #495057;
+    padding: 10px 12px;
+    text-align: left;
+}
+
+.media-nav-item.active {
+    background: #e7f1ff;
+    color: #0d6efd;
+    font-weight: 700;
+}
+
+.media-dashboard-main {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+    gap: 16px;
+}
+
+.media-preview-panel,
+.media-control-panel {
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    background: #fff;
+    padding: 16px;
+}
+
+.media-live-stage {
+    aspect-ratio: 16 / 9;
+    min-height: 320px;
+}
+
+.media-live-screen {
+    position: relative;
+    height: 100%;
+    overflow: hidden;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #151a22, #253241);
+}
+
+.media-live-bars {
+    position: absolute;
+    inset: 20%;
+    display: flex;
+    align-items: end;
+    justify-content: center;
+    gap: 8px;
+}
+
+.media-live-bars span {
+    width: 10px;
+    min-height: 12px;
+    border-radius: 4px 4px 0 0;
+    background: #4dd4ac;
+    opacity: 0.85;
+}
+
+.media-live-overlay {
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #fff;
+}
+
+.media-live-overlay small {
+    color: rgba(255,255,255,0.75);
+}
+
+.media-upload-preview {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: contain;
+    border-radius: 8px;
+    background: #111827;
+}
+
+.media-empty-preview {
+    aspect-ratio: 16 / 9;
+    min-height: 320px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    border-radius: 8px;
+    background: #f8f9fa;
+    color: #6c757d;
+}
+
+.media-empty-preview .bi {
+    font-size: 2.6rem;
+}
+
+@media (max-width: 1100px) {
+    .media-dashboard-layout,
+    .media-dashboard-main {
+        grid-template-columns: 1fr;
+    }
+}

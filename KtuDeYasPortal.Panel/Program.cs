@@ -41,6 +41,7 @@ builder.Services.AddSignalR(options =>
 // ── Repositories & Use Cases ──
 builder.Services.AddScoped<IStructureRepository, StructureHttpRepository>();
 builder.Services.AddScoped<IStructureSimulationClient, StructureSimulationHttpClient>();
+builder.Services.AddScoped<IMediaSimulationClient, MediaSimulationHttpClient>();
 builder.Services.AddScoped<ISensorRepository, SensorHttpRepository>();
 builder.Services.AddScoped<ITimeseriesRepository, TimeseriesRepository>();
 builder.Services.AddScoped<StructureUseCases>();
@@ -62,7 +63,33 @@ app.MapStaticAssets();
 // ── SignalR Hub Endpoint ──
 app.MapHub<SensorHub>(SensorHub.HubPath);
 
+app.MapGet("/media-preview/{fileName}", (string fileName, IConfiguration configuration) =>
+{
+    var safeName = Path.GetFileName(fileName);
+    var tempRoot = configuration["MediaSimulation:UploadTempRoot"] ?? Path.Combine(Path.GetTempPath(), "ktu-de-yas-media");
+    var path = Path.Combine(tempRoot, safeName);
+    if (!System.IO.File.Exists(path))
+        return Results.NotFound();
+
+    return Results.File(path, contentType: GetMediaPreviewContentType(path), fileDownloadName: safeName);
+});
+
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 app.Run();
+
+static string GetMediaPreviewContentType(string path)
+{
+    return Path.GetExtension(path).ToLowerInvariant() switch
+    {
+        ".jpg" or ".jpeg" => "image/jpeg",
+        ".png" => "image/png",
+        ".gif" => "image/gif",
+        ".webp" => "image/webp",
+        ".mp4" => "video/mp4",
+        ".webm" => "video/webm",
+        ".mov" => "video/quicktime",
+        _ => "application/octet-stream"
+    };
+}

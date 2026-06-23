@@ -1499,6 +1499,7 @@
   "projectFileDependencyGroups": {
     "net10.0": [
       "DeYas.Authentication >= 1.0.0",
+      "DeYas.Contracts >= 1.0.0",
       "DeYas.EventBus >= 1.0.0",
       "DeYas.Observability >= 1.0.0",
       "DeYas.Realtime >= 1.0.0",
@@ -1535,6 +1536,9 @@
           "projectReferences": {
             "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.Authentication\\DeYas.Authentication.csproj": {
               "projectPath": "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.Authentication\\DeYas.Authentication.csproj"
+            },
+            "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.Contracts\\DeYas.Contracts.csproj": {
+              "projectPath": "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.Contracts\\DeYas.Contracts.csproj"
             },
             "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.EventBus\\DeYas.EventBus.csproj": {
               "projectPath": "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-shared\\src\\DeYas.EventBus\\DeYas.EventBus.csproj"

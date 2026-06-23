@@ -7,4 +7,8 @@
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\ktu-de-yas-shared\src\DeYas.Contracts\DeYas.Contracts.csproj" />
+  </ItemGroup>
+
 </Project>

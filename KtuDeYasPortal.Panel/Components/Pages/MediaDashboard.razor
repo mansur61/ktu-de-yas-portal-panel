@@ -1,0 +1,234 @@
+@page "/media-dashboard"
+@rendermode InteractiveServer
+@inject IMediaSimulationClient MediaSimClient
+@inject IConfiguration Configuration
+
+<PageTitle>Video / Image Dashboard</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h4 class="mb-0 fw-bold">Video / Image Dashboard</h4>
+        <small class="text-muted">Canli stream ve dosya upload simulasyonu</small>
+    </div>
+    <button class="btn btn-success" @onclick="StartAsync" disabled="@_isRunning">
+        @if (_isRunning)
+        {
+            <span class="spinner-border spinner-border-sm me-1"></span>
+        }
+        else
+        {
+            <span class="bi bi-play-fill me-1"></span>
+        }
+        Calistir
+    </button>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(_statusMessage))
+{
+    <div class="alert alert-success py-2">@_statusMessage</div>
+}
+@if (!string.IsNullOrWhiteSpace(_errorMessage))
+{
+    <div class="alert alert-danger py-2">@_errorMessage</div>
+}
+
+<div class="media-dashboard-layout">
+    <aside class="media-dashboard-sidebar">
+        <button class="media-nav-item @(_mode == "stream" ? "active" : "")" @onclick='() => SetMode("stream")'>
+            <span class="bi bi-broadcast"></span>
+            <span>Canli Stream</span>
+        </button>
+        <button class="media-nav-item @(_mode == "upload" ? "active" : "")" @onclick='() => SetMode("upload")'>
+            <span class="bi bi-cloud-arrow-up"></span>
+            <span>Upload</span>
+        </button>
+    </aside>
+
+    <section class="media-dashboard-main">
+        <div class="media-preview-panel">
+            @if (_mode == "stream")
+            {
+                <div class="media-live-stage">
+                    <div class="media-live-screen">
+                        <div class="media-live-bars">
+                            @for (var i = 0; i < 20; i++)
+                            {
+                                <span style="height:@(18 + (i * 13 % 52))%"></span>
+                            }
+                        </div>
+                        <div class="media-live-overlay">
+                            <span class="badge text-bg-danger">LIVE</span>
+                            <strong>@_devicePrefix-01</strong>
+                            <small>@_locationId / @_mediaType / @_fps FPS</small>
+                        </div>
+                    </div>
+                </div>
+            }
+            else if (_selectedPreviewUrl is not null && _mediaType == "image")
+            {
+                <img class="media-upload-preview" src="@_selectedPreviewUrl" alt="Selected upload" />
+            }
+            else if (_selectedPreviewUrl is not null)
+            {
+                <video class="media-upload-preview" src="@_selectedPreviewUrl" controls muted></video>
+            }
+            else
+            {
+                <div class="media-empty-preview">
+                    <span class="bi bi-file-earmark-play"></span>
+                    <p>Dosya secilmedi</p>
+                </div>
+            }
+        </div>
+
+        <div class="media-control-panel">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Media Type</label>
+                    <select class="form-select" @bind="_mediaType">
+                        <option value="video">Video</option>
+                        <option value="image">Image</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Format</label>
+                    <input class="form-control" @bind="_mediaFormat" />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Location</label>
+                    <input class="form-control" @bind="_locationId" />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Device Prefix</label>
+                    <input class="form-control" @bind="_devicePrefix" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Device Count</label>
+                    <input type="number" min="1" max="50" class="form-control" @bind="_deviceCount" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">FPS</label>
+                    <input type="number" min="1" max="120" class="form-control" @bind="_fps" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Duration</label>
+                    <input type="number" min="1" class="form-control" @bind="_durationSeconds" disabled="@(_mode == "upload")" />
+                </div>
+
+                @if (_mode == "upload")
+                {
+                    <div class="col-12">
+                        <label class="form-label">Dosya</label>
+                        <InputFile class="form-control" OnChange="OnFileSelectedAsync" accept="@AcceptFilter" />
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Dosya URL</label>
+                        <input class="form-control" @bind="_mediaFileUrl" placeholder="http://..." />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Chunk KB</label>
+                        <input type="number" min="16" class="form-control" @bind="_chunkSizeKb" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Secilen Dosya</label>
+                        <input class="form-control" value="@(_selectedFileName ?? "-")" disabled />
+                    </div>
+                }
+            </div>
+        </div>
+    </section>
+</div>
+
+@code {
+    private const long MaxUploadBytes = 1024L * 1024L * 1024L;
+
+    private string _mode = "stream";
+    private string _mediaType = "video";
+    private string _mediaFormat = "mp4";
+    private string _locationId = "default";
+    private string _devicePrefix = "media-device";
+    private int _deviceCount = 1;
+    private int _fps = 25;
+    private int _durationSeconds = 60;
+    private int _chunkSizeKb = 1024;
+    private bool _isRunning;
+    private string? _selectedFilePath;
+    private string? _selectedFileName;
+    private string? _selectedPreviewUrl;
+    private string? _mediaFileUrl;
+    private string? _statusMessage;
+    private string? _errorMessage;
+
+    private string AcceptFilter => _mediaType == "image" ? "image/*" : "video/*";
+
+    private void SetMode(string mode)
+    {
+        _mode = mode;
+        _statusMessage = null;
+        _errorMessage = null;
+    }
+
+    private async Task OnFileSelectedAsync(InputFileChangeEventArgs e)
+    {
+        _errorMessage = null;
+        _statusMessage = null;
+
+        var file = e.File;
+        var tempRoot = Configuration["MediaSimulation:UploadTempRoot"] ?? Path.Combine(Path.GetTempPath(), "ktu-de-yas-media");
+        Directory.CreateDirectory(tempRoot);
+
+        var extension = Path.GetExtension(file.Name);
+        var fileName = $"{DateTime.UtcNow:yyyyMMddHHmmssfff}-{Guid.NewGuid():N}{extension}";
+        var targetPath = Path.Combine(tempRoot, fileName);
+
+        await using var input = file.OpenReadStream(MaxUploadBytes);
+        await using var output = System.IO.File.Create(targetPath);
+        await input.CopyToAsync(output);
+
+        _selectedFilePath = targetPath;
+        _selectedFileName = file.Name;
+        _mediaFileUrl = null;
+        _mediaFormat = string.IsNullOrWhiteSpace(extension) ? _mediaFormat : extension.TrimStart('.').ToLowerInvariant();
+        _mediaType = file.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase) ? "image" : "video";
+        _selectedPreviewUrl = $"/media-preview/{Path.GetFileName(targetPath)}";
+        _statusMessage = $"{file.Name} hazirlandi, edge dosya yolundan okuyacak.";
+    }
+
+    private async Task StartAsync()
+    {
+        _isRunning = true;
+        _errorMessage = null;
+        _statusMessage = null;
+
+        try
+        {
+            await MediaSimClient.StartAsync(new DeYas.Contracts.Simulation.MediaSimRequest
+            {
+                MediaType = _mediaType,
+                CameraMode = _mode,
+                LocationId = _locationId,
+                DevicePrefix = _devicePrefix,
+                DeviceCount = _deviceCount,
+                Fps = _fps,
+                DurationSeconds = _durationSeconds,
+                ChunkSizeKb = _chunkSizeKb,
+                MediaFormat = _mediaFormat,
+                MediaFilePath = string.IsNullOrWhiteSpace(_mediaFileUrl) ? _selectedFilePath : null,
+                MediaFileUrl = string.IsNullOrWhiteSpace(_mediaFileUrl) ? null : _mediaFileUrl,
+                IsProd = false
+            });
+
+            _statusMessage = _mode == "stream"
+                ? "Canli stream edge uzerinden baslatildi."
+                : "Upload edge uzerinden baslatildi.";
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Media simulasyonu baslatilamadi: {ex.Message}";
+        }
+        finally
+        {
+            _isRunning = false;
+        }
+    }
+}

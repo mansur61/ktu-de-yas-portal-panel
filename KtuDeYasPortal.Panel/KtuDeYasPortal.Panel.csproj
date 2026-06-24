@@ -9,10 +9,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\ktu-de-yas-shared\src\DeYas.Contracts\DeYas.Contracts.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="9.0.7" />
+    <ProjectReference Include="..\..\ktu-de-yas-shared\src\DeYas.Realtime\DeYas.Realtime.csproj" />
   </ItemGroup>
 
 </Project>

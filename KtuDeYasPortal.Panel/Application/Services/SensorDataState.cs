@@ -4,14 +4,17 @@ using DeYas.Contracts.Realtime;
 namespace KtuDeYasPortal.Panel.Application.Services;
 
 /// <summary>
-/// Singleton in-memory state — holds the most recent SensorData per device,
-/// received from the Portal's SignalR hub (DashboardHub → ReceiveSensorUpdate).
+/// Singleton in-memory state — holds the most recent SensorData per device.
 ///
-/// This is driven by actual SensorData records that have flowed through:
-///   Sensor → Node-RED → Kafka → Timeseries Service → TimescaleDB → Redis → SignalR → here.
+/// Data flow (panel-direct, no portal dependency):
+///   Kafka → Timeseries Service → TimescaleDB insert
+///   → Redis Pub/Sub (timeseries.updated)
+///   → PanelRealtimeForwarder.HandleAsync
+///   → SensorDataState.Update (this class)
+///   → Blazor components via OnSensorDataReceived event
 ///
 /// A Sensor definition alone NEVER populates this state.
-/// Only real data insertions cause updates.
+/// Only real SensorData insertions cause updates.
 /// </summary>
 public sealed class SensorDataState
 {

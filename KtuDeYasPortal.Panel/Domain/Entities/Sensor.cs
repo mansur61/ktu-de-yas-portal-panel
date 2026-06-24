@@ -34,6 +34,14 @@ public class Sensor
     /// Varsayılan: 5000 ms (5 saniyede bir).
     /// </summary>
     public int TelemetryIntervalMs { get; set; } = 5000;
+
+    /// <summary>
+    /// Her telemetri penceresinde cihaz başı gönderilecek ölçüm sayısı.
+    /// test-sensor-worker --batch-size ile aynı mantık.
+    /// Örnek: TelemetryIntervalMs=1000 + TelemetryBatchSize=200 → saniyede 200 ölçüm.
+    /// Varsayılan: 1.
+    /// </summary>
+    public int TelemetryBatchSize { get; set; } = 1;
     public double PositionX { get; set; }
     public double PositionY { get; set; }
     public double PositionZ { get; set; }

@@ -50,7 +50,8 @@ public class SensorHttpRepository : ISensorRepository
             rotationZ      = sensor.RotationZ,
             imagePositionX = sensor.ImagePositionX,
             imagePositionY = sensor.ImagePositionY,
-            telemetryIntervalMs = sensor.TelemetryIntervalMs > 0 ? sensor.TelemetryIntervalMs : 5000
+            telemetryIntervalMs = sensor.TelemetryIntervalMs > 0 ? sensor.TelemetryIntervalMs : 5000,
+            telemetryBatchSize  = sensor.TelemetryBatchSize  > 0 ? sensor.TelemetryBatchSize  : 1
         };
         var resp = await _http.PostAsJsonAsync("api/sensors", payload, _json, ct);
         resp.EnsureSuccessStatusCode();

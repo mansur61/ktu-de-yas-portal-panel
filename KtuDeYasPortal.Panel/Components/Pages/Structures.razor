@@ -290,7 +290,7 @@
                                                     <span class="badge bg-info text-dark me-1" style="font-size:0.65rem">@m</span>
                                                 }
                                             </td>
-                                            <td><small class="text-muted">@(s.TelemetryIntervalMs) ms</small></td>
+                                            <td><small class="text-muted">@(s.TelemetryIntervalMs / 1000) sn / @(s.TelemetryBatchSize) ölçüm</small></td>
                                             <td><small>@(s.ImagePositionX?.ToString("F1") ?? "-"), @(s.ImagePositionY?.ToString("F1") ?? "-")</small></td>
                                             <td>
                                                 <button class="btn btn-outline-danger py-0 px-1" style="font-size:0.7rem;line-height:1.4"
@@ -509,20 +509,37 @@
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">
-                        Telemetri Aralığı (ms)
+                        Ölçüm Aralığı
                         <small class="text-muted fw-normal d-block" style="font-size:0.72rem">
-                            Kafka'ya kaç ms'de bir mesaj gönderilsin
+                            Kaç saniyede bir pencere açılsın
                         </small>
                     </label>
-                    <select class="form-select" @bind="_sensorFormTelemetryIntervalMs">
-                        <option value="500">500 ms — 2/sn</option>
-                        <option value="1000">1 000 ms — 1/sn</option>
-                        <option value="2000">2 000 ms — 0.5/sn</option>
-                        <option value="5000">5 000 ms — 0.2/sn</option>
-                        <option value="10000">10 000 ms — 0.1/sn</option>
-                        <option value="30000">30 000 ms — 2/dk</option>
-                        <option value="60000">60 000 ms — 1/dk</option>
+                    <select class="form-select" @bind="_sensorFormTelemetryIntervalSec">
+                        <option value="1">1 sn</option>
+                        <option value="2">2 sn</option>
+                        <option value="5">5 sn</option>
+                        <option value="10">10 sn</option>
+                        <option value="30">30 sn</option>
+                        <option value="60">1 dk</option>
                     </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">
+                        Ölçüm / Pencere
+                        <small class="text-muted fw-normal d-block" style="font-size:0.72rem">
+                            Cihaz başı kaç ölçüm gönderilsin
+                        </small>
+                    </label>
+                    <input type="number" class="form-control"
+                           min="1" max="1000" step="1"
+                           placeholder="Örn: 200"
+                           @bind="_sensorFormTelemetryBatchSize" />
+                    @if (_sensorFormTelemetryBatchSize > 1)
+                    {
+                        <small class="text-muted">
+                            ≈ @Math.Round(_sensorFormTelemetryBatchSize / (double)_sensorFormTelemetryIntervalSec, 1) ölçüm/sn
+                        </small>
+                    }
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">Konum Etiketi</label>
@@ -733,7 +750,8 @@
     private string _sensorFormLabel       = "";
     private string _sensorFormDescription = "";
     private string _sensorFormType        = "Generic";
-    private int    _sensorFormTelemetryIntervalMs = 5000;
+    private int    _sensorFormTelemetryIntervalSec  = 5;   // saniye (1,2,5,10,30,60)
+    private int    _sensorFormTelemetryBatchSize     = 1;   // ölçüm/pencere
     private HashSet<string> _sensorFormMetrics = new(); // seçili metrikler
     private (double x, double y)? _pendingPos;
 
@@ -1223,7 +1241,8 @@
             _sensorFormLabel       = "";
             _sensorFormDescription = "";
             _sensorFormProtocol    = "MQTT";
-            _sensorFormTelemetryIntervalMs = 5000;
+            _sensorFormTelemetryIntervalSec  = 5;
+            _sensorFormTelemetryBatchSize    = 1;
             _saveError             = null;
             ResetSensorTypeDefaults("Generic");
             _showSensorPopup = true;
@@ -1247,7 +1266,8 @@
             _sensorFormLabel       = "";
             _sensorFormDescription = "";
             _sensorFormProtocol    = "MQTT";
-            _sensorFormTelemetryIntervalMs = 5000;
+            _sensorFormTelemetryIntervalSec  = 5;
+            _sensorFormTelemetryBatchSize    = 1;
             _saveError             = null;
             ResetSensorTypeDefaults("Generic");
             _showSensorPopup = true;
@@ -1303,7 +1323,9 @@
             LocationId          = _sensorFormLabel.Trim().Length > 0 ? _sensorFormLabel.Trim() : "default",
             ImagePositionX      = _pendingPos.Value.x,
             ImagePositionY      = _pendingPos.Value.y,
-            TelemetryIntervalMs = _sensorFormTelemetryIntervalMs > 0 ? _sensorFormTelemetryIntervalMs : 5000,
+            // saniye → ms dönüşümü; en az 1000 ms
+            TelemetryIntervalMs = Math.Max(_sensorFormTelemetryIntervalSec, 1) * 1000,
+            TelemetryBatchSize  = Math.Max(_sensorFormTelemetryBatchSize, 1),
             IsActive            = true,
             IsEnabled           = true,
         };

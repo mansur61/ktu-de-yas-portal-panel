@@ -38,7 +38,7 @@ public class SensorHttpRepository : ISensorRepository
             topic          = sensor.Topic,
             unit           = sensor.Unit,
             description    = sensor.Description,
-            metrics        = sensor.Metrics,       // CSV metrik key'leri
+            metrics        = sensor.Metrics,
             isEnabled      = sensor.IsEnabled,
             isActive       = sensor.IsActive,
             protocolType   = string.IsNullOrEmpty(sensor.ProtocolType) ? "MQTT" : sensor.ProtocolType,
@@ -49,7 +49,8 @@ public class SensorHttpRepository : ISensorRepository
             rotationY      = sensor.RotationY,
             rotationZ      = sensor.RotationZ,
             imagePositionX = sensor.ImagePositionX,
-            imagePositionY = sensor.ImagePositionY
+            imagePositionY = sensor.ImagePositionY,
+            telemetryIntervalMs = sensor.TelemetryIntervalMs > 0 ? sensor.TelemetryIntervalMs : 5000
         };
         var resp = await _http.PostAsJsonAsync("api/sensors", payload, _json, ct);
         resp.EnsureSuccessStatusCode();

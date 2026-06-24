@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("KtuDeYasPortal.Panel")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+4e30315d556a30c8dc17ebf347f659017dea7503")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+d5d5b7f71ab405511d1b6662de3bca0a1b2907bf")]
 [assembly: System.Reflection.AssemblyProductAttribute("KtuDeYasPortal.Panel")]
 [assembly: System.Reflection.AssemblyTitleAttribute("KtuDeYasPortal.Panel")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "YvkfPq08A14=",
+  "dgSpecHash": "9GGOOLJKjZc=",
   "success": true,
   "projectFilePath": "C:\\Users\\FatihYeseviOKUR\\Desktop\\Projects\\ktu-de-yas-portal-panel\\KtuDeYasPortal.Panel\\KtuDeYasPortal.Panel.csproj",
   "expectedPackageFiles": [
@@ -8,6 +8,9 @@
     "C:\\Users\\FatihYeseviOKUR\\.nuget\\packages\\librdkafka.redist\\2.14.0\\librdkafka.redist.2.14.0.nupkg.sha512",
     "C:\\Users\\FatihYeseviOKUR\\.nuget\\packages\\microsoft.aspnetcore.app.internal.assets\\10.0.7\\microsoft.aspnetcore.app.internal.assets.10.0.7.nupkg.sha512",
     "C:\\Users\\FatihYeseviOKUR\\.nuget\\packages\\microsoft.aspnetcore.authentication.jwtbearer\\8.0.11\\microsoft.aspnetcore.authentication.jwtbearer.8.0.11.nupkg.sha512",
+    "C:\\Users\\FatihYeseviOKUR\\.nuget\\packages\\microsoft.aspnetcore.http.connections.client\\9.0.7\\microsoft.aspnetcore.http.connections.client.9.0.7.nupkg.sha512",
+    "C:\\Users\\FatihYeseviOKUR\\.nuget\\packages\\microsoft.aspnetcore.signalr.client\\9.0.7\\microsoft.aspnetcore.signalr.client.9.0.7.nupkg.sha512",
+    "C:\\Users\\FatihYeseviOKUR\\.nuget\\packages\\microsoft.aspnetcore.signalr.client.core\\9.0.7\\microsoft.aspnetcore.signalr.client.core.9.0.7.nupkg.sha512",
     "C:\\Users\\FatihYeseviOKUR\\.nuget\\packages\\microsoft.extensions.dependencymodel\\8.0.2\\microsoft.extensions.dependencymodel.8.0.2.nupkg.sha512",
     "C:\\Users\\FatihYeseviOKUR\\.nuget\\packages\\microsoft.identitymodel.abstractions\\7.1.2\\microsoft.identitymodel.abstractions.7.1.2.nupkg.sha512",
     "C:\\Users\\FatihYeseviOKUR\\.nuget\\packages\\microsoft.identitymodel.jsonwebtokens\\7.1.2\\microsoft.identitymodel.jsonwebtokens.7.1.2.nupkg.sha512",

@@ -1,22 +1,9 @@
 namespace KtuDeYasPortal.Panel.Domain.Entities;
 
-public enum SensorType
-{
-    // ── Temel tipler (test-sensor-worker ve StructureTestData ile uyumlu) ──
-    Vibration,
-    Accelerometer,
-    Temperature,
-    Pressure,
-    Humidity,
-    Lidar,
-    Ultrasonic,
-    Camera,
-    Image,
-    Gps,
-    Water,
-    Wind,
-    Generic
-}
+using DeYas.Contracts.Sensors;
+
+// SensorType is now imported from DeYas.Contracts.Sensors
+// This ensures consistency across Panel, Portal, and Edge Layer
 
 public enum SensorStatus
 {

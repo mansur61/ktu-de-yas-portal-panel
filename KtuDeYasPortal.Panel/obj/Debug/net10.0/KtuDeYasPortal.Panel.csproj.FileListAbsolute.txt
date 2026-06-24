@@ -160,3 +160,6 @@ C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal
 C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\obj\Debug\net10.0\compressed\vg7qehrcqj-{0}-sqaql2lm12-sqaql2lm12.gz
 C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\obj\Debug\net10.0\compressed\g1em7wwbhl-{0}-sqaql2lm12-sqaql2lm12.gz
 C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\obj\Debug\net10.0\compressed\dpl97lizoc-{0}-1j7b6t61oe-1j7b6t61oe.gz
+C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\bin\Debug\net10.0\Microsoft.AspNetCore.Http.Connections.Client.dll
+C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\bin\Debug\net10.0\Microsoft.AspNetCore.SignalR.Client.dll
+C:\Users\FatihYeseviOKUR\Desktop\Projects\ktu-de-yas-portal-panel\KtuDeYasPortal.Panel\bin\Debug\net10.0\Microsoft.AspNetCore.SignalR.Client.Core.dll

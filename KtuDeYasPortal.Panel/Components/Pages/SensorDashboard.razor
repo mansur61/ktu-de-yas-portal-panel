@@ -1,30 +1,40 @@
 @page "/sensor-dashboard"
 @rendermode InteractiveServer
+@implements IAsyncDisposable
 @inject SensorDashboardUseCases DashboardUC
-@inject IConfiguration Configuration
+@inject SensorDataState SensorDataState
+@inject IOptions<GrafanaOptions> GrafanaOpts
+@inject IJSRuntime JS
 
 <PageTitle>Sensor Dashboard</PageTitle>
 
-<h3>Sensor Dashboard <small class="text-muted fs-6">- Yapı Bazlı Zaman Serisi Grafikleri</small></h3>
+<h3>Sensor Dashboard <small class="text-muted fs-6">— Yapı Bazlı Zaman Serisi İzleme</small></h3>
 
-@if (_structures is null)
+@* ── Yükleniyor ─────────────────────────────────────────────────────────────── *@
+@if (_loading)
 {
-    <p><em>Yükleniyor...</em></p>
+    <div class="d-flex align-items-center gap-2 text-muted my-3">
+        <div class="spinner-border spinner-border-sm" role="status"></div>
+        <span>Yükleniyor...</span>
+    </div>
 }
-else if (_structures.Count == 0)
+else if (_structures is null || _structures.Count == 0)
 {
-    <div class="alert alert-info">Henüz yapı tanımlanmamış. Lütfen önce bir yapı oluşturun.</div>
+    <div class="alert alert-info">
+        Henüz yapı tanımlanmamış. Lütfen önce yönetim panelinden bir yapı oluşturun.
+    </div>
 }
 else
 {
-    <ul class="nav nav-tabs sensor-tab mb-3">
+    @* ── Yapı Sekmeleri ─────────────────────────────────────────────────────── *@
+    <ul class="nav nav-tabs mb-0">
         @foreach (var st in _structures)
         {
             var isActive = st.Id == _selectedStructureId;
             <li class="nav-item">
                 <a class="nav-link @(isActive ? "active" : "")"
                    href="javascript:void(0)"
-                   @onclick="() => SelectStructure(st.Id)">
+                   @onclick="() => SelectStructureAsync(st.Id)">
                     <span class="bi bi-building me-1"></span>
                     @st.Name
                     <span class="badge bg-secondary ms-1">@st.SensorCount</span>
@@ -33,175 +43,385 @@ else
         }
     </ul>
 
-    @if (_selectedStructure is not null)
-    {
-        <div class="row g-2 mb-3 align-items-end">
-            <div class="col-auto">
-                <label class="form-label small">Zaman Aralığı</label>
-                <select class="form-select form-select-sm" @bind="_selectedRange">
-                    <option value="15m">Son 15 Dakika</option>
-                    <option value="1h">Son 1 Saat</option>
-                    <option value="6h">Son 6 Saat</option>
-                    <option value="24h">Son 24 Saat</option>
-                    <option value="7d">Son 7 Gün</option>
-                </select>
-            </div>
-            <div class="col-auto">
-                <label class="form-label small">&nbsp;</label>
-                <button class="btn btn-sm btn-primary d-block" @onclick="RefreshDataAsync">
-                    <span class="bi bi-arrow-clockwise me-1"></span>Yenile
-                </button>
-            </div>
-        </div>
-
-        @if (_selectedStructure.Sensors is not { Count: > 0 })
+    @* ── Sekme İçeriği ──────────────────────────────────────────────────────── *@
+    <div class="tab-content border border-top-0 rounded-bottom p-3 mb-3">
+        @if (_selectedStructure is null)
         {
-            <div class="alert alert-info">Bu yapı için sensör tanımı bulunamadı.</div>
+            <div class="text-muted small">Yükleniyor...</div>
+        }
+        else if (_structureSensors.Count == 0)
+        {
+            <div class="alert alert-warning mb-0">
+                <span class="bi bi-exclamation-triangle me-1"></span>
+                Bu yapıya henüz sensör eklenmemiş.
+            </div>
         }
         else
         {
-            <ul class="nav nav-pills mb-3 gap-1">
-                @foreach (var metricKey in _availableMetrics)
-                {
-                    var isActiveMetric = metricKey == _selectedMetric;
-                    <li class="nav-item">
-                        <a class="nav-link @(isActiveMetric ? "active" : "")"
-                           href="javascript:void(0)"
-                           @onclick="() => SelectMetric(metricKey)">
-                            @GetMetricLabel(metricKey)
-                        </a>
-                    </li>
-                }
-            </ul>
+            @* ── Sensör Filtresi (pill butonlar) ────────────────────────────── *@
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                <small class="text-muted fw-semibold me-1">Sensör:</small>
 
-            <div class="grafana-solo-panel">
-                <div class="grafana-solo-header">
-                    <div>
-                        <strong>@GetMetricLabel(_selectedMetric)</strong>
-                        <small class="text-muted ms-2">- @_selectedStructure.Name</small>
-                    </div>
-                    <a class="btn btn-sm btn-outline-secondary"
-                       href="@BuildGrafanaUrl(openDashboard: true)"
-                       target="_blank">
-                        <span class="bi bi-box-arrow-up-right me-1"></span>Ayrı Pencere
-                    </a>
+                @* "Tümü" butonu *@
+                <button class="btn btn-sm @(_selectedSensorId == null ? "btn-primary" : "btn-outline-secondary")"
+                        @onclick="() => SelectSensor(null)">
+                    <span class="bi bi-grid me-1"></span>Tümü
+                    <span class="badge bg-white text-dark ms-1" style="font-size:0.65rem">@_structureSensors.Count</span>
+                </button>
+
+                @* Her sensör için bir pill *@
+                @foreach (var s in _structureSensors)
+                {
+                    var isSelected = _selectedSensorId == s.SensorId;
+                    var liveCheck  = SensorDataState.GetLatest(s.DeviceId);
+                    var dotColor   = liveCheck is not null ? "success" : "secondary";
+                    <button class="btn btn-sm @(isSelected ? "btn-primary" : "btn-outline-secondary")"
+                            @onclick="() => SelectSensor(s.SensorId)">
+                        <span class="bi bi-circle-fill text-@dotColor me-1" style="font-size:0.45rem;vertical-align:middle"></span>
+                        @s.Name
+                    </button>
+                }
+
+                @* Zaman Aralığı — sağa yasla *@
+                <div class="ms-auto d-flex align-items-center gap-2">
+                    <label class="form-label small mb-0 text-muted">Aralık:</label>
+                    <select class="form-select form-select-sm" style="width:auto"
+                            @bind="_selectedRange" @bind:after="OnRangeChanged">
+                        <option value="15m">15 dk</option>
+                        <option value="1h">1 saat</option>
+                        <option value="6h">6 saat</option>
+                        <option value="24h">24 saat</option>
+                        <option value="7d">7 gün</option>
+                    </select>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="RefreshDataAsync" title="Yenile">
+                        <span class="bi bi-arrow-clockwise"></span>
+                    </button>
                 </div>
-                <iframe src="@BuildGrafanaUrl()"
-                        class="grafana-solo-iframe"
-                        title="Grafana Metric Panel"
-                        allow="fullscreen"></iframe>
             </div>
+
+            <div class="row g-3 mb-3">
+                @foreach (var sensor in GetVisibleSensors())
+                {
+                    var metrics  = GetSensorMetrics(sensor);
+                    var liveData = SensorDataState.GetLatest(sensor.DeviceId);
+
+                    @foreach (var metric in metrics)
+                    {
+                        double?   val = null;
+                        DateTime? ts  = null;
+
+                        if (liveData is not null)
+                        {
+                            if (liveData.AllMetrics?.TryGetValue(metric, out var mv) == true)
+                            { val = mv; ts = liveData.Timestamp; }
+                            else if (string.Equals(liveData.MetricKey, metric, StringComparison.OrdinalIgnoreCase))
+                            { val = liveData.CurrentValue; ts = liveData.Timestamp; }
+                        }
+
+                        var ageSec      = ts.HasValue
+                            ? (DateTime.UtcNow - DateTime.SpecifyKind(ts.Value, DateTimeKind.Utc)).TotalSeconds
+                            : double.MaxValue;
+                        var statusColor = val.HasValue
+                            ? (ageSec < 15 ? "success" : ageSec < 60 ? "warning" : "danger")
+                            : "secondary";
+                        var statusText  = val.HasValue
+                            ? (ageSec < 15 ? "Canlı" : ageSec < 60 ? "Gecikmeli" : "Bağlantı Yok")
+                            : "Veri Yok";
+                        var isGrafanaActive = _grafanaDevice == sensor.DeviceId && _grafanaMetric == metric;
+
+                        <div class="col-sm-6 col-md-4 col-xl-3">
+                            <div class="card h-100 shadow-sm @(isGrafanaActive ? "border-primary" : "border-" + statusColor + " border-opacity-50")">
+                                <div class="card-header py-2 d-flex justify-content-between align-items-center bg-@statusColor bg-opacity-10">
+                                    <span class="fw-semibold small text-truncate" title="@sensor.Name — @metric">
+                                        @GetMetricEmoji(metric) @metric
+                                    </span>
+                                    <span class="badge bg-@statusColor" style="font-size:0.65rem">@statusText</span>
+                                </div>
+                                <div class="card-body py-2 px-3">
+                                    <div class="d-flex align-items-baseline gap-1 mb-1">
+                                        @if (val.HasValue)
+                                        {
+                                            <span class="fs-3 fw-bold text-@statusColor lh-1">@val.Value.ToString("F2")</span>
+                                            @if (!string.IsNullOrWhiteSpace(sensor.Unit))
+                                            {
+                                                <small class="text-muted">@sensor.Unit</small>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <span class="fs-3 fw-bold text-secondary lh-1">—</span>
+                                            @if (!string.IsNullOrWhiteSpace(sensor.Unit))
+                                            {
+                                                <small class="text-muted">@sensor.Unit</small>
+                                            }
+                                        }
+                                    </div>
+                                    <div class="text-muted text-truncate" style="font-size:0.72rem">
+                                        <span class="bi bi-cpu me-1"></span>@sensor.Name
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center mt-1" style="font-size:0.68rem">
+                                        <code class="text-muted">@sensor.DeviceId</code>
+                                        @if (ts.HasValue)
+                                        {
+                                            <span class="text-muted">
+                                                @DateTime.SpecifyKind(ts.Value, DateTimeKind.Utc).ToLocalTime().ToString("HH:mm:ss")
+                                            </span>
+                                        }
+                                    </div>
+                                </div>
+                                <div class="card-footer py-1 px-2 bg-transparent">
+                                    <button class="btn btn-sm w-100 py-0 @(isGrafanaActive ? "btn-primary" : "btn-outline-secondary")"
+                                            style="font-size:0.7rem"
+                                            @onclick="() => ToggleGrafana(sensor.DeviceId, metric)">
+                                        <span class="bi bi-bar-chart-line me-1"></span>
+                                        @(isGrafanaActive ? "Grafana Açık" : "Grafana")
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+
+            @* ── Grafana iframe ──────────────────────────────────────────────── *@
+            @if (!string.IsNullOrEmpty(_iframeSrc))
+            {
+                <div class="card border-0 shadow-sm mt-2">
+                    <div class="card-header d-flex justify-content-between align-items-center bg-dark text-white py-2">
+                        <span>
+                            <span class="bi bi-bar-chart-line me-1"></span>
+                            @GetMetricEmoji(_grafanaMetric) @_grafanaMetric
+                            <code class="text-white-50 ms-2" style="font-size:0.8rem">@_grafanaDevice</code>
+                            <small class="text-white-50 ms-2">· @(_selectedStructure?.Name)</small>
+                        </span>
+                        <div class="d-flex gap-2">
+                            <small class="text-white-50 align-self-center">@DateTime.UtcNow.ToLocalTime().ToString("HH:mm:ss")</small>
+                            <button class="btn btn-sm btn-outline-light" @onclick="RefreshIframeAsync" title="Yenile">
+                                <span class="bi bi-arrow-clockwise"></span>
+                            </button>
+                            <button class="btn btn-sm btn-outline-light" @onclick="OpenInNewTabAsync" title="Yeni Sekme">
+                                <span class="bi bi-box-arrow-up-right"></span>
+                            </button>
+                            <button class="btn btn-sm btn-outline-light" @onclick="CloseGrafana" title="Kapat">
+                                <span class="bi bi-x-lg"></span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <iframe src="@_iframeSrc"
+                                width="100%"
+                                height="600"
+                                frameborder="0"
+                                title="Grafana"
+                                allow="fullscreen"
+                                style="display:block;">
+                        </iframe>
+                    </div>
+                </div>
+            }
         }
-    }
+    </div>
 }
 
 @code {
+    // ── State ──────────────────────────────────────────────────────────────────
+    private bool   _loading = true;
     private List<Domain.Entities.Structure>? _structures;
-    private Guid _selectedStructureId;
+    private Guid   _selectedStructureId;
     private Domain.Entities.Structure? _selectedStructure;
+
+    // Sensors of the selected structure (from GetByIdAsync — includes Sensors)
+    private List<Domain.Entities.StructureSensor> _structureSensors = new();
+
+    // Sensor filter: null = tümü, value = belirli sensörün SensorId'si
+    private Guid? _selectedSensorId;
+
+    // Kafka lag guard — current structure's device IDs
+    private readonly HashSet<string> _structureDeviceSet =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    // Grafana iframe
+    private string _iframeSrc     = string.Empty;
+    private string _grafanaDevice = string.Empty;
+    private string _grafanaMetric = string.Empty;
     private string _selectedRange = "1h";
-    private string _selectedMetric = "temperature";
 
-    private readonly List<string> _availableMetrics = new()
-    {
-        "temperature", "humidity", "pressure", "acceleration", "vibration",
-        "wind_speed", "water_level", "strain", "tilt", "distance"
-    };
+    private CancellationTokenSource? _cts;
+    private PeriodicTimer?           _tick;
 
+    // ── Lifecycle ──────────────────────────────────────────────────────────────
     protected override async Task OnInitializedAsync()
     {
+        SensorDataState.OnSensorDataReceived += OnSensorDataReceived;
         await LoadStructuresAsync();
-        if (_structures?.Count > 0)
-        {
-            _selectedStructureId = _structures[0].Id;
-            _selectedStructure = _structures[0];
-        }
+
+        _cts  = new CancellationTokenSource();
+        _tick = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        _ = TickAsync(_cts.Token);
     }
 
+    // ── Load structure list ────────────────────────────────────────────────────
     private async Task LoadStructuresAsync()
     {
-        _structures = await DashboardUC.GetAllStructuresAsync();
+        _loading = true;
+        try
+        {
+            _structures = await DashboardUC.GetAllStructuresAsync();
+            if (_structures.Count > 0 && _selectedStructureId == Guid.Empty)
+            {
+                _selectedStructureId = _structures[0].Id;
+                await LoadStructureDetailAsync(_structures[0].Id);
+            }
+        }
+        finally { _loading = false; }
     }
 
-    private async Task SelectStructure(Guid id)
+    // ── Load structure detail with sensors ────────────────────────────────────
+    private async Task LoadStructureDetailAsync(Guid structureId)
     {
+        _structureSensors.Clear();
+        _structureDeviceSet.Clear();
+        _selectedSensorId = null;
+
+        var detail = await DashboardUC.GetStructureByIdAsync(structureId);
+        _selectedStructure = detail;
+        if (detail is null) return;
+
+        _structureSensors = detail.Sensors
+            .Where(s => s.IsActive && !string.IsNullOrWhiteSpace(s.DeviceId))
+            .OrderBy(s => s.SensorOrder)
+            .ToList();
+
+        foreach (var s in _structureSensors)
+            _structureDeviceSet.Add(s.DeviceId);
+    }
+
+    // ── Tab selection ──────────────────────────────────────────────────────────
+    private async Task SelectStructureAsync(Guid id)
+    {
+        if (_selectedStructureId == id) return;
         _selectedStructureId = id;
-        _selectedStructure = _structures?.FirstOrDefault(s => s.Id == id);
+        CloseGrafana();
+        await LoadStructureDetailAsync(id);
         await InvokeAsync(StateHasChanged);
     }
 
+    // ── Sensor filter ──────────────────────────────────────────────────────────
+    private void SelectSensor(Guid? sensorId)
+    {
+        _selectedSensorId = sensorId;
+        // Grafana'yı kapat — seçim değişince eski iframe geçersiz
+        CloseGrafana();
+    }
+
+    // ── Grafana toggle ─────────────────────────────────────────────────────────
+    private void ToggleGrafana(string deviceId, string metric)
+    {
+        // Aynı kart tekrar tıklanırsa kapat
+        if (_grafanaDevice == deviceId && _grafanaMetric == metric)
+        {
+            CloseGrafana();
+            return;
+        }
+        _grafanaDevice = deviceId;
+        _grafanaMetric = metric;
+        _iframeSrc = GrafanaOpts.Value.BuildPanelUrl(
+            panelId: 10,
+            metricVar: metric,
+            deviceVar: deviceId,
+            structureId: _selectedStructureId.ToString(),
+            timeRange: _selectedRange);
+    }
+
+    private void CloseGrafana()
+    {
+        _iframeSrc     = string.Empty;
+        _grafanaDevice = string.Empty;
+        _grafanaMetric = string.Empty;
+    }
+
+    private void OnRangeChanged()
+    {
+        if (!string.IsNullOrEmpty(_iframeSrc))
+            ToggleGrafana(_grafanaDevice, _grafanaMetric);
+    }
+
+    // ── Refresh ────────────────────────────────────────────────────────────────
     private async Task RefreshDataAsync()
     {
         await LoadStructuresAsync();
-        _selectedStructure = _structures?.FirstOrDefault(s => s.Id == _selectedStructureId) ?? _structures?.FirstOrDefault();
-        if (_selectedStructure is not null)
-            _selectedStructureId = _selectedStructure.Id;
+        if (_selectedStructureId != Guid.Empty)
+            await LoadStructureDetailAsync(_selectedStructureId);
         await InvokeAsync(StateHasChanged);
     }
 
-    private async Task SelectMetric(string metric)
+    // ── Realtime (Kafka lag guard) ─────────────────────────────────────────────
+    private void OnSensorDataReceived(SensorUpdatedEvent evt)
     {
-        _selectedMetric = metric;
-        await InvokeAsync(StateHasChanged);
+        if (!_structureDeviceSet.Contains(evt.DeviceId)) return;
+        InvokeAsync(StateHasChanged);
     }
 
-    private static string GetMetricLabel(string key) => key switch
+    // ── Helpers ────────────────────────────────────────────────────────────────
+    private IEnumerable<Domain.Entities.StructureSensor> GetVisibleSensors() =>
+        _selectedSensorId.HasValue
+            ? _structureSensors.Where(s => s.SensorId == _selectedSensorId.Value)
+            : _structureSensors;
+
+    private static List<string> GetSensorMetrics(Domain.Entities.StructureSensor sensor)
     {
-        "temperature" => "Sıcaklık",
-        "humidity" => "Nem",
-        "pressure" => "Basınç",
-        "acceleration" => "İvme",
-        "vibration" => "Titreşim",
-        "wind_speed" => "Rüzgar Hızı",
-        "water_level" => "Su Seviyesi",
-        "strain" => "Strain",
-        "tilt" => "Eğim",
-        "distance" => "Mesafe",
-        _ => key
+        var csv = string.IsNullOrWhiteSpace(sensor.Metrics) ? sensor.Description : sensor.Metrics;
+        if (string.IsNullOrWhiteSpace(csv)) return new() { "value" };
+        return csv.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                  .Where(m => !string.IsNullOrWhiteSpace(m))
+                  .ToList();
+    }
+
+    private static string GetMetricEmoji(string metric) => metric.ToLowerInvariant() switch
+    {
+        "temperature"  => "🌡️",
+        "humidity"     => "💧",
+        "pressure"     => "📊",
+        "vibration"    => "📳",
+        "acceleration" => "🚀",
+        "wind_speed"   => "💨",
+        "water_level"  => "🌊",
+        "strain"       => "⚙️",
+        "tilt"         => "📐",
+        "distance"     => "📏",
+        _              => "🔢"
     };
 
-    private string BuildGrafanaUrl(bool openDashboard = false)
+    // ── Iframe helpers ────────────────────────────────────────────────────────
+    private async Task RefreshIframeAsync()
     {
-        var baseUrl = (Configuration["Services:Grafana"] ?? "http://localhost:3000").TrimEnd('/');
-        var uid = Configuration["Grafana:TimeseriesDashboardUid"] ?? "iot-platform-timeseries";
-        var slug = Configuration["Grafana:TimeseriesDashboardSlug"] ?? "iot-platform-timescaledb";
-        var panelId = Configuration["Grafana:MetricPanelId"] ?? "10";
-        var deviceFilter = BuildDeviceFilter();
-        var range = _selectedRange switch
-        {
-            "15m" => "now-15m",
-            "1h" => "now-1h",
-            "6h" => "now-6h",
-            "24h" => "now-24h",
-            "7d" => "now-7d",
-            _ => "now-1h"
-        };
-
-        var path = openDashboard ? $"d/{uid}/{slug}" : $"d-solo/{uid}/{slug}";
-        var query = new[]
-        {
-            "orgId=1",
-            $"from={Uri.EscapeDataString(range)}",
-            "to=now",
-            $"var-device={Uri.EscapeDataString(deviceFilter)}",
-            $"var-metric={Uri.EscapeDataString(_selectedMetric)}",
-            $"panelId={Uri.EscapeDataString(panelId)}",
-            "theme=light",
-            "refresh=5s",
-            "kiosk"
-        };
-
-        return $"{baseUrl}/{path}?{string.Join('&', query)}";
+        var saved = _iframeSrc;
+        _iframeSrc = string.Empty;
+        StateHasChanged();
+        await Task.Delay(50);
+        _iframeSrc = saved;
     }
 
-    private string BuildDeviceFilter()
+    private async Task OpenInNewTabAsync()
     {
-        var devices = _selectedStructure?.Sensors?
-            .Where(s => s.IsActive && !string.IsNullOrWhiteSpace(s.DeviceId))
-            .Select(s => s.DeviceId)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        if (!string.IsNullOrWhiteSpace(_iframeSrc))
+            await JS.InvokeVoidAsync("open", _iframeSrc, "_blank");
+    }
 
-        return devices is { Count: 1 } ? devices[0] : "%%";
+    // ── Tick ──────────────────────────────────────────────────────────────────
+    private async Task TickAsync(CancellationToken ct)
+    {
+        try { while (await _tick!.WaitForNextTickAsync(ct)) await InvokeAsync(StateHasChanged); }
+        catch (OperationCanceledException) { }
+    }
+
+    // ── Cleanup ───────────────────────────────────────────────────────────────
+    public ValueTask DisposeAsync()
+    {
+        SensorDataState.OnSensorDataReceived -= OnSensorDataReceived;
+        _cts?.Cancel();
+        _tick?.Dispose();
+        _cts?.Dispose();
+        return ValueTask.CompletedTask;
     }
 }

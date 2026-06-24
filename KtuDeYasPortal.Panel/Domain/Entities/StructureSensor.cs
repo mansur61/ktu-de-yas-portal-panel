@@ -11,7 +11,9 @@ public class StructureSensor
     public string  SensorType     { get; set; } = string.Empty;
     public string  Unit           { get; set; } = string.Empty;
     public string  Topic          { get; set; } = string.Empty;
-    public string  Description    { get; set; } = string.Empty; // CSV metrikler
+    public string  Description    { get; set; } = string.Empty;
+    /// <summary>Virgülle ayrılmış metrik key listesi. Örnek: "temperature,humidity"</summary>
+    public string  Metrics        { get; set; } = string.Empty;
     public double? ImagePositionX { get; set; }
     public double? ImagePositionY { get; set; }
     public bool    IsActive       { get; set; }

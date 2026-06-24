@@ -1,5 +1,6 @@
 @page "/structures"
 @rendermode InteractiveServer
+@using DeYas.Contracts.Sensors
 @inject StructureUseCases StructureUC
 @inject IStructureSimulationClient StructureSimClient
 @inject IJSRuntime JS
@@ -282,7 +283,13 @@
                                             <td>@s.Name</td>
                                             <td><code style="font-size:0.75rem">@s.DeviceId</code></td>
                                             <td><small class="font-monospace">@s.Topic</small></td>
-                                            <td><small>@s.Description</small></td>
+                                            <td>
+                                                @{var wMetrics = !string.IsNullOrWhiteSpace(s.Metrics) ? s.Metrics : s.Description;}
+                                                @foreach (var m in (wMetrics ?? string.Empty).Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+                                                {
+                                                    <span class="badge bg-info text-dark me-1" style="font-size:0.65rem">@m</span>
+                                                }
+                                            </td>
                                             <td><small>@(s.ImagePositionX?.ToString("F1") ?? "-"), @(s.ImagePositionY?.ToString("F1") ?? "-")</small></td>
                                             <td>
                                                 <button class="btn btn-outline-danger py-0 px-1" style="font-size:0.7rem;line-height:1.4"
@@ -387,9 +394,13 @@
                                     <td><code style="font-size:0.75rem">@ss.DeviceId</code></td>
                                     <td><small class="font-monospace" title="@ss.Topic" style="font-size:0.72rem">@(ss.Topic.Length > 32 ? ss.Topic[..30] + "…" : ss.Topic)</small></td>
                                     <td>
-                                        @if (!string.IsNullOrEmpty(ss.Description))
+                                        @{
+                                            // Metrics field (new) takes priority; fall back to Description (legacy)
+                                            var metricsCsv = !string.IsNullOrWhiteSpace(ss.Metrics) ? ss.Metrics : ss.Description;
+                                        }
+                                        @if (!string.IsNullOrEmpty(metricsCsv))
                                         {
-                                            @foreach (var m in ss.Description.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                                            @foreach (var m in metricsCsv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
                                             {
                                                 <span class="badge bg-info text-dark me-1" style="font-size:0.65rem">@m</span>
                                             }
@@ -745,11 +756,14 @@
         ["Temperature"]   = new("Sıcaklık",     "🌡️"),
         ["Humidity"]      = new("Nem",           "💧"),
         ["Pressure"]      = new("Basınç",        "🔽"),
+        ["Strain"]        = new("Gerinim",       "📏"),
+        ["Tilt"]          = new("Eğim",          "⚙️"),
         ["Lidar"]         = new("Lidar",         "📡"),
         ["Ultrasonic"]    = new("Ultrasonik",    "🔊"),
-        ["Camera"]        = new("Kamera",        "📷"),
-        ["Gps"]           = new("GPS",           "📍"),
-        ["Water"]         = new("Su Seviyesi",   "🌊"),
+        ["Camera"]        = new("Kamera",        "📹"),
+        ["Image"]         = new("Görüntü",       "📷"),
+        ["Gps"]           = new("GPS",           "🗺️"),
+        ["Water"]         = new("Su Seviyesi",   "💦"),
         ["Wind"]          = new("Rüzgar",        "💨"),
         ["Generic"]       = new("Genel",         "🔘"),
     };
@@ -778,9 +792,12 @@
         ["Temperature"]   = (["temperature"],                    "temperature",   "°C"),
         ["Humidity"]      = (["humidity", "temperature"],         "humidity",      "%"),
         ["Pressure"]      = (["pressure"],                       "pressure",      "hPa"),
+        ["Strain"]        = (["strain"],                         "strain",        "µε"),
+        ["Tilt"]          = (["tilt"],                           "tilt",          "°"),
         ["Lidar"]         = (["distance"],                       "lidar",         "m"),
         ["Ultrasonic"]    = (["distance"],                       "ultrasonic",    "m"),
         ["Camera"]        = (new string[0],                      "camera",        ""),
+        ["Image"]         = (new string[0],                      "image",         ""),
         ["Gps"]           = (new string[0],                      "gps",           ""),
         ["Water"]         = (["water_level"],                    "water",         "m"),
         ["Wind"]          = (["wind_speed"],                     "wind",          "m/s"),

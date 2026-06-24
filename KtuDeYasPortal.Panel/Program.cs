@@ -1,3 +1,4 @@
+using KtuDeYasPortal.Panel.Application.Services;
 using KtuDeYasPortal.Panel.Application.Settings;
 using KtuDeYasPortal.Panel.Application.UseCases;
 using KtuDeYasPortal.Panel.Components;
@@ -11,9 +12,11 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-// ── Panel Options ──
+// ── Panel & Grafana Options ──
 builder.Services.Configure<PanelOptions>(
     builder.Configuration.GetSection(PanelOptions.Section));
+builder.Services.Configure<GrafanaOptions>(
+    builder.Configuration.GetSection(GrafanaOptions.Section));
 
 // ── HTTP Client — timeseries-service ──
 builder.Services.AddHttpClient("timeseries-api", c =>
@@ -30,13 +33,17 @@ builder.Services.AddHttpClient("edge-api", c =>
     c.Timeout = TimeSpan.FromSeconds(30);
 });
 
-// ── SignalR Hubs ──
+// ── SignalR Hubs (Panel's own hub for structure group management) ──
 builder.Services.AddSignalR(options =>
 {
     options.EnableDetailedErrors = builder.Environment.IsDevelopment();
     options.KeepAliveInterval = TimeSpan.FromSeconds(15);
     options.ClientTimeoutInterval = TimeSpan.FromSeconds(30);
 });
+
+// ── Realtime: SensorData-driven state (fed by Portal hub, not Sensor config) ──
+builder.Services.AddSingleton<SensorDataState>();
+builder.Services.AddSingleton<PortalHubClient>();
 
 // ── Repositories & Use Cases ──
 builder.Services.AddScoped<IStructureRepository, StructureHttpRepository>();
@@ -73,6 +80,9 @@ app.MapGet("/media-preview/{fileName}", (string fileName, IConfiguration configu
 
     return Results.File(path, contentType: GetMediaPreviewContentType(path), fileDownloadName: safeName);
 });
+
+// ── REST API: Yapılar ve Sensörler ──
+// app.MapStructureEndpoints();  // TODO: Implement structure endpoints if needed
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();

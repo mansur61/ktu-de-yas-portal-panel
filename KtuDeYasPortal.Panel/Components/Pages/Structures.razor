@@ -83,11 +83,28 @@
                                 else
                                 { <span class="badge bg-secondary">Pasif</span> }
                             </div>
-                            <div class="mt-3 d-flex justify-content-end">
+                            <div class="mt-3 d-flex justify-content-end gap-2">
+                                @if (_runningStructureIds.Contains(s.Id))
+                                {
+                                    <button class="btn btn-sm btn-outline-danger"
+                                            @onclick="() => StopStructureSimulationAsync(s.Id)"
+                                            @onclick:stopPropagation="true"
+                                            disabled="@_stoppingStructureIds.Contains(s.Id)">
+                                        @if (_stoppingStructureIds.Contains(s.Id))
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-1"></span>
+                                        }
+                                        else
+                                        {
+                                            <span class="bi bi-stop-fill me-1"></span>
+                                        }
+                                        Durdur
+                                    </button>
+                                }
                                 <button class="btn btn-sm btn-success"
                                         @onclick="() => StartStructureSimulationAsync(s.Id)"
                                         @onclick:stopPropagation="true"
-                                        disabled="@_startingStructureIds.Contains(s.Id)">
+                                        disabled="@(_startingStructureIds.Contains(s.Id) || _runningStructureIds.Contains(s.Id))">
                                     @if (_startingStructureIds.Contains(s.Id))
                                     {
                                         <span class="spinner-border spinner-border-sm me-1"></span>
@@ -96,7 +113,7 @@
                                     {
                                         <span class="bi bi-play-fill me-1"></span>
                                     }
-                                    Çalıştır
+                                    @(_runningStructureIds.Contains(s.Id) ? "Çalışıyor" : "Çalıştır")
                                 </button>
                             </div>
                         </div>
@@ -726,6 +743,8 @@
     private string?          _simulationStatusMessage;
     private string?          _simulationErrorMessage;
     private HashSet<Guid>    _startingStructureIds = new();
+    private HashSet<Guid>    _runningStructureIds  = new(); // aktif çalışan simülasyonlar
+    private HashSet<Guid>    _stoppingStructureIds = new(); // durdurma isteği gönderildi
 
     // ── Wizard ───────────────────────────────────────────────────────────────
     private int           _wizardStep  = 1;
@@ -971,6 +990,7 @@
             await StructureSimClient.StartAsync(structureId);
             var structureName = _structures?.FirstOrDefault(s => s.Id == structureId)?.Name ?? "yapı";
             _simulationStatusMessage = $"{structureName} için edge simülasyonu başlatıldı.";
+            _runningStructureIds.Add(structureId);
         }
         catch (Exception ex)
         {
@@ -979,6 +999,32 @@
         finally
         {
             _startingStructureIds.Remove(structureId);
+        }
+    }
+
+    private async Task StopStructureSimulationAsync(Guid structureId)
+    {
+        if (_stoppingStructureIds.Contains(structureId))
+            return;
+
+        _simulationErrorMessage  = null;
+        _simulationStatusMessage = null;
+        _stoppingStructureIds.Add(structureId);
+
+        try
+        {
+            await StructureSimClient.StopAsync(structureId);
+            var structureName = _structures?.FirstOrDefault(s => s.Id == structureId)?.Name ?? "yapı";
+            _simulationStatusMessage = $"{structureName} simülasyonu durduruldu.";
+            _runningStructureIds.Remove(structureId);
+        }
+        catch (Exception ex)
+        {
+            _simulationErrorMessage = $"Simülasyon durdurulamadı: {ex.Message}";
+        }
+        finally
+        {
+            _stoppingStructureIds.Remove(structureId);
         }
     }
 

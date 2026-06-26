@@ -3,6 +3,7 @@
 @using DeYas.Contracts.Sensors
 @inject StructureUseCases StructureUC
 @inject IStructureSimulationClient StructureSimClient
+@inject IConfiguration Configuration
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 
@@ -33,9 +34,15 @@
             <h4 class="mb-0 fw-bold">Yapı Yönetimi</h4>
             <small class="text-muted">Kayıtlı yapılar, sensörler ve konum bilgileri</small>
         </div>
-        <button class="btn btn-primary" @onclick="ShowCreateWizard">
-            <span class="bi bi-plus-lg me-1"></span> Yeni Yapı
-        </button>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-warning" @onclick="OpenCentralNodeRedAsync"
+                    title="Merkez Node-RED — tüm yapıların MQTT akışını izler">
+                <span class="bi bi-diagram-3-fill me-1"></span>Merkez Node-RED
+            </button>
+            <button class="btn btn-primary" @onclick="ShowCreateWizard">
+                <span class="bi bi-plus-lg me-1"></span> Yeni Yapı
+            </button>
+        </div>
     </div>
 
     @if (_structures is null)
@@ -114,6 +121,20 @@
                                         <span class="bi bi-play-fill me-1"></span>
                                     }
                                     @(_runningStructureIds.Contains(s.Id) ? "Çalışıyor" : "Çalıştır")
+                                </button>
+                                <button class="btn btn-sm btn-outline-warning"
+                                        @onclick="() => OpenNodeRedAsync(s.Id, s.Name)"
+                                        @onclick:stopPropagation="true"
+                                        title="@(string.IsNullOrWhiteSpace(s.NodeRedUrl) ? "Merkez Node-RED (yapıya özel URL yok)" : $"Yapıya özel Node-RED: {s.NodeRedUrl}")">
+                                    <span class="bi bi-diagram-3 me-1"></span>
+                                    @if (string.IsNullOrWhiteSpace(s.NodeRedUrl))
+                                    {
+                                        <span class="text-muted">Node-RED</span>
+                                    }
+                                    else
+                                    {
+                                        <span>Node-RED ✦</span>
+                                    }
                                 </button>
                             </div>
                         </div>
@@ -231,6 +252,20 @@
                                 <label class="form-label small">Boylam</label>
                                 <input id="lng-input" type="number" class="form-control form-control-sm" @bind="_newLng" step="0.000001" />
                             </div>
+                        </div>
+                    </div>
+                    @* ── Node-RED ── *@
+                    <div class="col-12"><hr class="my-1" /><small class="text-muted fw-semibold">Node-RED Entegrasyonu</small></div>
+                    <div class="col-12">
+                        <label class="form-label">
+                            <span class="bi bi-diagram-3 me-1"></span>Node-RED URL
+                            <small class="text-muted fw-normal"> — Boş bırakılırsa ortak instance kullanılır</small>
+                        </label>
+                        <input class="form-control" @bind="_newNodeRedUrl"
+                               placeholder="http://nodered-yapi-adi:1880 (opsiyonel)" />
+                        <div class="form-text">
+                            Kubernetes'te her yapıya özel Node-RED pod'u varsa URL'ini girin.
+                            Docker Compose'da <code>nodered-{yapı-slug}</code> servis adını kullanın.
                         </div>
                     </div>
                 </div>
@@ -644,6 +679,14 @@
                         <label class="form-check-label" for="chkEditActive">Aktif</label>
                     </div>
                 </div>
+                <div class="col-12">
+                    <label class="form-label">
+                        <span class="bi bi-diagram-3 me-1"></span>Node-RED URL
+                        <small class="text-muted fw-normal"> — Boş bırakılırsa ortak instance kullanılır</small>
+                    </label>
+                    <input class="form-control" @bind="_editNodeRedUrl"
+                           placeholder="http://nodered-yapi-adi:1880 (opsiyonel)" />
+                </div>
             </div>
             <div class="mt-3 d-flex gap-2">
                 <button class="btn btn-success" @onclick="SaveEditAsync" disabled="@_isSaving">
@@ -757,6 +800,7 @@
     private string        _newAddress     = "";
     private double        _newLat         = 40.5;
     private double        _newLng         = 40.0;
+    private string        _newNodeRedUrl  = "";
     private List<string>  _newDistricts   = new();
     private List<Sensor>  _newStructureSensors = new(); // wizard adım 3'te eklenenler
 
@@ -782,6 +826,7 @@
     private string        _editDistrict    = "";
     private string        _editAddress     = "";
     private bool          _editIsActive    = true;
+    private string        _editNodeRedUrl  = "";
     private List<string>  _editDistricts   = new();
 
     // ── Timer (click polling) ─────────────────────────────────────────────────
@@ -1028,6 +1073,34 @@
         }
     }
 
+    /// <summary>
+    /// Yapıya özgü Node-RED URL'ini yeni sekmede açar.
+    /// Öncelik: structures.node_red_url (DB) → NodeRed:BaseUrl (config fallback).
+    /// Kubernetes'e çıkınca her yapının kendi pod URL'i DB'den gelir.
+    /// </summary>
+    private async Task OpenNodeRedAsync(Guid structureId, string structureName)
+    {
+        // 1. DB'den yapıya özgü URL
+        var structure = _structures?.FirstOrDefault(s => s.Id == structureId);
+        var url = !string.IsNullOrWhiteSpace(structure?.NodeRedUrl)
+            ? structure.NodeRedUrl
+            : Configuration["NodeRed:BaseUrl"] ?? "http://localhost:1880";
+
+        await JS.InvokeVoidAsync("open", url, "_blank");
+    }
+
+    /// <summary>
+    /// Merkez Node-RED'i açar — tüm yapıların MQTT akışını izler (shared instance).
+    /// NodeRed:CentralUrl config'den gelir, yoksa NodeRed:BaseUrl'e düşer.
+    /// </summary>
+    private async Task OpenCentralNodeRedAsync()
+    {
+        var url = Configuration["NodeRed:CentralUrl"]
+               ?? Configuration["NodeRed:BaseUrl"]
+               ?? "http://localhost:1880";
+        await JS.InvokeVoidAsync("open", url, "_blank");
+    }
+
     // ── Wizard ────────────────────────────────────────────────────────────────
     private void ShowCreateWizard()
     {
@@ -1183,6 +1256,7 @@
                 Longitude     = _newLng,
                 StructureType = _newType.Value,
                 ImageUrl      = _structureTypes[_newType.Value].ImagePath,
+                NodeRedUrl    = string.IsNullOrWhiteSpace(_newNodeRedUrl) ? null : _newNodeRedUrl.Trim(),
                 SensorCount   = _newStructureSensors.Count,
             };
             var created = await StructureUC.CreateAsync(s, new List<Guid>());
@@ -1329,10 +1403,43 @@
         if (_typeDefaults.TryGetValue(typeKey, out var def))
         {
             var devId = string.IsNullOrWhiteSpace(_sensorFormDeviceId) ? "sensor" : _sensorFormDeviceId;
-            _sensorFormTopic   = $"nodered/processed/default/{devId}/{def.TopicSuffix}/data";
+
+            // Yapı adından slug türet — yeni format: nodered/processed/{slug}/{locationId}/{deviceId}/data
+            // Yapı yoksa eski format (geriye dönük uyumluluk)
+            var slug = string.IsNullOrWhiteSpace(_editingStructure?.Name)
+                ? null
+                : BuildTopicSlug(_editingStructure.Name);
+
+            _sensorFormTopic = slug != null
+                ? $"nodered/processed/{slug}/default/{devId}/data"
+                : $"nodered/processed/default/{devId}/data";
+
             _sensorFormUnit    = def.Unit;
             _sensorFormMetrics = new HashSet<string>(def.Metrics);
         }
+    }
+
+    /// <summary>
+    /// Yapı adından URL-safe MQTT topic slug'ı üretir.
+    /// "Yusufeli Barajı" → "yusufeli-baraji"
+    /// </summary>
+    private static string BuildTopicSlug(string name)
+    {
+        var map = new Dictionary<char, char>
+        {
+            ['ş'] = 's', ['Ş'] = 's', ['ğ'] = 'g', ['Ğ'] = 'g',
+            ['ü'] = 'u', ['Ü'] = 'u', ['ö'] = 'o', ['Ö'] = 'o',
+            ['ç'] = 'c', ['Ç'] = 'c', ['ı'] = 'i', ['İ'] = 'i'
+        };
+
+        var chars = name.ToLowerInvariant()
+            .Select(ch => map.TryGetValue(ch, out var r) ? r : ch)
+            .Select(ch => char.IsLetterOrDigit(ch) ? ch : '-')
+            .ToArray();
+
+        var slug = new string(chars);
+        while (slug.Contains("--")) slug = slug.Replace("--", "-");
+        return slug.Trim('-');
     }
 
     private void CloseSensorPopup()
@@ -1468,6 +1575,7 @@
         _editDistrict    = _editingStructure.District ?? "";
         _editAddress     = _editingStructure.Address ?? "";
         _editIsActive    = _editingStructure.IsActive;
+        _editNodeRedUrl  = _editingStructure.NodeRedUrl ?? "";
         _editDistricts   = _districtMap.TryGetValue(_editProvince, out var d) ? d : new();
         _showEditPopup   = true;
     }
@@ -1493,6 +1601,7 @@
             _editingStructure.StructureType = _editType;
             _editingStructure.IsActive     = _editIsActive;
             _editingStructure.ImageUrl     = _structureTypes[_editType].ImagePath;
+            _editingStructure.NodeRedUrl   = string.IsNullOrWhiteSpace(_editNodeRedUrl) ? null : _editNodeRedUrl.Trim();
 
             var ids = _editingStructure.Sensors?.Select(s => s.SensorId).ToList() ?? new();
             await StructureUC.UpdateAsync(_editingStructure.Id, _editingStructure, ids);

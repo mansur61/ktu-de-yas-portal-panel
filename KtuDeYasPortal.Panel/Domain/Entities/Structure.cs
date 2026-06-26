@@ -17,6 +17,13 @@ public class Structure
     public StructureType StructureType { get; set; } = StructureType.Other;
     public string? ImageUrl { get; set; }
 
+    /// <summary>
+    /// Yapıya özgü Node-RED instance URL'i.
+    /// Null → ortak instance (appsettings NodeRed:BaseUrl).
+    /// Docker/K8s: "http://nodered-{slug}:1880"
+    /// </summary>
+    public string? NodeRedUrl { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     public List<StructureSensor> Sensors { get; set; } = new();

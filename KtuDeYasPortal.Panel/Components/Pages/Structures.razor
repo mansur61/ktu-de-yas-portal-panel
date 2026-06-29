@@ -259,13 +259,41 @@
                     <div class="col-12">
                         <label class="form-label">
                             <span class="bi bi-diagram-3 me-1"></span>Node-RED URL
-                            <small class="text-muted fw-normal"> — Boş bırakılırsa ortak instance kullanılır</small>
+                            @if (!string.IsNullOrWhiteSpace(_newNodeRedUrl))
+                            {
+                                <span class="badge bg-success ms-2" style="font-size:0.7rem">Otomatik atandı</span>
+                            }
+                            else
+                            {
+                                <small class="text-muted fw-normal"> — Boş bırakılırsa ortak instance kullanılır</small>
+                            }
                         </label>
-                        <input class="form-control" @bind="_newNodeRedUrl"
-                               placeholder="http://nodered-yapi-adi:1880 (opsiyonel)" />
+                        <div class="input-group">
+                            <span class="input-group-text">
+                                <span class="bi bi-diagram-3@(!string.IsNullOrWhiteSpace(_newNodeRedUrl) ? "-fill text-success" : " text-muted")"></span>
+                            </span>
+                            <input class="form-control @(!string.IsNullOrWhiteSpace(_newNodeRedUrl) ? "bg-light" : "")"
+                                   @bind="_newNodeRedUrl"
+                                   readonly="@(!string.IsNullOrWhiteSpace(Configuration[$"NodeRed:PerStructureUrls:{_newType}"]))"
+                                   placeholder="http://nodered-yapi-adi:1880 (opsiyonel)" />
+                            @if (!string.IsNullOrWhiteSpace(_newNodeRedUrl))
+                            {
+                                <button class="btn btn-outline-secondary" type="button"
+                                        title="Temizle — ortak instance kullanılır"
+                                        @onclick="() => _newNodeRedUrl = string.Empty">
+                                    <span class="bi bi-x-lg"></span>
+                                </button>
+                            }
+                        </div>
                         <div class="form-text">
-                            Kubernetes'te her yapıya özel Node-RED pod'u varsa URL'ini girin.
-                            Docker Compose'da <code>nodered-{yapı-slug}</code> servis adını kullanın.
+                            @if (!string.IsNullOrWhiteSpace(_newNodeRedUrl))
+                            {
+                                <span class="text-success"><span class="bi bi-check-circle me-1"></span>Bu yapı tipi için Node-RED instance'ı otomatik atandı.</span>
+                            }
+                            else
+                            {
+                                <span>Yapı tipini seçince otomatik dolar. Kubernetes'te özel pod varsa URL'i girin; Docker Compose'da <code>nodered-{yapı-slug}</code> kullanın.</span>
+                            }
                         </div>
                     </div>
                 </div>
@@ -1133,6 +1161,13 @@
     private void SelectNewType(StructureType t)
     {
         _newType = t;
+
+        // Yapı tipine göre Node-RED URL'ini config'den otomatik doldur
+        var autoUrl = Configuration[$"NodeRed:PerStructureUrls:{t}"];
+        if (!string.IsNullOrWhiteSpace(autoUrl))
+            _newNodeRedUrl = autoUrl;
+        else
+            _newNodeRedUrl = "";
     }
 
     // Adım 1 → 2: haritayı hemen göster

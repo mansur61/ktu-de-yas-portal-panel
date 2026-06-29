@@ -41,8 +41,8 @@ if (-not $NoBuild) {
 Write-Host "Servisler baslatiliyor..." -ForegroundColor Cyan
 
 # timeseries-service (port 5000) — panel'in veri kaynağı
-if (Test-PortInUse 5000) {
-    Write-Host "  [SKIP] timeseries-service (port 5000)" -ForegroundColor Yellow
+if ((Test-PortInUse 5000) -or (Test-ProcessRunning "timeseries-service")) {
+    Write-Host "  [SKIP] timeseries-service (port 5000 veya process zaten var)" -ForegroundColor Yellow
 }
 else {
     $cmd = "`$env:DOTNET_ENVIRONMENT='Development'; dotnet run --project `"$($backendRoot.Path)\src\timeseries-service\TimeseriesService.csproj`" -c Release"
@@ -52,8 +52,8 @@ else {
 }
 
 # edge-layer (port 5080) — panel'den structure simulation tetikleme hedefi
-if (Test-PortInUse 5080) {
-    Write-Host "  [SKIP] edge-layer (port 5080)" -ForegroundColor Yellow
+if ((Test-PortInUse 5080) -or (Test-ProcessRunning "edge-layer")) {
+    Write-Host "  [SKIP] edge-layer (port 5080 veya process zaten var)" -ForegroundColor Yellow
 }
 else {
     $cmd = "`$env:DOTNET_ENVIRONMENT='Development'; dotnet run --project `"$($backendRoot.Path)\src\edge-layer\EdgeLayer.csproj`" -c Release"
@@ -63,8 +63,8 @@ else {
 }
 
 # Admin Panel (port 5056)
-if (Test-PortInUse 5056) {
-    Write-Host "  [SKIP] panel (port 5056)" -ForegroundColor Yellow
+if ((Test-PortInUse 5056) -or (Test-ProcessRunning "KtuDeYasPortal.Panel")) {
+    Write-Host "  [SKIP] panel (port 5056 veya process zaten var)" -ForegroundColor Yellow
 }
 else {
     $cmd = "`$env:DOTNET_ENVIRONMENT='Development'; dotnet run --project `"$panelCsproj`" -c Release"

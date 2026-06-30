@@ -80,6 +80,14 @@ Write-Host "  Edge API       : http://localhost:5080/api/simulation/start/{struc
 Write-Host "  Sensor API     : http://localhost:5000/api/sensors" -ForegroundColor White
 Write-Host "  Structures API : http://localhost:5000/api/structures" -ForegroundColor White
 Write-Host ""
+Write-Host "  Node-RED (Merkez)  : http://localhost:1880     (tüm yapılar)" -ForegroundColor DarkCyan
+Write-Host "  Node-RED (Baraj)   : http://localhost:1881     (Yusufeli Barajı)" -ForegroundColor DarkCyan
+Write-Host "  Node-RED (Kopru)   : http://localhost:1882     (Trabzon Köprüsü)" -ForegroundColor DarkCyan
+Write-Host "  Node-RED Dashboard : http://localhost:1881/ui  (baraj monitoring)" -ForegroundColor DarkCyan
+Write-Host ""
+Write-Host "  Not: Node-RED Docker'da çalışıyor. Başlatmak için:" -ForegroundColor DarkYellow
+Write-Host "       docker compose -f ..\ktu-de-yas\infra\docker-compose.yml up -d node-red nodered-baraj nodered-kopru" -ForegroundColor DarkYellow
+Write-Host ""
 
 if (-not $AutoConfirm) {
     Read-Host "Cikis icin Enter"

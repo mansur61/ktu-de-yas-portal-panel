@@ -21,12 +21,16 @@ public sealed class GrafanaOptions
         string? metricVar = null,
         string? deviceVar = null,
         string? structureId = null,
-        string timeRange = "1h")
+        string timeRange = "1h",
+        string interval = "1 minute")
     {
+        // d-solo modunda template variable'lar URL'den set edilmezse boş gelir.
+        // $interval boş → COALESCE fallback devreye girer ama yine de explicit set et.
         var url = $"{BaseUrl}/d-solo/{TimeseriesDashboard}/{TimeseriesSlug}"
                 + $"?orgId=1&from=now-{timeRange}&to=now"
                 + $"&panelId={panelId}"
-                + "&timezone=browser&refresh=10s&kiosk";
+                + "&timezone=browser&refresh=10s&kiosk"
+                + $"&var-interval={Uri.EscapeDataString(interval)}";
 
         if (!string.IsNullOrWhiteSpace(deviceVar))
             url += $"&var-device={Uri.EscapeDataString(deviceVar)}";

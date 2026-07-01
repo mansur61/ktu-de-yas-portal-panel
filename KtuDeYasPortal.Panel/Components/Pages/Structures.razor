@@ -125,7 +125,7 @@
                                 <button class="btn btn-sm btn-outline-warning"
                                         @onclick="() => OpenNodeRedAsync(s.Id, s.Name)"
                                         @onclick:stopPropagation="true"
-                                        title="@(string.IsNullOrWhiteSpace(s.NodeRedUrl) ? "Merkez Node-RED (yapıya özel URL yok)" : $"Yapıya özel Node-RED: {s.NodeRedUrl}")">
+                                        title="@(string.IsNullOrWhiteSpace(s.NodeRedUrl) ? "Merkez Node-RED Flow Editörü" : $"Flow Editörü: {s.NodeRedUrl}")">
                                     <span class="bi bi-diagram-3 me-1"></span>
                                     @if (string.IsNullOrWhiteSpace(s.NodeRedUrl))
                                     {
@@ -1102,30 +1102,49 @@
     }
 
     /// <summary>
-    /// Yapıya özgü Node-RED URL'ini yeni sekmede açar.
-    /// Öncelik: structures.node_red_url (DB) → NodeRed:BaseUrl (config fallback).
-    /// Kubernetes'e çıkınca her yapının kendi pod URL'i DB'den gelir.
+    /// Yapıya özgü Node-RED dashboard ekranını (/ui) yeni sekmede açar.
+    /// Flow editörü değil, canlı deploy (dashboard) görünümü açılır.
+    /// Öncelik: structures.node_red_url (DB) → NodeRed:PerStructureUrls:{type} (config) → NodeRed:BaseUrl (fallback).
     /// </summary>
     private async Task OpenNodeRedAsync(Guid structureId, string structureName)
     {
-        // 1. DB'den yapıya özgü URL
         var structure = _structures?.FirstOrDefault(s => s.Id == structureId);
-        var url = !string.IsNullOrWhiteSpace(structure?.NodeRedUrl)
-            ? structure.NodeRedUrl
-            : Configuration["NodeRed:BaseUrl"] ?? "http://localhost:1880";
 
+        // Yapıya özgü base URL — DB > config per-type > merkez fallback
+        string baseUrl;
+        if (!string.IsNullOrWhiteSpace(structure?.NodeRedUrl))
+        {
+            baseUrl = structure.NodeRedUrl.TrimEnd('/');
+        }
+        else if (structure?.StructureType is not null)
+        {
+            var perType = Configuration[$"NodeRed:PerStructureUrls:{structure.StructureType}"];
+            baseUrl = !string.IsNullOrWhiteSpace(perType)
+                ? perType.TrimEnd('/')
+                : (Configuration["NodeRed:BaseUrl"] ?? "http://localhost:1880").TrimEnd('/');
+        }
+        else
+        {
+            baseUrl = (Configuration["NodeRed:BaseUrl"] ?? "http://localhost:1880").TrimEnd('/');
+        }
+
+        // #flow/tab-platform-pipeline → editör açılır ve doğrudan canlı akış tab'ına atlar.
+        // Bu tab ID tüm per-structure instance'larda (baraj, köprü, ...) aynıdır.
+        var url = baseUrl + "/#flow/tab-platform-pipeline";
         await JS.InvokeVoidAsync("open", url, "_blank");
     }
 
     /// <summary>
-    /// Merkez Node-RED'i açar — tüm yapıların MQTT akışını izler (shared instance).
-    /// NodeRed:CentralUrl config'den gelir, yoksa NodeRed:BaseUrl'e düşer.
+    /// Merkez Node-RED dashboard ekranını (/ui) açar — tüm yapıların canlı akışını gösterir.
     /// </summary>
     private async Task OpenCentralNodeRedAsync()
     {
-        var url = Configuration["NodeRed:CentralUrl"]
-               ?? Configuration["NodeRed:BaseUrl"]
-               ?? "http://localhost:1880";
+        var baseUrl = (Configuration["NodeRed:CentralUrl"]
+                    ?? Configuration["NodeRed:BaseUrl"]
+                    ?? "http://localhost:1880").TrimEnd('/');
+
+        // Merkez instance'ın ana pipeline tab'ı: tab-monitor
+        var url = baseUrl + "/#flow/tab-monitor";
         await JS.InvokeVoidAsync("open", url, "_blank");
     }
 

@@ -64,6 +64,9 @@ builder.Services.AddScoped<ISensorRepository, SensorHttpRepository>();
 builder.Services.AddScoped<ITimeseriesRepository, TimeseriesRepository>();
 builder.Services.AddScoped<StructureUseCases>();
 builder.Services.AddScoped<SensorDashboardUseCases>();
+// ── Workspace — Docker API üzerinden Edge Service'e bağlanır ──────────────────
+builder.Services.AddScoped<IWorkspaceClient, WorkspaceHttpClient>();
+builder.Services.AddScoped<WorkspaceUseCases>();
 
 // ── App pipeline ───────────────────────────────────────────────────────────────
 var app = builder.Build();

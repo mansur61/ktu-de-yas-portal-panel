@@ -1321,6 +1321,14 @@
                 var createdIds = new List<Guid>();
                 foreach (var sensor in _newStructureSensors)
                 {
+                    // Wizard'da topic'e {structureId} placeholder yazıldıysa
+                    // gerçek ID ile değiştir
+                    if (sensor.Topic.Contains("{structureId}"))
+                    {
+                        sensor.Topic = sensor.Topic.Replace(
+                            "{structureId}",
+                            created.Id.ToString().ToLowerInvariant());
+                    }
                     var createdSensor = await StructureUC.CreateSensorAsync(sensor);
                     createdIds.Add(createdSensor.Id);
                 }
@@ -1458,15 +1466,25 @@
         {
             var devId = string.IsNullOrWhiteSpace(_sensorFormDeviceId) ? "sensor" : _sensorFormDeviceId;
 
-            // Yapı adından slug türet — yeni format: nodered/processed/{slug}/{locationId}/{deviceId}/data
-            // Yapı yoksa eski format (geriye dönük uyumluluk)
-            var slug = string.IsNullOrWhiteSpace(_editingStructure?.Name)
-                ? null
-                : BuildTopicSlug(_editingStructure.Name);
-
-            _sensorFormTopic = slug != null
-                ? $"nodered/processed/{slug}/default/{devId}/data"
-                : $"nodered/processed/default/{devId}/data";
+            // YENİ ŞEMA: sensor.{structureType}.{structureId}.{deviceId}
+            // Örn: sensor.baraj.541ae3f0-6e30-4f48-96cb-62e7f9ba21c7.sensor-001
+            // Wizard modunda (_editingStructure null): tip ve id henüz bilinmiyor, placeholder kullan
+            if (_editingStructure != null)
+            {
+                var structType = _editingStructure.StructureType.ToString().ToLowerInvariant();
+                var structId   = _editingStructure.Id.ToString().ToLowerInvariant();
+                _sensorFormTopic = $"sensor.{structType}.{structId}.{devId}";
+            }
+            else if (_newType.HasValue)
+            {
+                // Wizard adım 3: yapı tipi seçildi ama ID henüz yok (DB'ye kaydedilmedi)
+                var structType = _newType.Value.ToString().ToLowerInvariant();
+                _sensorFormTopic = $"sensor.{structType}.{{structureId}}.{devId}";
+            }
+            else
+            {
+                _sensorFormTopic = $"sensor.other.{{structureId}}.{devId}";
+            }
 
             _sensorFormUnit    = def.Unit;
             _sensorFormMetrics = new HashSet<string>(def.Metrics);

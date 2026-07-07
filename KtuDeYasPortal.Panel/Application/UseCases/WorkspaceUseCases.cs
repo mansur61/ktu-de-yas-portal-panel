@@ -6,13 +6,18 @@ namespace KtuDeYasPortal.Panel.Application.UseCases;
 
 public class WorkspaceUseCases
 {
-    private readonly IWorkspaceClient      _workspace;
+    private readonly IEdgeWorkspaceClient  _edgeWorkspace;
+    private readonly IWorkspaceClient      _workspaceData;   // timeseries-api (workspace_data)
     private readonly IStructureRepository  _structures;
 
-    public WorkspaceUseCases(IWorkspaceClient workspace, IStructureRepository structures)
+    public WorkspaceUseCases(
+        IEdgeWorkspaceClient edgeWorkspace,
+        IWorkspaceClient workspaceData,
+        IStructureRepository structures)
     {
-        _workspace  = workspace;
-        _structures = structures;
+        _edgeWorkspace = edgeWorkspace;
+        _workspaceData = workspaceData;
+        _structures    = structures;
     }
 
     // ── Yapı listesi (dropdown için) ─────────────────────────────────────────
@@ -21,26 +26,26 @@ public class WorkspaceUseCases
 
     // ── Çalışan workspace'leri listele ───────────────────────────────────────
     public Task<List<WorkspaceInfo>> ListWorkspacesAsync(CancellationToken ct = default) =>
-        _workspace.ListAsync(ct);
+        _edgeWorkspace.ListAsync(ct);
 
     // ── Workspace oluştur ────────────────────────────────────────────────────
     /// <summary>
-    /// Panel TopicScope'u otomatik üretir: sensor.{typeSlug}.{structureSlug}.*
-    /// Araştırmacı bu değeri görmez veya değiştiremez.
+    /// TopicScope: sensor/{typeSlug}/{structureId}/#
+    /// Araştırmacı bu değeri göremez veya değiştiremez.
     /// </summary>
     public async Task<WorkspaceCreateResult> CreateAsync(
-        Structure       structure,
-        string          workspaceName,
-        string?         customTopicScope = null,
-        CancellationToken ct             = default)
+        Structure         structure,
+        string            workspaceName,
+        string?           customTopicScope = null,
+        CancellationToken ct               = default)
     {
         var structureSlug = BuildSlug(structure.Name);
         var typeSlug      = structure.StructureType.ToString().ToLowerInvariant();
 
-        // TopicScope: panel belirlerse kullan, yoksa otomatik üret
+        // Yeni şema: sensor/{type}/{structureId}/# — saha izolasyonu
         var topicScope = !string.IsNullOrWhiteSpace(customTopicScope)
             ? customTopicScope
-            : $"sensor.{typeSlug}.{structureSlug}.*";
+            : $"sensor/{typeSlug}/{structure.Id}/#";
 
         var req = new CreateWorkspaceRequest
         {
@@ -52,32 +57,60 @@ public class WorkspaceUseCases
             WorkspaceName = workspaceName.Trim()
         };
 
-        return await _workspace.CreateAsync(req, ct);
+        return await _edgeWorkspace.CreateAsync(req, ct);
     }
 
     // ── Workspace sil ────────────────────────────────────────────────────────
     public Task DeleteAsync(string containerId, CancellationToken ct = default) =>
-        _workspace.DeleteAsync(containerId, ct);
+        _edgeWorkspace.DeleteAsync(containerId, ct);
 
     // ── Workspace durumu ─────────────────────────────────────────────────────
     public Task<WorkspaceStatus> GetStatusAsync(string containerId, CancellationToken ct = default) =>
-        _workspace.GetStatusAsync(containerId, ct);
+        _edgeWorkspace.GetStatusAsync(containerId, ct);
 
     // ── Workspace yeniden başlat ─────────────────────────────────────────────
     public Task RestartAsync(string containerId, CancellationToken ct = default) =>
-        _workspace.RestartAsync(containerId, ct);
+        _edgeWorkspace.RestartAsync(containerId, ct);
 
     // ── Log'ları getir ───────────────────────────────────────────────────────
     public Task<string> GetLogsAsync(string containerId, int tail = 100, CancellationToken ct = default) =>
-        _workspace.GetLogsAsync(containerId, tail, ct);
+        _edgeWorkspace.GetLogsAsync(containerId, tail, ct);
 
     // ── TopicScope önizlemesi (UI'da göster) ─────────────────────────────────
+    /// <summary>
+    /// Yeni şema: sensor/{type}/{structureId}/#
+    /// Örn: sensor/baraj/541ae3f0-6e30-4f48-96cb-62e7f9ba21c7/#
+    /// </summary>
     public string PreviewTopicScope(Structure? structure)
     {
         if (structure is null) return string.Empty;
-        var typeSlug      = structure.StructureType.ToString().ToLowerInvariant();
-        var structureSlug = BuildSlug(structure.Name);
-        return $"sensor.{typeSlug}.{structureSlug}.*";
+        var typeSlug = structure.StructureType.ToString().ToLowerInvariant();
+        return $"sensor/{typeSlug}/{structure.Id}/#";
+    }
+
+    // ── AI/Analiz sonucunu workspace_data tablosuna kaydet ───────────────────
+    /// <summary>
+    /// Panel üzerinden test verisi kaydetmek için kullanılır.
+    /// Asıl kullanım: Node-RED Dashboard butonu → timeseries-service POST.
+    /// </summary>
+    public Task<SaveWorkspaceDataResult> SaveWorkspaceDataAsync(
+        Guid              workspaceId,
+        Guid              structureId,
+        string            dataType,
+        object            data,
+        string?           notes     = null,
+        string?           createdBy = null,
+        CancellationToken ct        = default)
+    {
+        return _workspaceData.SaveWorkspaceDataAsync(new SaveWorkspaceDataRequest
+        {
+            WorkspaceId = workspaceId,
+            StructureId = structureId,
+            DataType    = dataType,
+            Data        = data,
+            Notes       = notes,
+            CreatedBy   = createdBy ?? "panel"
+        }, ct);
     }
 
     // ── Yapı adından URL-safe slug üret ──────────────────────────────────────

@@ -65,6 +65,9 @@ builder.Services.AddScoped<ITimeseriesRepository, TimeseriesRepository>();
 builder.Services.AddScoped<StructureUseCases>();
 builder.Services.AddScoped<SensorDashboardUseCases>();
 // ── Workspace — Docker API üzerinden Edge Service'e bağlanır ──────────────────
+// IEdgeWorkspaceClient → edge-api (container lifecycle)
+// IWorkspaceClient     → timeseries-api (workspace_data JSONB kayıt)
+builder.Services.AddScoped<IEdgeWorkspaceClient, EdgeWorkspaceClient>();
 builder.Services.AddScoped<IWorkspaceClient, WorkspaceHttpClient>();
 builder.Services.AddScoped<WorkspaceUseCases>();
 

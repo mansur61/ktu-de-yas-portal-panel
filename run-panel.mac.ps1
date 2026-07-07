@@ -53,7 +53,17 @@ else {
 
 # edge-layer (port 5080) — panel'den structure simulation tetikleme hedefi
 if ((Test-PortInUse 5080) -or (Test-ProcessRunning "edge-layer")) {
-    Write-Host "  [SKIP] edge-layer (port 5080 veya process zaten var)" -ForegroundColor Yellow
+    Write-Host "  [RESTART] edge-layer mevcut process durduruluyor..." -ForegroundColor Yellow
+    # Eski binary'nin yeni build'i alması için portu serbest bırak
+    $oldPid = (Get-NetTCPConnection -LocalPort 5080 -ErrorAction SilentlyContinue).OwningProcess
+    if ($oldPid) {
+        Stop-Process -Id $oldPid -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 2
+    }
+    $cmd = "`$env:DOTNET_ENVIRONMENT='Development'; dotnet run --project `"$($backendRoot.Path)/src/edge-layer/EdgeLayer.csproj`" -c Release"
+    $script:processes += Start-LoggedPowerShell -Name "edge-layer" -Command $cmd
+    Write-Host "  [OK] edge-layer (yeniden baslatildi — yeni build)" -ForegroundColor Green
+    Start-Sleep -Seconds 4
 }
 else {
     $cmd = "`$env:DOTNET_ENVIRONMENT='Development'; dotnet run --project `"$($backendRoot.Path)/src/edge-layer/EdgeLayer.csproj`" -c Release"

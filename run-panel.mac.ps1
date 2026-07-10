@@ -14,14 +14,17 @@ if (-not $backendRoot) {
     exit 1
 }
 
-# Log dizini
+# Dev ortami: sadece dotnet run servisleri (timeseries, edge-layer, panel)
+# Docker container'lari (Node-RED, Kafka, EMQX vb.) DOKUNULMAZ.
+
 $logDir   = "$root/logs/ps1"
 $logStamp = Get-Date -Format "yyyyMMdd-HHmmss"
 if (Test-Path $logDir) { Remove-Item $logDir -Recurse -Force -ErrorAction SilentlyContinue }
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 
 Write-Host ""
-Write-Host "=== KTU DeYas Admin Panel (macOS) ===" -ForegroundColor Cyan
+Write-Host "=== KTU DeYas Panel (macOS / Dev) ===" -ForegroundColor Cyan
+Write-Host "  Port zaten dolu ise servis SKIP edilir (kill yapilmaz)." -ForegroundColor DarkGray
 Write-Host ""
 
 if (-not $AutoConfirm) {
@@ -29,26 +32,7 @@ if (-not $AutoConfirm) {
     if ($c -ne "y" -and $c -ne "Y") { exit 0 }
 }
 
-# ── ADIM 1: Çalışan tüm servisleri öldür ─────────────────────────────────────
-# Sadece bu script'in kullandığı portlar: 5000, 5056, 5080
-# Docker container'larına (nodered, kafka, emqx vb.) DOKUNULMAZ
-Write-Host "Onceki .NET servisler kapatiliyor..." -ForegroundColor Yellow
-
-foreach ($port in @(5000, 5056, 5080)) {
-    $portPids = & lsof -ti :$port 2>$null
-    foreach ($procPid in $portPids) {
-        if ($procPid) {
-            Write-Host "  Port $port — PID $procPid kill ediliyor..." -ForegroundColor DarkGray
-            & kill -9 $procPid 2>$null
-        }
-    }
-}
-
-Start-Sleep -Seconds 2
-Write-Host "  Temizlendi." -ForegroundColor DarkGray
-Write-Host ""
-
-# ── ADIM 2: Build ─────────────────────────────────────────────────────────────
+# ── Build ────────────────────────────────────────────────────────────────────
 if (-not $NoBuild) {
     Write-Host "Build ediliyor..." -ForegroundColor Cyan
 
@@ -75,98 +59,141 @@ if (-not $NoBuild) {
     Write-Host ""
 }
 
-# ── ADIM 3: Servisleri başlat ─────────────────────────────────────────────────
-# macOS'ta her servis için bash script oluşturup ayrı Terminal penceresinde çalıştır.
-# $env:DOTNET_ENVIRONMENT PowerShell syntax'ı bash'ta çalışmaz — bash export kullan.
+# ── Port kontrol helper ───────────────────────────────────────────────────────
+function Test-PortListening {
+    param([int]$Port)
+    $result = & lsof -ti ":$Port" 2>$null
+    return ($null -ne $result -and "$result".Trim() -ne "")
+}
 
+# ── Değişiklik algılama ────────────────────────────────────────────────────────
+# Proje klasöründeki .cs dosyalarından en yenisinin mtime'ını
+# bin/Release/net8.0/ altındaki DLL'in mtime'ıyla karşılaştırır.
+# Kaynak daha yeniyse → değişiklik var (build sonrası değiştirilmiş).
+function Test-HasChanges {
+    param([string]$ProjectPath)
+
+    $projDir = Split-Path $ProjectPath -Parent
+
+    # Binary: bin/Release/net8.0/*.dll
+    $binDir = Join-Path $projDir "bin/Release/net8.0"
+    if (-not (Test-Path $binDir)) { return $false } # hiç build yoksa — değişiklik yok sayılır
+
+    $dllFiles = Get-ChildItem -Path $binDir -Filter "*.dll" -ErrorAction SilentlyContinue
+    if (-not $dllFiles) { return $false }
+    $binaryTime = ($dllFiles | Sort-Object LastWriteTime -Descending | Select-Object -First 1).LastWriteTime
+
+    # Kaynak: proje klasöründeki .cs dosyaları (obj/ hariç)
+    $srcFiles = Get-ChildItem -Path $projDir -Recurse -Filter "*.cs" -ErrorAction SilentlyContinue |
+                Where-Object { $_.FullName -notlike "*/obj/*" -and $_.FullName -notlike "*/bin/*" }
+
+    if (-not $srcFiles) { return $false }
+    $latestSrc = ($srcFiles | Sort-Object LastWriteTime -Descending | Select-Object -First 1).LastWriteTime
+
+    # Kaynak binary'den daha yeniyse değişiklik var
+    return $latestSrc -gt $binaryTime
+}
+
+# ── Servis baslatici ──────────────────────────────────────────────────────────
 function Start-Service {
     param(
         [string]$Name,
-        [string]$Project,
-        [string]$LogFile
+        [int]   $Port,
+        [string]$Project
     )
 
+    $portInUse = Test-PortListening -Port $Port
+
+    if ($portInUse) {
+        $hasChanges = Test-HasChanges -ProjectPath $Project
+        if ($hasChanges) {
+            Write-Host "  [DEGISIKLIK] $Name — kaynak binary'den yeni, yeniden baslatiliyor..." -ForegroundColor Magenta
+
+            # GÜVENLI KILL: sadece 'dotnet' process'i olan PID'leri öldür
+            # Docker container PID'leri ve başka servisler korunur
+            $portPids = & lsof -ti ":$Port" 2>$null
+            foreach ($procPid in ($portPids -split '\n' | Where-Object { $_ -match '^\d+$' })) {
+                if (-not $procPid) { continue }
+
+                # PID'in dotnet process'i olduğunu doğrula
+                $procName = & ps -p $procPid -o comm= 2>$null
+                if ($procName -match 'dotnet') {
+                    Write-Host "    dotnet PID $procPid durduruluyor (port $Port)..." -ForegroundColor DarkGray
+                    & kill -9 $procPid 2>$null
+                } else {
+                    Write-Host "    SKIP: PID $procPid process '$procName' — dotnet degil, dokunulmuyor." -ForegroundColor DarkYellow
+                }
+            }
+            Start-Sleep -Seconds 2
+        } else {
+            Write-Host "  [SKIP] $Name — port $Port kullanimda, degisiklik yok." -ForegroundColor Yellow
+            return
+        }
+    }
+
     $escapedProject = $Project -replace '"', '\"'
-    $escapedLog     = $LogFile -replace '"', '\"'
-    $bashFile       = "/tmp/ktu-deyas-$Name-$(New-Guid).sh"
+    $bashFile = "/tmp/ktu-deyas-$Name-$(New-Guid).sh"
 
     $bashContent = @"
 #!/bin/bash
 export DOTNET_ENVIRONMENT=Development
 export ASPNETCORE_ENVIRONMENT=Development
-echo "=== $Name baslatiliyor ==="
-echo "Log: $escapedLog"
-echo ""
-dotnet run --project "$escapedProject" -c Release --no-build 2>&1 | tee "$escapedLog"
-echo ""
-echo "=== $Name durdu. ==="
+echo "=== $Name ==="
+dotnet run --project "$escapedProject" -c Release --no-build
+echo "=== $Name durdu ==="
 "@
 
     Set-Content -Path $bashFile -Value $bashContent -Encoding ASCII -NoNewline
     & chmod +x $bashFile
     & open -a Terminal $bashFile
+    Write-Host "  [OK] $Name baslatildi (port $Port)." -ForegroundColor Green
 }
 
+# ── Servisleri sirayla baslt ──────────────────────────────────────────────────
 Write-Host "Servisler baslatiliyor..." -ForegroundColor Cyan
 
-# timeseries-service (port 5000)
-Start-Service `
-    -Name    "timeseries-service" `
-    -Project "$($backendRoot.Path)/src/timeseries-service/TimeseriesService.csproj" `
-    -LogFile "$logDir/run-panel.mac-$logStamp-timeseries-service.log"
-Write-Host "  [OK] timeseries-service baslatildi." -ForegroundColor Green
-Start-Sleep -Seconds 4
+# 1. timeseries-service
+Start-Service -Name "timeseries-service" -Port 5000 `
+    -Project "$($backendRoot.Path)/src/timeseries-service/TimeseriesService.csproj"
 
-# edge-layer (port 5080)
-Start-Service `
-    -Name    "edge-layer" `
-    -Project "$($backendRoot.Path)/src/edge-layer/EdgeLayer.csproj" `
-    -LogFile "$logDir/run-panel.mac-$logStamp-edge-layer.log"
-Write-Host "  [OK] edge-layer baslatildi." -ForegroundColor Green
-Start-Sleep -Seconds 4
+# Port 5000 hazir olana kadar bekle (panel 500 almasin)
+$tsReady = $false
+for ($i = 0; $i -lt 15; $i++) {
+    Start-Sleep -Seconds 2
+    try {
+        $r = Invoke-WebRequest -Uri "http://localhost:5000/api/structures" -TimeoutSec 2 -ErrorAction SilentlyContinue
+        if ($null -ne $r -and $r.StatusCode -lt 500) { $tsReady = $true; break }
+    } catch {}
+    Write-Host "  Bekleniyor... ($($i*2+2)s)" -ForegroundColor DarkGray
+}
+if ($tsReady) { Write-Host "  timeseries-service hazir." -ForegroundColor Green }
+else { Write-Host "  UYARI: 30s icinde yanit alinamadi, devam ediliyor." -ForegroundColor Yellow }
 
-# panel (port 5056)
-Start-Service `
-    -Name    "panel" `
-    -Project $panelCsproj `
-    -LogFile "$logDir/run-panel.mac-$logStamp-panel.log"
-Write-Host "  [OK] panel baslatildi." -ForegroundColor Green
-Start-Sleep -Seconds 3
+# 2. edge-layer
+Start-Service -Name "edge-layer" -Port 5080 `
+    -Project "$($backendRoot.Path)/src/edge-layer/EdgeLayer.csproj"
+Start-Sleep -Seconds 2
 
-# ── ADIM 4: Bilgi ekranı ──────────────────────────────────────────────────────
+# 3. panel
+Start-Service -Name "panel" -Port 5056 -Project $panelCsproj
+Start-Sleep -Seconds 1
+
+# ── Bilgi ─────────────────────────────────────────────────────────────────────
 Write-Host ""
 Write-Host "=== PANEL ACTIVE ===" -ForegroundColor Green
 Write-Host "  Admin Panel    : http://localhost:5056" -ForegroundColor White
-Write-Host "  Edge API       : http://localhost:5080/api/simulation/start/{structureId}" -ForegroundColor White
-Write-Host "  Sensor API     : http://localhost:5000/api/sensors" -ForegroundColor White
-Write-Host "  Structures API : http://localhost:5000/api/structures" -ForegroundColor White
+Write-Host "  timeseries-api : http://localhost:5000" -ForegroundColor White
+Write-Host "  Edge API       : http://localhost:5080" -ForegroundColor White
 Write-Host ""
-Write-Host "  Node-RED (Merkez)  : http://localhost:1880     (tüm yapılar)" -ForegroundColor DarkCyan
-Write-Host "  Node-RED (Baraj)   : http://localhost:1881/ui  (baraj monitoring)" -ForegroundColor DarkCyan
-Write-Host "  Node-RED (Kopru)   : http://localhost:1882/ui  (kopru monitoring)" -ForegroundColor DarkCyan
+Write-Host "  Node-RED Merkez: http://localhost:1880  (Docker)" -ForegroundColor DarkCyan
+Write-Host "  Node-RED Baraj : http://localhost:1881/ui (Docker)" -ForegroundColor DarkCyan
+Write-Host "  Node-RED Kopru : http://localhost:1882/ui (Docker)" -ForegroundColor DarkCyan
 Write-Host ""
-Write-Host "Log dizini: $logDir" -ForegroundColor DarkGray
+Write-Host "  Log: $logDir" -ForegroundColor DarkGray
 Write-Host ""
 
 if (-not $AutoConfirm) {
-    Read-Host "Cikis icin Enter (.NET servisleri durdurulacak, Docker etkilenmez)"
-
-    # ── ADIM 5: Temizlik — sadece bu script'in başlattığı portları kapat ──────
-    # Docker container'larına DOKUNULMAZ (nodered-baraj, kafka, emqx vs.)
-    Write-Host "Servisler kapatiliyor..." -ForegroundColor Yellow
-
-    foreach ($port in @(5000, 5056, 5080)) {
-        $portPids = & lsof -ti :$port 2>$null
-        foreach ($procPid in $portPids) {
-            if ($procPid) {
-                Write-Host "  Port $port — PID $procPid durduruluyor..." -ForegroundColor DarkGray
-                & kill -9 $procPid 2>$null
-            }
-        }
-    }
-
-    # Terminal pencerelerini kapat (sadece bu script'in açtıkları)
+    Read-Host "Cikis icin Enter (Terminal pencereleri kapanacak, Docker etkilenmez)"
     & osascript -e 'tell application "Terminal" to close every window asking no-save' 2>$null
-
-    Write-Host "Servisler durduruldu. Docker container'lari hala calisiyor." -ForegroundColor Green
+    Write-Host "Terminal pencereleri kapatildi." -ForegroundColor Green
 }

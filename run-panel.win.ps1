@@ -14,14 +14,17 @@ if (-not $backendRoot) {
     exit 1
 }
 
-# Log dizini
+# Dev ortami: sadece dotnet run servisleri (timeseries, edge-layer, panel)
+# Docker container'lari (Node-RED, Kafka, EMQX vb.) DOKUNULMAZ.
+
 $logDir   = "$root\logs\ps1"
 $logStamp = Get-Date -Format "yyyyMMdd-HHmmss"
 if (Test-Path $logDir) { Remove-Item $logDir -Recurse -Force -ErrorAction SilentlyContinue }
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 
 Write-Host ""
-Write-Host "=== KTU DeYas Admin Panel (Windows) ===" -ForegroundColor Cyan
+Write-Host "=== KTU DeYas Panel (Windows / Dev) ===" -ForegroundColor Cyan
+Write-Host "  Port zaten dolu ise servis SKIP edilir (kill yapilmaz)." -ForegroundColor DarkGray
 Write-Host ""
 
 if (-not $AutoConfirm) {
@@ -29,28 +32,7 @@ if (-not $AutoConfirm) {
     if ($c -ne "y" -and $c -ne "Y") { exit 0 }
 }
 
-# ── ADIM 1: Çalışan tüm servisleri öldür ─────────────────────────────────────
-# Sadece bu script'in portları: 5000, 5056, 5080
-# Docker container'larına (nodered, kafka, emqx vb.) DOKUNULMAZ
-Write-Host "Onceki .NET servisler kapatiliyor..." -ForegroundColor Yellow
-
-foreach ($port in @(5000, 5056, 5080)) {
-    try {
-        $conn = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
-        if ($conn) {
-            foreach ($c in $conn) {
-                Write-Host "  Port $port — PID $($c.OwningProcess) kill ediliyor..." -ForegroundColor DarkGray
-                Stop-Process -Id $c.OwningProcess -Force -ErrorAction SilentlyContinue
-            }
-        }
-    } catch {}
-}
-
-Start-Sleep -Seconds 2
-Write-Host "  Temizlendi." -ForegroundColor DarkGray
-Write-Host ""
-
-# ── ADIM 2: Build ─────────────────────────────────────────────────────────────
+# ── Build ─────────────────────────────────────────────────────────────────────
 if (-not $NoBuild) {
     Write-Host "Build ediliyor..." -ForegroundColor Cyan
 
@@ -77,90 +59,135 @@ if (-not $NoBuild) {
     Write-Host ""
 }
 
-# ── ADIM 3: Servisleri başlat ─────────────────────────────────────────────────
-function Start-ServiceWindow {
-    param(
-        [string]$Name,
-        [string]$Project,
-        [string]$LogFile
-    )
-
-    $escapedProject = $Project -replace '"', '\"'
-    $cmd = "DOTNET_ENVIRONMENT=Development dotnet run --project `"$escapedProject`" -c Release --no-build"
-    
-    $psiArgs = "/c set DOTNET_ENVIRONMENT=Development && set ASPNETCORE_ENVIRONMENT=Development && dotnet run --project `"$escapedProject`" -c Release --no-build"
-    
-    $proc = Start-Process -FilePath "cmd.exe" `
-        -ArgumentList $psiArgs `
-        -WindowStyle Normal `
-        -PassThru
-    
-    return $proc
+# ── Port kontrol helper ───────────────────────────────────────────────────────
+function Test-PortListening {
+    param([int]$Port)
+    try {
+        $listeners = [System.Net.NetworkInformation.IPGlobalProperties]::GetIPGlobalProperties().GetActiveTcpListeners()
+        return ($listeners | Where-Object { $_.Port -eq $Port }).Count -gt 0
+    } catch { return $false }
 }
 
+# ── Değişiklik algılama ────────────────────────────────────────────────────────
+function Test-HasChanges {
+    param([string]$ProjectPath)
+
+    $projDir = Split-Path $ProjectPath -Parent
+    $binDir  = Join-Path $projDir "bin\Release\net8.0"
+    if (-not (Test-Path $binDir)) { return $false }
+
+    $dllFiles = Get-ChildItem -Path $binDir -Filter "*.dll" -ErrorAction SilentlyContinue
+    if (-not $dllFiles) { return $false }
+    $binaryTime = ($dllFiles | Sort-Object LastWriteTime -Descending | Select-Object -First 1).LastWriteTime
+
+    $srcFiles = Get-ChildItem -Path $projDir -Recurse -Filter "*.cs" -ErrorAction SilentlyContinue |
+                Where-Object { $_.FullName -notlike "*\obj\*" -and $_.FullName -notlike "*\bin\*" }
+
+    if (-not $srcFiles) { return $false }
+    $latestSrc = ($srcFiles | Sort-Object LastWriteTime -Descending | Select-Object -First 1).LastWriteTime
+
+    return $latestSrc -gt $binaryTime
+}
+
+# ── Servis baslatici ──────────────────────────────────────────────────────────
+$script:launchedProcesses = @()
+
+function Start-Service {
+    param(
+        [string]$Name,
+        [int]   $Port,
+        [string]$Project
+    )
+
+    $portInUse = Test-PortListening -Port $Port
+
+    if ($portInUse) {
+        $hasChanges = Test-HasChanges -ProjectPath $Project
+        if ($hasChanges) {
+            Write-Host "  [DEGISIKLIK] $Name — kaynak binary'den yeni, yeniden baslatiliyor..." -ForegroundColor Magenta
+
+            # GÜVENLI KILL: sadece 'dotnet.exe' process'i olan PID'leri öldür
+            try {
+                $conn = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+                foreach ($c in $conn) {
+                    $ownerProc = Get-Process -Id $c.OwningProcess -ErrorAction SilentlyContinue
+                    if ($ownerProc -and $ownerProc.Name -match 'dotnet') {
+                        Write-Host "    dotnet PID $($c.OwningProcess) durduruluyor (port $Port)..." -ForegroundColor DarkGray
+                        Stop-Process -Id $c.OwningProcess -Force -ErrorAction SilentlyContinue
+                    } else {
+                        Write-Host "    SKIP: PID $($c.OwningProcess) ('$($ownerProc.Name)') — dotnet degil, dokunulmuyor." -ForegroundColor DarkYellow
+                    }
+                }
+            } catch {}
+            Start-Sleep -Seconds 2
+        } else {
+            Write-Host "  [SKIP] $Name — port $Port kullanimda, degisiklik yok." -ForegroundColor Yellow
+            return
+        }
+    }
+
+    $proc = Start-Process -FilePath "cmd.exe" `
+        -ArgumentList "/c set DOTNET_ENVIRONMENT=Development && set ASPNETCORE_ENVIRONMENT=Development && dotnet run --project `"$Project`" -c Release --no-build" `
+        -WindowStyle Normal `
+        -PassThru
+
+    $script:launchedProcesses += $proc
+    Write-Host "  [OK] $Name baslatildi (port $Port, PID $($proc.Id))." -ForegroundColor Green
+}
+
+# ── Servisleri sirayla baslt ──────────────────────────────────────────────────
 Write-Host "Servisler baslatiliyor..." -ForegroundColor Cyan
 
-$p1 = Start-ServiceWindow `
-    -Name    "timeseries-service" `
-    -Project "$($backendRoot.Path)\src\timeseries-service\TimeseriesService.csproj" `
-    -LogFile "$logDir\run-panel.win-$logStamp-timeseries-service.log"
-Write-Host "  [OK] timeseries-service baslatildi (PID: $($p1.Id))." -ForegroundColor Green
-Start-Sleep -Seconds 4
+# 1. timeseries-service
+Start-Service -Name "timeseries-service" -Port 5000 `
+    -Project "$($backendRoot.Path)\src\timeseries-service\TimeseriesService.csproj"
 
-$p2 = Start-ServiceWindow `
-    -Name    "edge-layer" `
-    -Project "$($backendRoot.Path)\src\edge-layer\EdgeLayer.csproj" `
-    -LogFile "$logDir\run-panel.win-$logStamp-edge-layer.log"
-Write-Host "  [OK] edge-layer baslatildi (PID: $($p2.Id))." -ForegroundColor Green
-Start-Sleep -Seconds 4
+# Port 5000 hazir olana kadar bekle
+$tsReady = $false
+for ($i = 0; $i -lt 15; $i++) {
+    Start-Sleep -Seconds 2
+    try {
+        $r = Invoke-WebRequest -Uri "http://localhost:5000/api/structures" -TimeoutSec 2 -ErrorAction SilentlyContinue
+        if ($null -ne $r -and $r.StatusCode -lt 500) { $tsReady = $true; break }
+    } catch {}
+    Write-Host "  Bekleniyor... ($($i*2+2)s)" -ForegroundColor DarkGray
+}
+if ($tsReady) { Write-Host "  timeseries-service hazir." -ForegroundColor Green }
+else { Write-Host "  UYARI: 30s icinde yanit alinamadi, devam ediliyor." -ForegroundColor Yellow }
 
-$p3 = Start-ServiceWindow `
-    -Name    "panel" `
-    -Project $panelCsproj `
-    -LogFile "$logDir\run-panel.win-$logStamp-panel.log"
-Write-Host "  [OK] panel baslatildi (PID: $($p3.Id))." -ForegroundColor Green
-Start-Sleep -Seconds 3
+# 2. edge-layer
+Start-Service -Name "edge-layer" -Port 5080 `
+    -Project "$($backendRoot.Path)\src\edge-layer\EdgeLayer.csproj"
+Start-Sleep -Seconds 2
 
-# ── ADIM 4: Bilgi ekranı ──────────────────────────────────────────────────────
+# 3. panel
+Start-Service -Name "panel" -Port 5056 -Project $panelCsproj
+Start-Sleep -Seconds 1
+
+# ── Bilgi ─────────────────────────────────────────────────────────────────────
 Write-Host ""
 Write-Host "=== PANEL ACTIVE ===" -ForegroundColor Green
 Write-Host "  Admin Panel    : http://localhost:5056" -ForegroundColor White
-Write-Host "  Edge API       : http://localhost:5080/api/simulation/start/{structureId}" -ForegroundColor White
-Write-Host "  Sensor API     : http://localhost:5000/api/sensors" -ForegroundColor White
-Write-Host "  Structures API : http://localhost:5000/api/structures" -ForegroundColor White
+Write-Host "  timeseries-api : http://localhost:5000" -ForegroundColor White
+Write-Host "  Edge API       : http://localhost:5080" -ForegroundColor White
 Write-Host ""
-Write-Host "  Node-RED (Merkez)  : http://localhost:1880     (tüm yapılar)" -ForegroundColor DarkCyan
-Write-Host "  Node-RED (Baraj)   : http://localhost:1881/ui  (baraj monitoring)" -ForegroundColor DarkCyan
-Write-Host "  Node-RED (Kopru)   : http://localhost:1882/ui  (kopru monitoring)" -ForegroundColor DarkCyan
+Write-Host "  Node-RED Merkez: http://localhost:1880  (Docker)" -ForegroundColor DarkCyan
+Write-Host "  Node-RED Baraj : http://localhost:1881/ui (Docker)" -ForegroundColor DarkCyan
+Write-Host "  Node-RED Kopru : http://localhost:1882/ui (Docker)" -ForegroundColor DarkCyan
 Write-Host ""
-Write-Host "Log dizini: $logDir" -ForegroundColor DarkGray
+Write-Host "  Log: $logDir" -ForegroundColor DarkGray
 Write-Host ""
 
 if (-not $AutoConfirm) {
-    Read-Host "Cikis icin Enter (.NET servisleri durdurulacak, Docker etkilenmez)"
+    Read-Host "Cikis icin Enter (bu script'in actiği pencereler kapanacak, Docker etkilenmez)"
 
-    # ── ADIM 5: Temizlik — sadece bu script'in portları ──────────────────────
-    # Docker container'larına (nodered, kafka, emqx vb.) DOKUNULMAZ
-    Write-Host "Servisler kapatiliyor..." -ForegroundColor Yellow
-
-    foreach ($proc in @($p1, $p2, $p3)) {
+    foreach ($proc in $script:launchedProcesses) {
         try {
-            if ($proc -and -not $proc.HasExited) {
+            if (-not $proc.HasExited) {
                 & taskkill /PID $proc.Id /T /F 2>$null | Out-Null
             }
         } catch {}
     }
 
-    foreach ($port in @(5000, 5056, 5080)) {
-        try {
-            $conn = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
-            if ($conn) {
-                foreach ($c in $conn) {
-                    Stop-Process -Id $c.OwningProcess -Force -ErrorAction SilentlyContinue
-                }
-            }
-        } catch {}
-    }
-
-    Write-Host "Servisler durduruldu. Docker container'lari hala calisiyor." -ForegroundColor Green
+    Write-Host "Bu script'in actigi pencereler kapatildi. Docker calismaya devam ediyor." -ForegroundColor Green
 }

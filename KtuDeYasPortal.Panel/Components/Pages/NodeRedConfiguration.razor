@@ -1,0 +1,302 @@
+@page "/node-red-config"
+@rendermode InteractiveServer
+@using System.Text
+@using System.Text.Json
+@using Microsoft.AspNetCore.Components.Forms
+@inject IHttpClientFactory HttpClientFactory
+@inject ILogger<NodeRedConfiguration> Logger
+
+<PageTitle>Node-RED Konfigürasyonu</PageTitle>
+
+<div class="container-fluid py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold mb-1">Node-RED Konfigürasyonu</h3>
+            <p class="text-muted mb-0">Panel üzerinden yapı bazlı runtime ve custom flow planlarını edge servise iletir.</p>
+        </div>
+        <span class="badge bg-primary-subtle text-primary-emphasis px-3 py-2">Panel → Edge API</span>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(_statusMessage))
+    {
+        <div class="alert @( _statusKind == "success" ? "alert-success" : "alert-danger") alert-dismissible fade show" role="alert">
+            <div class="fw-semibold">@_statusMessage</div>
+            <button type="button" class="btn-close" @onclick="ClearStatus"></button>
+        </div>
+    }
+
+    <div class="row g-4">
+        <div class="col-12 col-xl-7">
+            <div class="card shadow-sm border-0">
+                <div class="card-body p-4">
+                    <h5 class="fw-semibold mb-3">
+                        <span class="bi bi-sliders me-2"></span>Konfigürasyon Planı
+                    </h5>
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Yapı Adı</label>
+                            <input class="form-control" @bind="_request.StructureName" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Yapı Tipi</label>
+                            <select class="form-select" @bind="_request.StructureType">
+                                <option value="Baraj">Baraj</option>
+                                <option value="Köprü">Köprü</option>
+                                <option value="Tünel">Tünel</option>
+                                <option value="Center">Center</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Structure Id</label>
+                            <input class="form-control" @bind="_request.StructureId" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Workspace Adı</label>
+                            <input class="form-control" @bind="_request.WorkspaceName" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Template Adı</label>
+                            <input class="form-control" @bind="_request.TemplateName" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Runtime Adı</label>
+                            <input class="form-control" @bind="_request.RuntimeName" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Flow Kaynağı</label>
+                            <select class="form-select" @bind="_request.FlowSource">
+                                <option value="template">Template</option>
+                                <option value="custom">Custom</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Kafka Topic</label>
+                            <input class="form-control" @bind="_request.KafkaTopic" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Topic Filter</label>
+                            <input class="form-control" @bind="_request.TopicFilter" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Custom Flow Dosyası</label>
+                            <input class="form-control" @bind="_request.CustomFlowFileName" placeholder="ör. my-flow.json" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Environment Variables (JSON)</label>
+                            <textarea class="form-control" rows="5" @bind="_request.EnvironmentVariablesJson"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2 mt-4">
+                        <button class="btn btn-primary" @onclick="ConfigureAsync" disabled="@_isSubmitting">
+                            @if (_isSubmitting)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                            }
+                            <span>Configure Et</span>
+                        </button>
+                        <button class="btn btn-outline-secondary" @onclick="ResetForm">Temizle</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-xl-5">
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-body p-4">
+                    <h5 class="fw-semibold mb-3">
+                        <span class="bi bi-upload me-2"></span>Custom Flow Yükle
+                    </h5>
+
+                    <InputFile class="form-control" OnChange="OnFileSelected" accept=".json" />
+                    <div class="form-text text-muted mt-2">Sadece .json dosyası kabul edilir.</div>
+
+                    <button class="btn btn-outline-primary mt-3" @onclick="UploadCustomFlowAsync" disabled="@(_selectedFile is null || _isUploading)">
+                        @if (_isUploading)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                        }
+                        <span>Yükle</span>
+                    </button>
+
+                    @if (_selectedFile is not null)
+                    {
+                        <div class="mt-3 small text-muted">Seçilen dosya: @_selectedFile.Name</div>
+                    }
+                </div>
+            </div>
+
+            <div class="card shadow-sm border-0">
+                <div class="card-body p-4">
+                    <h5 class="fw-semibold mb-3">
+                        <span class="bi bi-terminal me-2"></span>Sonuç
+                    </h5>
+                    <pre class="bg-dark text-light rounded p-3 mb-0" style="white-space: pre-wrap; word-break: break-all;">@_resultText</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private readonly NodeRedPanelRequest _request = new()
+    {
+        StructureId = "11111111-1111-1111-1111-111111111111",
+        StructureName = "Yusufeli Barajı",
+        StructureType = "Baraj",
+        WorkspaceName = "Yusufeli Workspace",
+        TemplateName = "Baraj",
+        RuntimeName = "NodeRED-Baraj",
+        FlowSource = "template",
+        TopicFilter = "sensor/baraj/11111111-1111-1111-1111-111111111111/#",
+        KafkaTopic = "sensor.timeseries",
+        EnvironmentVariablesJson = "{\"MQTT_TOPIC_FILTER\":\"sensor/baraj/11111111-1111-1111-1111-111111111111/#\",\"NODE_RED_TEMPLATE\":\"Baraj\"}"
+    };
+
+    private IBrowserFile? _selectedFile;
+    private bool _isSubmitting;
+    private bool _isUploading;
+    private string _resultText = "Bekleniyor...";
+    private string _statusMessage = string.Empty;
+    private string _statusKind = "success";
+
+    private async Task ConfigureAsync()
+    {
+        _isSubmitting = true;
+        _statusMessage = string.Empty;
+        StateHasChanged();
+
+        try
+        {
+            var client = HttpClientFactory.CreateClient("edge-api");
+            var payload = new Dictionary<string, object?>
+            {
+                ["structureId"] = _request.StructureId,
+                ["structureName"] = _request.StructureName,
+                ["structureType"] = _request.StructureType,
+                ["workspaceName"] = _request.WorkspaceName,
+                ["templateName"] = _request.TemplateName,
+                ["customFlowFileName"] = _request.CustomFlowFileName,
+                ["flowSource"] = _request.FlowSource,
+                ["runtimeName"] = _request.RuntimeName,
+                ["topicFilter"] = _request.TopicFilter,
+                ["kafkaTopic"] = _request.KafkaTopic,
+                ["environmentVariables"] = ParseEnvironmentVariables(_request.EnvironmentVariablesJson)
+            };
+
+            using var response = await client.PostAsJsonAsync("/api/nodered/configure", payload);
+            var body = await response.Content.ReadAsStringAsync();
+            _resultText = body;
+            _statusMessage = response.IsSuccessStatusCode ? "Konfigürasyon planı başarıyla oluşturuldu." : "Konfigürasyon planı oluşturulamadı.";
+            _statusKind = response.IsSuccessStatusCode ? "success" : "danger";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Node-RED configure request failed");
+            _resultText = ex.Message;
+            _statusMessage = "İstek sırasında hata oluştu.";
+            _statusKind = "danger";
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    private async Task UploadCustomFlowAsync()
+    {
+        if (_selectedFile is null)
+        {
+            _statusMessage = "Önce bir .json dosyası seçin.";
+            _statusKind = "danger";
+            return;
+        }
+
+        _isUploading = true;
+        StateHasChanged();
+
+        try
+        {
+            var client = HttpClientFactory.CreateClient("edge-api");
+            using var content = new MultipartFormDataContent();
+            await using var stream = _selectedFile.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+            content.Add(new StreamContent(stream), "file", _selectedFile.Name);
+
+            using var response = await client.PostAsync($"/api/nodered/custom-flow?structureId={_request.StructureId}", content);
+            var body = await response.Content.ReadAsStringAsync();
+            _resultText = body;
+            _statusMessage = response.IsSuccessStatusCode ? "Custom flow başarıyla yüklendi." : "Custom flow yüklenemedi.";
+            _statusKind = response.IsSuccessStatusCode ? "success" : "danger";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Custom flow upload failed");
+            _resultText = ex.Message;
+            _statusMessage = "Yükleme sırasında hata oluştu.";
+            _statusKind = "danger";
+        }
+        finally
+        {
+            _isUploading = false;
+        }
+    }
+
+    private Task OnFileSelected(InputFileChangeEventArgs e)
+    {
+        _selectedFile = e.File;
+        _resultText = $"Seçilen dosya: {_selectedFile.Name}";
+        return Task.CompletedTask;
+    }
+
+    private void ResetForm()
+    {
+        _request.StructureId = "11111111-1111-1111-1111-111111111111";
+        _request.StructureName = "Yusufeli Barajı";
+        _request.StructureType = "Baraj";
+        _request.WorkspaceName = "Yusufeli Workspace";
+        _request.TemplateName = "Baraj";
+        _request.RuntimeName = "NodeRED-Baraj";
+        _request.FlowSource = "template";
+        _request.TopicFilter = "sensor/baraj/11111111-1111-1111-1111-111111111111/#";
+        _request.KafkaTopic = "sensor.timeseries";
+        _request.CustomFlowFileName = string.Empty;
+        _request.EnvironmentVariablesJson = "{\"MQTT_TOPIC_FILTER\":\"sensor/baraj/11111111-1111-1111-1111-111111111111/#\",\"NODE_RED_TEMPLATE\":\"Baraj\"}";
+        _selectedFile = null;
+        _resultText = "Bekleniyor...";
+        _statusMessage = string.Empty;
+    }
+
+    private void ClearStatus() => _statusMessage = string.Empty;
+
+    private static Dictionary<string, string> ParseEnvironmentVariables(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+            return new Dictionary<string, string>();
+
+        try
+        {
+            return JsonSerializer.Deserialize<Dictionary<string, string>>(json)
+                   ?? new Dictionary<string, string>();
+        }
+        catch
+        {
+            return new Dictionary<string, string>();
+        }
+    }
+
+    private sealed class NodeRedPanelRequest
+    {
+        public string StructureId { get; set; } = string.Empty;
+        public string StructureName { get; set; } = string.Empty;
+        public string StructureType { get; set; } = string.Empty;
+        public string WorkspaceName { get; set; } = string.Empty;
+        public string TemplateName { get; set; } = string.Empty;
+        public string CustomFlowFileName { get; set; } = string.Empty;
+        public string FlowSource { get; set; } = "template";
+        public string RuntimeName { get; set; } = string.Empty;
+        public string TopicFilter { get; set; } = string.Empty;
+        public string KafkaTopic { get; set; } = string.Empty;
+        public string EnvironmentVariablesJson { get; set; } = string.Empty;
+    }
+}

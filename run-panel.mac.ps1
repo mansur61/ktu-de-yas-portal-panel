@@ -8,6 +8,9 @@ $ErrorActionPreference = "Stop"
 $root        = $PSScriptRoot
 $panelCsproj = "$root/KtuDeYasPortal.Panel/KtuDeYasPortal.Panel.csproj"
 $backendRoot = Resolve-Path "$root/../ktu-de-yas" -ErrorAction SilentlyContinue
+# Build tamamlandıysa çalışan dotnet servisleri eski binary'yi kullanıyor olabilir.
+# Bu durumda kaynak/binary zamanı eşit olacağından yalnız mtime kontrolü yeterli değildir.
+$ForceRestartServices = -not $NoBuild
 
 if (-not $backendRoot) {
     Write-Host "Backend repo bulunamadi: $root/../ktu-de-yas" -ForegroundColor Red
@@ -106,7 +109,7 @@ function Start-Service {
 
     if ($portInUse) {
         $hasChanges = Test-HasChanges -ProjectPath $Project
-        if ($hasChanges) {
+        if ($ForceRestartServices -or $hasChanges) {
             Write-Host "  [DEGISIKLIK] $Name — kaynak binary'den yeni, yeniden baslatiliyor..." -ForegroundColor Magenta
 
             # GÜVENLI KILL: sadece 'dotnet' process'i olan PID'leri öldür
@@ -115,10 +118,11 @@ function Start-Service {
             foreach ($procPid in ($portPids -split '\n' | Where-Object { $_ -match '^\d+$' })) {
                 if (-not $procPid) { continue }
 
-                # PID'in dotnet process'i olduğunu doğrula
+                # PID'in yalnızca bu geliştirme servislerinden biri olduğunu doğrula.
+                # macOS'ta dotnet run, uygulamayı doğrudan binary olarak gösterebilir.
                 $procName = & ps -p $procPid -o comm= 2>$null
-                if ($procName -match 'dotnet') {
-                    Write-Host "    dotnet PID $procPid durduruluyor (port $Port)..." -ForegroundColor DarkGray
+                if ($procName -match 'dotnet|TimeseriesService|EdgeLayer|KtuDeYasPortal\.Panel') {
+                    Write-Host "    uygulama PID $procPid durduruluyor (port $Port)..." -ForegroundColor DarkGray
                     & kill -9 $procPid 2>$null
                 } else {
                     Write-Host "    SKIP: PID $procPid process '$procName' — dotnet degil, dokunulmuyor." -ForegroundColor DarkYellow

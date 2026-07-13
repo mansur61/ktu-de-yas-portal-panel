@@ -105,6 +105,23 @@ else
                     var metrics  = GetSensorMetrics(sensor);
                     var liveData = SensorDataState.GetLatest(sensor.DeviceId);
 
+                    @if (IsMediaSensor(sensor))
+                    {
+                        <div class="col-sm-6 col-md-4 col-xl-3">
+                            <div class="card h-100 shadow-sm border-info border-opacity-50">
+                                <div class="card-header py-2 bg-info bg-opacity-10 d-flex justify-content-between">
+                                    <span class="fw-semibold small">📷 Kamera sensörü</span>
+                                    <span class="badge bg-info text-dark">Medya</span>
+                                </div>
+                                <div class="card-body py-2 px-3">
+                                    <div class="fw-semibold text-truncate">@sensor.Name</div>
+                                    <div class="text-muted small text-truncate">@sensor.SensorType · @sensor.DeviceId</div>
+                                    <div class="small mt-2 text-muted">Video/stream akışı merkez Node-RED ekranından izlenir.</div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
                     @foreach (var metric in metrics)
                     {
                         double?   val = null;
@@ -133,7 +150,7 @@ else
                             <div class="card h-100 shadow-sm @(isGrafanaActive ? "border-primary" : "border-" + statusColor + " border-opacity-50")">
                                 <div class="card-header py-2 d-flex justify-content-between align-items-center bg-@statusColor bg-opacity-10">
                                     <span class="fw-semibold small text-truncate" title="@sensor.Name — @metric">
-                                        @GetMetricEmoji(metric) @metric
+                                        @GetMetricEmoji(metric) @GetMetricLabel(metric)
                                     </span>
                                     <span class="badge bg-@statusColor" style="font-size:0.65rem">@statusText</span>
                                 </div>
@@ -370,12 +387,28 @@ else
 
     private static List<string> GetSensorMetrics(Domain.Entities.StructureSensor sensor)
     {
+        if (IsMediaSensor(sensor)) return new();
         var csv = string.IsNullOrWhiteSpace(sensor.Metrics) ? sensor.Description : sensor.Metrics;
-        if (string.IsNullOrWhiteSpace(csv)) return new() { "value" };
+        if (string.IsNullOrWhiteSpace(csv)) return new();
         return csv.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-                  .Where(m => !string.IsNullOrWhiteSpace(m))
+                  .Where(m => !string.IsNullOrWhiteSpace(m) &&
+                              !string.Equals(m, "label", StringComparison.OrdinalIgnoreCase) &&
+                              !string.Equals(m, "value", StringComparison.OrdinalIgnoreCase))
                   .ToList();
     }
+
+    private static bool IsMediaSensor(Domain.Entities.StructureSensor sensor) =>
+        sensor.SensorType.Contains("camera", StringComparison.OrdinalIgnoreCase) ||
+        sensor.SensorType.Contains("video", StringComparison.OrdinalIgnoreCase) ||
+        sensor.SensorType.Contains("stream", StringComparison.OrdinalIgnoreCase);
+
+    private static string GetMetricLabel(string metric) => metric.ToLowerInvariant() switch
+    {
+        "temperature" => "Sıcaklık", "humidity" => "Nem", "pressure" => "Basınç",
+        "vibration" => "Titreşim", "acceleration" => "İvme", "water_level" => "Su seviyesi",
+        "wind_speed" => "Rüzgar hızı", "strain" => "Gerinim", "tilt" => "Eğim",
+        "distance" => "Mesafe", _ => metric.Replace('_', ' ')
+    };
 
     private static string GetMetricEmoji(string metric) => metric.ToLowerInvariant() switch
     {

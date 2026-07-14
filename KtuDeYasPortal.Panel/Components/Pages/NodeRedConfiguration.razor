@@ -4,8 +4,10 @@
 @using System.Text.Json
 @using System.Net.Http.Json
 @using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.JSInterop
 @inject IHttpClientFactory HttpClientFactory
 @inject ILogger<NodeRedConfiguration> Logger
+@inject IJSRuntime JS
 
 <PageTitle>Node-RED Konfigürasyonu</PageTitle>
 
@@ -129,6 +131,68 @@
                 </div>
             </div>
 
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-body p-4">
+                    <h5 class="fw-semibold mb-3">
+                        <span class="bi bi-table me-2"></span>Kayıtlı Konfigürasyonlar
+                        <button class="btn btn-sm btn-outline-secondary float-end" @onclick="LoadConfigurationsAsync" disabled="@_loadingConfigList">
+                            @if (_loadingConfigList)
+                            {
+                                <span class="spinner-border spinner-border-sm"></span>
+                            }
+                            <span>Yenile</span>
+                        </button>
+                    </h5>
+
+                    @if (_loadingConfigList)
+                    {
+                        <div class="text-center py-4 text-muted">Konfigürasyonlar yükleniyor...</div>
+                    }
+                    else if (_configurations.Count == 0)
+                    {
+                        <div class="text-muted py-4">Henüz kayıtlı Node-RED konfigürasyonu yok.</div>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Yapı</th>
+                                        <th>Runtime</th>
+                                        <th>Template</th>
+                                        <th>Kaynak</th>
+                                        <th>Güncellendi</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var config in _configurations)
+                                    {
+                                        <tr>
+                                            <td>@config.StructureName</td>
+                                            <td>@config.RuntimeName</td>
+                                            <td>@config.TemplateName</td>
+                                            <td>@config.FlowSource</td>
+                                            <td>@config.UpdatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</td>
+                                            <td class="text-end">
+                                                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteConfigurationAsync(config.StructureId, config.StructureName)" disabled="@_deletingConfigIds.Contains(config.StructureId)">
+                                                    @if (_deletingConfigIds.Contains(config.StructureId))
+                                                    {
+                                                        <span class="spinner-border spinner-border-sm"></span>
+                                                    }
+                                                    <span>Sil</span>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+
             <div class="card shadow-sm border-0">
                 <div class="card-body p-4">
                     <h5 class="fw-semibold mb-3">
@@ -147,6 +211,10 @@
     private List<string> _kafkaTopics = new() { "sensor.timeseries", "sensor.media", "sensor.video" };
     private List<string> _topicFilters = new();
     private bool _loadingStructures = true;
+
+    private List<NodeRedConfigurationDto> _configurations = new();
+    private bool _loadingConfigList = true;
+    private HashSet<Guid> _deletingConfigIds = new();
 
     private IBrowserFile? _selectedFile;
     private bool _isSubmitting;
@@ -170,7 +238,63 @@
             _statusMessage = "Yapılar yüklenemedi. Timeseries servisini kontrol edin.";
             _statusKind = "danger";
         }
-        finally { _loadingStructures = false; }
+        finally
+        {
+            _loadingStructures = false;
+        }
+
+        await LoadConfigurationsAsync();
+    }
+
+    private async Task LoadConfigurationsAsync()
+    {
+        _loadingConfigList = true;
+        try
+        {
+            var client = HttpClientFactory.CreateClient("timeseries-api");
+            _configurations = await client.GetFromJsonAsync<List<NodeRedConfigurationDto>>("/api/node-red-configurations")
+                               ?? new List<NodeRedConfigurationDto>();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Node-RED konfigürasyonları yüklenemedi");
+            _statusMessage = "Node-RED konfigürasyonları yüklenemedi.";
+            _statusKind = "danger";
+        }
+        finally
+        {
+            _loadingConfigList = false;
+        }
+    }
+
+    private async Task DeleteConfigurationAsync(Guid structureId, string structureName)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", $"'{structureName}' için kaydedilmiş konfigürasyon silinecek. Onaylıyor musunuz?");
+        if (!confirmed) return;
+
+        _deletingConfigIds.Add(structureId);
+        StateHasChanged();
+
+        try
+        {
+            var client = HttpClientFactory.CreateClient("timeseries-api");
+            var response = await client.DeleteAsync($"/api/node-red-configurations/{structureId}");
+            response.EnsureSuccessStatusCode();
+            _statusMessage = "Konfigürasyon silindi.";
+            _statusKind = "success";
+            await LoadConfigurationsAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Node-RED konfigürasyonu silme hatası");
+            _statusMessage = "Konfigürasyon silinirken hata oluştu.";
+            _statusKind = "danger";
+        }
+        finally
+        {
+            _deletingConfigIds.Remove(structureId);
+            StateHasChanged();
+        }
     }
 
     private async Task ConfigureAsync()
@@ -338,6 +462,16 @@
         public string TopicFilter { get; set; } = string.Empty;
         public string KafkaTopic { get; set; } = string.Empty;
         public string EnvironmentVariablesJson { get; set; } = string.Empty;
+    }
+
+    private sealed class NodeRedConfigurationDto
+    {
+        public Guid StructureId { get; set; }
+        public string StructureName { get; set; } = string.Empty;
+        public string RuntimeName { get; set; } = string.Empty;
+        public string TemplateName { get; set; } = string.Empty;
+        public string FlowSource { get; set; } = string.Empty;
+        public DateTime UpdatedAt { get; set; }
     }
 
     private sealed class StructureOption

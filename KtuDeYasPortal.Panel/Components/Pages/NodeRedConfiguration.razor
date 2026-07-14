@@ -4,10 +4,12 @@
 @using System.Text.Json
 @using System.Net.Http.Json
 @using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.Extensions.Configuration
 @using Microsoft.JSInterop
 @inject IHttpClientFactory HttpClientFactory
 @inject ILogger<NodeRedConfiguration> Logger
 @inject IJSRuntime JS
+@inject IConfiguration Configuration
 
 <PageTitle>Node-RED Konfigürasyonu</PageTitle>
 
@@ -176,6 +178,12 @@
                                             <td>@config.FlowSource</td>
                                             <td>@config.UpdatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</td>
                                             <td class="text-end">
+                                                <button class="btn btn-sm btn-outline-primary me-2" @onclick="() => OpenNodeRedPageAsync(config, NodeRedPage.Dashboard)" title="Node-RED dashboard aç">
+                                                    <span class="bi bi-speedometer2 me-1"></span>Dashboard
+                                                </button>
+                                                <button class="btn btn-sm btn-outline-secondary me-2" @onclick="() => OpenNodeRedPageAsync(config, NodeRedPage.Editor)" title="Node-RED editör aç">
+                                                    <span class="bi bi-box-arrow-up-right me-1"></span>Editör
+                                                </button>
                                                 <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteConfigurationAsync(config.StructureId, config.StructureName)" disabled="@_deletingConfigIds.Contains(config.StructureId)">
                                                     @if (_deletingConfigIds.Contains(config.StructureId))
                                                     {
@@ -277,12 +285,24 @@
 
         try
         {
-            var client = HttpClientFactory.CreateClient("timeseries-api");
-            var response = await client.DeleteAsync($"/api/node-red-configurations/{structureId}");
-            response.EnsureSuccessStatusCode();
-            _statusMessage = "Konfigürasyon silindi.";
-            _statusKind = "success";
-            await LoadConfigurationsAsync();
+            var edgeClient = HttpClientFactory.CreateClient("edge-api");
+            var runtimeResponse = await edgeClient.DeleteAsync($"/api/nodered/runtime/{structureId}");
+            if (runtimeResponse.IsSuccessStatusCode || runtimeResponse.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                var client = HttpClientFactory.CreateClient("timeseries-api");
+                var response = await client.DeleteAsync($"/api/node-red-configurations/{structureId}");
+                response.EnsureSuccessStatusCode();
+                _statusMessage = "Konfigürasyon ve runtime silindi.";
+                _statusKind = "success";
+                await LoadConfigurationsAsync();
+            }
+            else
+            {
+                var detail = await runtimeResponse.Content.ReadAsStringAsync();
+                Logger.LogError("Node-RED runtime silme isteği başarısız oldu: {Status} {Detail}", runtimeResponse.StatusCode, detail);
+                _statusMessage = "Node-RED runtime silinirken hata oluştu.";
+                _statusKind = "danger";
+            }
         }
         catch (Exception ex)
         {
@@ -408,6 +428,27 @@
         }
     }
 
+    private async Task OpenNodeRedPageAsync(NodeRedConfigurationDto config, NodeRedPage page)
+    {
+        var structureType = config.StructureType.Trim();
+        var baseUrl = Configuration[$"NodeRed:PerStructureUrls:{structureType}"];
+        if (string.IsNullOrWhiteSpace(baseUrl))
+        {
+            baseUrl = Configuration["NodeRed:BaseUrl"] ?? "http://localhost:1880";
+        }
+
+        baseUrl = baseUrl.TrimEnd('/');
+        var path = page == NodeRedPage.Editor ? "/api/ui/#flow/tab-platform-pipeline" : "/api/ui";
+        var url = baseUrl + path;
+        await JS.InvokeVoidAsync("open", url, "_blank");
+    }
+
+    private enum NodeRedPage
+    {
+        Dashboard,
+        Editor
+    }
+
     private void ApplyStructure(StructureOption structure)
     {
         _request.StructureId = structure.Id;
@@ -468,6 +509,7 @@
     {
         public Guid StructureId { get; set; }
         public string StructureName { get; set; } = string.Empty;
+        public string StructureType { get; set; } = string.Empty;
         public string RuntimeName { get; set; } = string.Empty;
         public string TemplateName { get; set; } = string.Empty;
         public string FlowSource { get; set; } = string.Empty;

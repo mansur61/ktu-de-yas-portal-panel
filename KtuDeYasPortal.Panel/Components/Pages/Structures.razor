@@ -111,7 +111,8 @@
                                 <button class="btn btn-sm btn-success"
                                         @onclick="() => StartStructureSimulationAsync(s.Id)"
                                         @onclick:stopPropagation="true"
-                                        disabled="@(_startingStructureIds.Contains(s.Id) || _runningStructureIds.Contains(s.Id))">
+                                        disabled="@(_startingStructureIds.Contains(s.Id) || _runningStructureIds.Contains(s.Id) || s.SensorCount == 0)"
+                                        title="@(s.SensorCount == 0 ? "Sensör tanımlı değil; yapı çalıştırılamaz." : "Yapıyı çalıştır")">
                                     @if (_startingStructureIds.Contains(s.Id))
                                     {
                                         <span class="spinner-border spinner-border-sm me-1"></span>
@@ -120,7 +121,14 @@
                                     {
                                         <span class="bi bi-play-fill me-1"></span>
                                     }
-                                    @(_runningStructureIds.Contains(s.Id) ? "Çalışıyor" : "Çalıştır")
+                                    @if (s.SensorCount == 0)
+                                    {
+                                        <span>Sensör yok</span>
+                                    }
+                                    else
+                                    {
+                                        @(_runningStructureIds.Contains(s.Id) ? "Çalışıyor" : "Çalıştır")
+                                    }
                                 </button>
                                 <button class="btn btn-sm btn-outline-warning"
                                         @onclick="() => OpenNodeRedAsync(s.Id, s.Name)"
@@ -1056,12 +1064,20 @@
 
         _simulationErrorMessage = null;
         _simulationStatusMessage = null;
+
+        var structure = _structures?.FirstOrDefault(s => s.Id == structureId);
+        if (structure?.SensorCount == 0)
+        {
+            _simulationErrorMessage = $"{structure.Name} için sensör tanımlı değil; yapı çalıştırılamaz.";
+            return;
+        }
+
         _startingStructureIds.Add(structureId);
 
         try
         {
             await StructureSimClient.StartAsync(structureId);
-            var structureName = _structures?.FirstOrDefault(s => s.Id == structureId)?.Name ?? "yapı";
+            var structureName = structure?.Name ?? "yapı";
             _simulationStatusMessage = $"{structureName} için edge simülasyonu başlatıldı.";
             _runningStructureIds.Add(structureId);
         }

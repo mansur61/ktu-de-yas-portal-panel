@@ -348,6 +348,10 @@
             _resultText = body;
             _statusMessage = response.IsSuccessStatusCode ? "Konfigürasyon planı başarıyla oluşturuldu." : "Konfigürasyon planı oluşturulamadı.";
             _statusKind = response.IsSuccessStatusCode ? "success" : "danger";
+            if (response.IsSuccessStatusCode)
+            {
+                await LoadConfigurationsAsync();
+            }
         }
         catch (Exception ex)
         {

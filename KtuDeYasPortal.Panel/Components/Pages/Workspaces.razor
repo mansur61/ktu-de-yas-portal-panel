@@ -113,7 +113,7 @@
                         <span class="text-danger">*</span>
                     </label>
                     <input type="text"
-                           class="form-control @(_nameError ? "is-invalid" : "")"
+                           class="form-control @(_nameError || _nameInvalidTurkish ? "is-invalid" : "")"
                            placeholder="Örn: Titreşim Analizi, AI Test"
                            @bind="_workspaceName"
                            @bind:event="oninput"
@@ -122,8 +122,12 @@
                     {
                         <div class="invalid-feedback">Workspace adı boş olamaz (en az 3 karakter).</div>
                     }
+                    else if (_nameInvalidTurkish)
+                    {
+                        <div class="invalid-feedback">Workspace adı Türkçe karakter içeremez.</div>
+                    }
                     <div class="form-text text-muted">
-                        Container adında kullanılır. Türkçe karakter serbesttir.
+                        Container adında kullanılır. Türkçe karakter kullanılmaz.
                     </div>
                 </div>
 
@@ -387,6 +391,7 @@ else if (_workspaces is not null)
     private bool   _creating    = false;
     private string _workspaceName = string.Empty;
     private bool   _nameError   = false;
+    private bool   _nameInvalidTurkish = false;
     private string? _actionId;         // sil/restart için hangi container işlemdeyse
 
     private string? _successMsg;
@@ -430,6 +435,7 @@ else if (_workspaces is not null)
         _showCreate    = true;
         _workspaceName = string.Empty;
         _nameError     = false;
+        _nameInvalidTurkish = false;
         _selectedStructure = null;
         _errorMsg = null;
 
@@ -447,6 +453,7 @@ else if (_workspaces is not null)
         _selectedStructure = null;
         _workspaceName = string.Empty;
         _nameError = false;
+        _nameInvalidTurkish = false;
     }
 
     // ── Yapı seçimi ───────────────────────────────────────────────────────────
@@ -461,11 +468,21 @@ else if (_workspaces is not null)
     private async Task CreateWorkspaceAsync()
     {
         _nameError = false;
-        if (string.IsNullOrWhiteSpace(_workspaceName) || _workspaceName.Trim().Length < 3)
+        _nameInvalidTurkish = false;
+
+        var trimmedName = _workspaceName.Trim();
+        if (string.IsNullOrWhiteSpace(trimmedName) || trimmedName.Length < 3)
         {
             _nameError = true;
             return;
         }
+
+        if (ContainsTurkishCharacters(trimmedName))
+        {
+            _nameInvalidTurkish = true;
+            return;
+        }
+
         if (_selectedStructure is null) return;
 
         _creating = true;
@@ -495,6 +512,12 @@ else if (_workspaces is not null)
         {
             _creating = false;
         }
+    }
+
+    private static bool ContainsTurkishCharacters(string value)
+    {
+        const string turkishChars = "çğıİşöüÇĞİŞÖÜ";
+        return value.Any(c => turkishChars.Contains(c));
     }
 
     // ── Workspace sil ─────────────────────────────────────────────────────────

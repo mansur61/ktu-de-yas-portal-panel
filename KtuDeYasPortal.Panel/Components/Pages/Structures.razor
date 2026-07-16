@@ -533,12 +533,12 @@
         @* ── Sekme Seçimi ── *@
         <div style="display:flex; gap:0; border-bottom: 1px solid #dee2e6; background:#f8f9fa; padding: 0 0.75rem;">
             <button class="nav-tab @(_addSensorTab == "manual" ? "active" : "")"
-                    @onclick="() => { _addSensorTab = \"manual\"; StateHasChanged(); }"
+                    @onclick='() => { _addSensorTab = "manual"; StateHasChanged(); }'
                     style="background:none; border:none; border-bottom:3px solid transparent; padding:0.75rem 1rem; cursor:pointer; color: @(_addSensorTab == "manual" ? "#0d6efd" : "#6c757d"); border-bottom-color: @(_addSensorTab == "manual" ? "#0d6efd" : "transparent"); font-weight: @(_addSensorTab == "manual" ? "600" : "400");">
                 <span class="bi bi-hand-index me-1"></span>Manuel Ekle
             </button>
             <button class="nav-tab @(_addSensorTab == "tcp" ? "active" : "")"
-                    @onclick="() => { _addSensorTab = \"tcp\"; StateHasChanged(); }"
+                    @onclick='() => { _addSensorTab = "tcp"; StateHasChanged(); }'
                     style="background:none; border:none; border-bottom:3px solid transparent; padding:0.75rem 1rem; cursor:pointer; color: @(_addSensorTab == "tcp" ? "#0d6efd" : "#6c757d"); border-bottom-color: @(_addSensorTab == "tcp" ? "#0d6efd" : "transparent"); font-weight: @(_addSensorTab == "tcp" ? "600" : "400");">
                 <span class="bi bi-diagram-3 me-1"></span>TCP/IP ile Ekle
             </button>
@@ -728,11 +728,11 @@
                 <div class="row g-3 mt-2">
                     <div class="col-md-6">
                         <label class="form-label">Timeout (ms)</label>
-                        <input type="number" class="form-control" @bind="_tcpTimeout" value="5000" min="100" max="60000" />
+                        <input type="number" class="form-control" @bind="_tcpTimeout" min="100" max="60000" />
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Polling Interval (ms)</label>
-                        <input type="number" class="form-control" @bind="_tcpPollInterval" value="1000" min="100" max="60000" />
+                        <input type="number" class="form-control" @bind="_tcpPollInterval" min="100" max="60000" />
                     </div>
                 </div>
 

@@ -28,6 +28,9 @@ public class Sensor
     public bool IsEnabled { get; set; } = true;
     public bool IsActive { get; set; } = true;
     public string ProtocolType { get; set; } = string.Empty;
+    public Guid? ConnectionId { get; set; }
+    public string? SerialPort { get; set; }
+    public int? BaudRate { get; set; }
     public string? IpAddress { get; set; }
     public int? Port { get; set; }
     public int? TimeoutMs { get; set; } = 5000;

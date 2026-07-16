@@ -1862,26 +1862,26 @@
         {
             _isSaving = true;
 
-            // Yeni sensör oluştur
-            var newSensor = new Sensor
-            {
-                Id = Guid.NewGuid(),
-                Name = _tcpSensorName,
-                DeviceId = !string.IsNullOrWhiteSpace(_tcpDeviceId) ? _tcpDeviceId : _tcpSensorName,
-                SensorType = Enum.Parse<SensorType>(_tcpSensorType),
-                Description = _tcpDescription,
-                ProtocolType = _tcpProtocol,
-                IpAddress = _tcpIpAddress,
-                Port = _tcpPort,
-                TimeoutMs = _tcpTimeout,
-                PollingIntervalMs = _tcpPollInterval ?? 1000,
-                Topic = string.Empty, // Will be set by backend
-                Unit = string.Empty,
-                Metrics = string.Empty,
-                IsEnabled = true,
-                IsActive = true,
-                TelemetryIntervalMs = 5000,
-                TelemetryBatchSize = 1,
+                var sensorType = Enum.Parse<SensorType>(_tcpSensorType);
+                var defaultMetrics = SensorMetricsConfiguration.GetMetrics(sensorType);
+                var defaultUnit = SensorMetricsConfiguration.GetUnit(sensorType);
+
+                // Yeni sensör oluştur
+                var newSensor = new Sensor
+                {
+                    Id = Guid.NewGuid(),
+                    Name = _tcpSensorName,
+                    DeviceId = !string.IsNullOrWhiteSpace(_tcpDeviceId) ? _tcpDeviceId : _tcpSensorName,
+                    SensorType = sensorType,
+                    Description = _tcpDescription,
+                    ProtocolType = _tcpProtocol,
+                    IpAddress = _tcpIpAddress,
+                    Port = _tcpPort,
+                    TimeoutMs = _tcpTimeout,
+                    PollingIntervalMs = _tcpPollInterval ?? 1000,
+                    Topic = string.Empty, // Will be set by backend
+                    Unit = defaultUnit,
+                    Metrics = defaultMetrics,
                 ImagePositionX = _pendingPos?.x,
                 ImagePositionY = _pendingPos?.y,
                 CreatedAt = DateTime.UtcNow,

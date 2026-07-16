@@ -64,4 +64,18 @@ public class SensorHttpRepository : ISensorRepository
         resp.EnsureSuccessStatusCode();
         return (await resp.Content.ReadFromJsonAsync<Sensor>(_json, ct))!;
     }
+
+    public async Task<object> TestTcpConnectionAsync(TcpSensorCreateRequest request, CancellationToken ct = default)
+    {
+        var response = await _http.PostAsJsonAsync("api/tcp-sensors/test-connection", request, _json, ct);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<object>(_json, ct))!;
+    }
+
+    public async Task<Sensor> CreateTcpSensorAsync(TcpSensorCreateRequest request, CancellationToken ct = default)
+    {
+        var response = await _http.PostAsJsonAsync("api/tcp-sensors", request, _json, ct);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<Sensor>(_json, ct))!;
+    }
 }

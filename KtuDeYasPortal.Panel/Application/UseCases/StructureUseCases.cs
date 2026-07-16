@@ -42,4 +42,10 @@ public class StructureUseCases
 
     public Task<Sensor> CreateSensorAsync(Sensor sensor, CancellationToken ct = default) =>
         _sensorRepo.CreateAsync(sensor, ct);
+
+    public Task<object> TestTcpConnectionAsync(TcpSensorCreateRequest request, CancellationToken ct = default) =>
+        _sensorRepo.TestTcpConnectionAsync(request, ct);
+
+    public Task<Sensor> CreateTcpSensorAsync(TcpSensorCreateRequest request, CancellationToken ct = default) =>
+        _sensorRepo.CreateTcpSensorAsync(request, ct);
 }

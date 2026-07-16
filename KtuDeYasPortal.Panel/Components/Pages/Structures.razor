@@ -713,10 +713,12 @@
                 <div class="row g-3 mt-2">
                     <div class="col-md-6">
                         <label class="form-label">Protocol</label>
-                        <select class="form-select" @bind="_tcpProtocol">
-                            <option value="TCP">TCP</option>
-                            <option value="Modbus">Modbus TCP</option>
-                            <option value="OPC-UA">OPC UA</option>
+                        <select class="form-select" @bind="_tcpProfile">
+                            <option value="GenericTcp">Generic TCP</option>
+                            <option value="JsonTcp">JSON TCP</option>
+                            <option value="CsvTcp">CSV TCP</option>
+                            <option value="ModbusTcp">Modbus TCP</option>
+                            <option value="Unknown">Unknown</option>
                         </select>
                     </div>
                     <div class="col-md-6">
@@ -736,10 +738,36 @@
                     </div>
                 </div>
 
+                <div class="row g-3 mt-2">
+                    <div class="col-md-6">
+                        <label class="form-label">Encoding</label>
+                        <select class="form-select" @bind="_tcpEncoding">
+                            <option value="utf-8">UTF-8</option>
+                            <option value="ascii">ASCII</option>
+                            <option value="hex">HEX</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Reconnect</label>
+                        <select class="form-select" @bind="_tcpReconnectEnabled">
+                            <option value="true">Evet</option>
+                            <option value="false">Hayır</option>
+                        </select>
+                    </div>
+                </div>
+
                 <div class="mt-3">
                     <label class="form-label">Açıklama</label>
                     <textarea class="form-control" @bind="_tcpDescription" rows="2" placeholder="İsteğe bağlı notlar..."></textarea>
                 </div>
+
+                @if (_tcpDiscoveryResult is not null && _tcpDiscoveryResult.Count > 0)
+                {
+                    <div class="alert alert-info mt-3 py-2 small">
+                        <div class="fw-semibold mb-1">Bulunan metrikler</div>
+                        <div>@string.Join(", ", _tcpDiscoveryResult)</div>
+                    </div>
+                }
 
                 @if (!string.IsNullOrEmpty(_saveError))
                 {
@@ -747,6 +775,11 @@
                 }
 
                 <div class="mt-3 d-flex gap-2">
+                    <button class="btn btn-outline-primary" disabled="@(string.IsNullOrWhiteSpace(_tcpIpAddress) || !_tcpPort.HasValue || _isSaving)"
+                            @onclick="TestTcpConnectionAsync">
+                        @if (_isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        <span class="bi bi-plug-fill me-1"></span>Bağlantıyı Test Et
+                    </button>
                     <button class="btn btn-success" disabled="@(string.IsNullOrWhiteSpace(_tcpSensorName) || string.IsNullOrWhiteSpace(_tcpSensorType) || string.IsNullOrWhiteSpace(_tcpIpAddress) || !_tcpPort.HasValue || _isSaving)"
                             @onclick="SaveTcpSensorAsync">
                         @if (_isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
@@ -963,10 +996,14 @@
     private string _tcpIpAddress = string.Empty;
     private int? _tcpPort;
     private string _tcpProtocol = "TCP";
+    private string _tcpProfile = "GenericTcp";
     private string _tcpDeviceId = string.Empty;
     private int? _tcpTimeout = 5000;
     private int? _tcpPollInterval = 1000;
     private string _tcpDescription = string.Empty;
+    private string _tcpEncoding = "utf-8";
+    private bool _tcpReconnectEnabled = true;
+    private List<string> _tcpDiscoveryResult = new();
 
     // ── Edit popup ────────────────────────────────────────────────────────────
     private string        _editName        = "";
@@ -1844,9 +1881,50 @@
     /// <summary>
     /// TCP/IP Sekmesinden sensör ekle
     /// </summary>
+    private async Task TestTcpConnectionAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_tcpIpAddress) || !_tcpPort.HasValue)
+        {
+            _saveError = "IP ve port alanlarını doldurunuz.";
+            return;
+        }
+
+        _saveError = null;
+        _isSaving = true;
+        try
+        {
+            var request = new TcpSensorCreateRequest
+            {
+                Name = _tcpSensorName,
+                DeviceId = string.IsNullOrWhiteSpace(_tcpDeviceId) ? _tcpSensorName : _tcpDeviceId,
+                SensorType = _tcpSensorType,
+                Profile = _tcpProfile,
+                Encoding = _tcpEncoding,
+                ReconnectEnabled = _tcpReconnectEnabled,
+                IpAddress = _tcpIpAddress,
+                Port = _tcpPort.Value,
+                TimeoutMs = _tcpTimeout ?? 5000,
+                PollingIntervalMs = _tcpPollInterval ?? 1000,
+                Description = _tcpDescription,
+                ConnectionMode = "Client"
+            };
+
+            var result = await StructureUC.CreateTcpSensorAsync(request);
+            _tcpDiscoveryResult = new List<string>();
+        }
+        catch (Exception ex)
+        {
+            _saveError = $"Bağlantı testi başarısız: {ex.Message}";
+            _tcpDiscoveryResult = new();
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
     private async Task SaveTcpSensorAsync()
     {
-        // Validasyon
         if (string.IsNullOrWhiteSpace(_tcpSensorName) || 
             string.IsNullOrWhiteSpace(_tcpSensorType) ||
             string.IsNullOrWhiteSpace(_tcpIpAddress) ||
@@ -1861,27 +1939,44 @@
         try
         {
             _isSaving = true;
+            var sensorType = Enum.Parse<SensorType>(_tcpSensorType);
+            var defaultMetrics = SensorMetricsConfiguration.GetMetrics(sensorType);
+            var defaultUnit = SensorMetricsConfiguration.GetUnit(sensorType);
 
-                var sensorType = Enum.Parse<SensorType>(_tcpSensorType);
-                var defaultMetrics = SensorMetricsConfiguration.GetMetrics(sensorType);
-                var defaultUnit = SensorMetricsConfiguration.GetUnit(sensorType);
+            var request = new TcpSensorCreateRequest
+            {
+                Name = _tcpSensorName,
+                DeviceId = !string.IsNullOrWhiteSpace(_tcpDeviceId) ? _tcpDeviceId : _tcpSensorName,
+                SensorType = _tcpSensorType,
+                Profile = _tcpProfile,
+                Encoding = _tcpEncoding,
+                ReconnectEnabled = _tcpReconnectEnabled,
+                IpAddress = _tcpIpAddress,
+                Port = _tcpPort.Value,
+                TimeoutMs = _tcpTimeout ?? 5000,
+                PollingIntervalMs = _tcpPollInterval ?? 1000,
+                Description = _tcpDescription,
+                ConnectionMode = "Client",
+                DiscoveredMetrics = _tcpDiscoveryResult
+            };
 
-                // Yeni sensör oluştur
-                var newSensor = new Sensor
-                {
-                    Id = Guid.NewGuid(),
-                    Name = _tcpSensorName,
-                    DeviceId = !string.IsNullOrWhiteSpace(_tcpDeviceId) ? _tcpDeviceId : _tcpSensorName,
-                    SensorType = sensorType,
-                    Description = _tcpDescription,
-                    ProtocolType = _tcpProtocol,
-                    IpAddress = _tcpIpAddress,
-                    Port = _tcpPort,
-                    TimeoutMs = _tcpTimeout,
-                    PollingIntervalMs = _tcpPollInterval ?? 1000,
-                    Topic = string.Empty, // Will be set by backend
-                    Unit = defaultUnit,
-                    Metrics = defaultMetrics,
+            var createdSensor = await StructureUC.CreateTcpSensorAsync(request);
+
+            var newSensor = new Sensor
+            {
+                Id = createdSensor.Id,
+                Name = createdSensor.Name,
+                DeviceId = createdSensor.DeviceId,
+                SensorType = createdSensor.SensorType,
+                Description = createdSensor.Description,
+                ProtocolType = createdSensor.ProtocolType,
+                IpAddress = createdSensor.IpAddress,
+                Port = createdSensor.Port,
+                TimeoutMs = createdSensor.TimeoutMs,
+                PollingIntervalMs = createdSensor.PollingIntervalMs,
+                Topic = createdSensor.Topic,
+                Unit = createdSensor.Unit,
+                Metrics = createdSensor.Metrics,
                 ImagePositionX = _pendingPos?.x,
                 ImagePositionY = _pendingPos?.y,
                 CreatedAt = DateTime.UtcNow,
@@ -1890,15 +1985,11 @@
 
             if (_isWizardSensorMode)
             {
-                // Wizard adım 3'te: listeye ekle
                 _newStructureSensors.Add(newSensor);
             }
             else
             {
-                // Mevcut yapı detayı: sensörü DB'ye oluştur, sonra yapıya bağla
                 if (_editingStructure == null) return;
-
-                var createdSensor = await StructureUC.CreateSensorAsync(newSensor);
                 var sensorIds = _editingStructure.Sensors?.Select(x => x.SensorId).ToList() ?? new();
                 sensorIds.Add(createdSensor.Id);
                 await StructureUC.UpdateAsync(_editingStructure.Id, _editingStructure, sensorIds);
@@ -1912,8 +2003,8 @@
         {
             _saveError = $"Sensör kaydedilemedi: {ex.Message}";
         }
-        finally 
-        { 
+        finally
+        {
             _isSaving = false;
         }
     }
@@ -1928,10 +2019,14 @@
         _tcpIpAddress = string.Empty;
         _tcpPort = null;
         _tcpProtocol = "TCP";
+        _tcpProfile = "GenericTcp";
         _tcpDeviceId = string.Empty;
         _tcpTimeout = 5000;
         _tcpPollInterval = 1000;
         _tcpDescription = string.Empty;
+        _tcpEncoding = "utf-8";
+        _tcpReconnectEnabled = true;
+        _tcpDiscoveryResult = new();
     }
 
     // ── Dispose ───────────────────────────────────────────────────────────────

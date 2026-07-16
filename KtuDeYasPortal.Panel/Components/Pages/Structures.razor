@@ -529,130 +529,232 @@
             <button style="background:none;border:none;color:rgba(255,255,255,0.8);font-size:20px;cursor:pointer;padding:0 4px"
                     @onclick="CloseSensorPopup">&times;</button>
         </div>
+        
+        @* ── Sekme Seçimi ── *@
+        <div style="display:flex; gap:0; border-bottom: 1px solid #dee2e6; background:#f8f9fa; padding: 0 0.75rem;">
+            <button class="nav-tab @(_addSensorTab == "manual" ? "active" : "")"
+                    @onclick="() => { _addSensorTab = \"manual\"; StateHasChanged(); }"
+                    style="background:none; border:none; border-bottom:3px solid transparent; padding:0.75rem 1rem; cursor:pointer; color: @(_addSensorTab == "manual" ? "#0d6efd" : "#6c757d"); border-bottom-color: @(_addSensorTab == "manual" ? "#0d6efd" : "transparent"); font-weight: @(_addSensorTab == "manual" ? "600" : "400");">
+                <span class="bi bi-hand-index me-1"></span>Manuel Ekle
+            </button>
+            <button class="nav-tab @(_addSensorTab == "tcp" ? "active" : "")"
+                    @onclick="() => { _addSensorTab = \"tcp\"; StateHasChanged(); }"
+                    style="background:none; border:none; border-bottom:3px solid transparent; padding:0.75rem 1rem; cursor:pointer; color: @(_addSensorTab == "tcp" ? "#0d6efd" : "#6c757d"); border-bottom-color: @(_addSensorTab == "tcp" ? "#0d6efd" : "transparent"); font-weight: @(_addSensorTab == "tcp" ? "600" : "400");">
+                <span class="bi bi-diagram-3 me-1"></span>TCP/IP ile Ekle
+            </button>
+        </div>
         <div class="sensor-add-popup-body">
-            <div class="alert alert-light border small d-flex align-items-center gap-2 mb-3 py-2">
-                <span class="bi bi-crosshair text-primary"></span>
-                Konum: X=@(_pendingPos?.x.ToString("F1") ?? "—"), Y=@(_pendingPos?.y.ToString("F1") ?? "—")
-            </div>
+            @* ── TAB 1: Manuel Ekle ── *@
+            @if (_addSensorTab == "manual")
+            {
+                <div class="alert alert-light border small d-flex align-items-center gap-2 mb-3 py-2">
+                    <span class="bi bi-crosshair text-primary"></span>
+                    Konum: X=@(_pendingPos?.x.ToString("F1") ?? "—"), Y=@(_pendingPos?.y.ToString("F1") ?? "—")
+                </div>
 
-            @* Sensör tipi seçici *@
-            <label class="form-label fw-semibold mb-2">Sensör Tipi</label>
-            <div class="sensor-type-selector mb-3">
-                @foreach (var st in _sensorTypeInfos)
-                {
-                    <div class="sensor-type-btn @(_sensorFormType == st.Key ? "active" : "")"
-                         @onclick="() => OnSensorTypeSelected(st.Key)">
-                        <span class="stype-icon">@st.Value.Emoji</span>
-                        @st.Value.Label
-                    </div>
-                }
-            </div>
-
-            @* Metrik seçimi (çoklu) *@
-            <label class="form-label fw-semibold mb-1">
-                Metrikler
-                <small class="text-muted fw-normal"> — bu sensörün yayınlayacağı veri tipleri</small>
-            </label>
-            <div class="d-flex flex-wrap gap-2 mb-3">
-                @foreach (var m in _allMetrics)
-                {
-                    var selected = _sensorFormMetrics.Contains(m.Key);
-                    <button type="button"
-                            class="btn btn-sm @(selected ? "btn-primary" : "btn-outline-secondary")"
-                            @onclick="() => ToggleMetric(m.Key)">
-                        @m.Value.Emoji @m.Value.Label
-                        @if (selected) { <span class="bi bi-check ms-1"></span> }
-                    </button>
-                }
-            </div>
-
-            <div class="row g-3">
-                <div class="col-md-6">
-                    <label class="form-label">Sensör Adı <span class="text-danger">*</span></label>
-                    <input class="form-control" @bind="_sensorFormName" placeholder="Örn: Kuzey Ayak Titreşim" />
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label">Device ID <span class="text-danger">*</span></label>
-                    <input class="form-control" @bind="_sensorFormDeviceId" placeholder="sensor-001" />
-                </div>
-                <div class="col-12">
-                    <label class="form-label">
-                        MQTT Topic
-                        <small class="text-muted fw-normal"> — tip seçince otomatik dolar</small>
-                    </label>
-                    <input class="form-control" @bind="_sensorFormTopic" />
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label">Birim</label>
-                    <input class="form-control" @bind="_sensorFormUnit" placeholder="mm/s, °C…" />
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label">Protokol</label>
-                    <select class="form-select" @bind="_sensorFormProtocol">
-                        <option value="MQTT">MQTT</option>
-                        <option value="Modbus">Modbus</option>
-                        <option value="HTTP">HTTP</option>
-                        <option value="Serial">Seri Port</option>
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label">
-                        Ölçüm Aralığı
-                        <small class="text-muted fw-normal d-block" style="font-size:0.72rem">
-                            Kaç saniyede bir pencere açılsın
-                        </small>
-                    </label>
-                    <select class="form-select" @bind="_sensorFormTelemetryIntervalSec">
-                        <option value="1">1 sn</option>
-                        <option value="2">2 sn</option>
-                        <option value="5">5 sn</option>
-                        <option value="10">10 sn</option>
-                        <option value="30">30 sn</option>
-                        <option value="60">1 dk</option>
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label">
-                        Ölçüm / Pencere
-                        <small class="text-muted fw-normal d-block" style="font-size:0.72rem">
-                            Cihaz başı kaç ölçüm gönderilsin
-                        </small>
-                    </label>
-                    <input type="number" class="form-control"
-                           min="1" max="1000" step="1"
-                           placeholder="Örn: 200"
-                           @bind="_sensorFormTelemetryBatchSize" />
-                    @if (_sensorFormTelemetryBatchSize > 1)
+                @* Sensör tipi seçici *@
+                <label class="form-label fw-semibold mb-2">Sensör Tipi</label>
+                <div class="sensor-type-selector mb-3">
+                    @foreach (var st in _sensorTypeInfos)
                     {
-                        <small class="text-muted">
-                            ≈ @Math.Round(_sensorFormTelemetryBatchSize / (double)_sensorFormTelemetryIntervalSec, 1) ölçüm/sn
-                        </small>
+                        <div class="sensor-type-btn @(_sensorFormType == st.Key ? "active" : "")"
+                             @onclick="() => OnSensorTypeSelected(st.Key)">
+                            <span class="stype-icon">@st.Value.Emoji</span>
+                            @st.Value.Label
+                        </div>
                     }
                 </div>
-                <div class="col-md-3">
-                    <label class="form-label">Konum Etiketi</label>
-                    <input class="form-control" @bind="_sensorFormLabel" placeholder="Örn: Kuzey Ayak" />
-                </div>
-                <div class="col-12">
-                    <label class="form-label">Açıklama</label>
-                    <input class="form-control" @bind="_sensorFormDescription" />
-                </div>
-            </div>
 
-            @if (!string.IsNullOrEmpty(_saveError))
-            {
-                <div class="alert alert-danger mt-2 py-2 small">@_saveError</div>
+                @* Metrik seçimi (çoklu) *@
+                <label class="form-label fw-semibold mb-1">
+                    Metrikler
+                    <small class="text-muted fw-normal"> — bu sensörün yayınlayacağı veri tipleri</small>
+                </label>
+                <div class="d-flex flex-wrap gap-2 mb-3">
+                    @foreach (var m in _allMetrics)
+                    {
+                        var selected = _sensorFormMetrics.Contains(m.Key);
+                        <button type="button"
+                                class="btn btn-sm @(selected ? "btn-primary" : "btn-outline-secondary")"
+                                @onclick="() => ToggleMetric(m.Key)">
+                            @m.Value.Emoji @m.Value.Label
+                            @if (selected) { <span class="bi bi-check ms-1"></span> }
+                        </button>
+                    }
+                </div>
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Sensör Adı <span class="text-danger">*</span></label>
+                        <input class="form-control" @bind="_sensorFormName" placeholder="Örn: Kuzey Ayak Titreşim" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Device ID <span class="text-danger">*</span></label>
+                        <input class="form-control" @bind="_sensorFormDeviceId" placeholder="sensor-001" />
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">
+                            MQTT Topic
+                            <small class="text-muted fw-normal"> — tip seçince otomatik dolar</small>
+                        </label>
+                        <input class="form-control" @bind="_sensorFormTopic" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Birim</label>
+                        <input class="form-control" @bind="_sensorFormUnit" placeholder="mm/s, °C…" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Protokol</label>
+                        <select class="form-select" @bind="_sensorFormProtocol">
+                            <option value="MQTT">MQTT</option>
+                            <option value="Modbus">Modbus</option>
+                            <option value="HTTP">HTTP</option>
+                            <option value="Serial">Seri Port</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">
+                            Ölçüm Aralığı
+                            <small class="text-muted fw-normal d-block" style="font-size:0.72rem">
+                                Kaç saniyede bir pencere açılsın
+                            </small>
+                        </label>
+                        <select class="form-select" @bind="_sensorFormTelemetryIntervalSec">
+                            <option value="1">1 sn</option>
+                            <option value="2">2 sn</option>
+                            <option value="5">5 sn</option>
+                            <option value="10">10 sn</option>
+                            <option value="30">30 sn</option>
+                            <option value="60">1 dk</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">
+                            Ölçüm / Pencere
+                            <small class="text-muted fw-normal d-block" style="font-size:0.72rem">
+                                Cihaz başı kaç ölçüm gönderilsin
+                            </small>
+                        </label>
+                        <input type="number" class="form-control"
+                               min="1" max="1000" step="1"
+                               placeholder="Örn: 200"
+                               @bind="_sensorFormTelemetryBatchSize" />
+                        @if (_sensorFormTelemetryBatchSize > 1)
+                        {
+                            <small class="text-muted">
+                                ≈ @Math.Round(_sensorFormTelemetryBatchSize / (double)_sensorFormTelemetryIntervalSec, 1) ölçüm/sn
+                            </small>
+                        }
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Konum Etiketi</label>
+                        <input class="form-control" @bind="_sensorFormLabel" placeholder="Örn: Kuzey Ayak" />
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Açıklama</label>
+                        <input class="form-control" @bind="_sensorFormDescription" />
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrEmpty(_saveError))
+                {
+                    <div class="alert alert-danger mt-2 py-2 small">@_saveError</div>
+                }
+
+                <div class="mt-3 d-flex gap-2">
+                    <button class="btn btn-success" disabled="@(string.IsNullOrWhiteSpace(_sensorFormName) || string.IsNullOrWhiteSpace(_sensorFormDeviceId) || _isSaving)"
+                            @onclick="SaveSensorAsync">
+                        @if (_isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        <span class="bi bi-check-lg me-1"></span>
+                        @(_isWizardSensorMode ? "Listeye Ekle" : "DB'ye Kaydet")
+                    </button>
+                    <button class="btn btn-secondary" @onclick="CloseSensorPopup">İptal</button>
+                </div>
             }
 
-            <div class="mt-3 d-flex gap-2">
-                <button class="btn btn-success" disabled="@(string.IsNullOrWhiteSpace(_sensorFormName) || string.IsNullOrWhiteSpace(_sensorFormDeviceId) || _isSaving)"
-                        @onclick="SaveSensorAsync">
-                    @if (_isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
-                    <span class="bi bi-check-lg me-1"></span>
-                    @(_isWizardSensorMode ? "Listeye Ekle" : "DB'ye Kaydet")
-                </button>
-                <button class="btn btn-secondary" @onclick="CloseSensorPopup">İptal</button>
-            </div>
+            @* ── TAB 2: TCP/IP ile Ekle ── *@
+            @if (_addSensorTab == "tcp")
+            {
+                <p class="text-muted mb-3 small">TCP/IP üzerinden yeni sensör bağlantısı ekleyin.</p>
+                
+                <div class="alert alert-light border small d-flex align-items-center gap-2 mb-3 py-2">
+                    <span class="bi bi-crosshair text-primary"></span>
+                    Konum: X=@(_pendingPos?.x.ToString("F1") ?? "—"), Y=@(_pendingPos?.y.ToString("F1") ?? "—")
+                </div>
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Sensör Adı <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" @bind="_tcpSensorName" placeholder="Örn: Ana Transformer" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Sensör Tipi <span class="text-danger">*</span></label>
+                        <select class="form-select" @bind="_tcpSensorType">
+                            <option value="">— Seçiniz —</option>
+                            @foreach (var sensorType in Enum.GetValues<SensorType>())
+                            {
+                                <option value="@sensorType.ToString()">@sensorType</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row g-3 mt-2">
+                    <div class="col-md-6">
+                        <label class="form-label">IP Adresi <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" @bind="_tcpIpAddress" placeholder="192.168.1.100" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Port <span class="text-danger">*</span></label>
+                        <input type="number" class="form-control" @bind="_tcpPort" placeholder="502" min="1" max="65535" />
+                    </div>
+                </div>
+
+                <div class="row g-3 mt-2">
+                    <div class="col-md-6">
+                        <label class="form-label">Protocol</label>
+                        <select class="form-select" @bind="_tcpProtocol">
+                            <option value="TCP">TCP</option>
+                            <option value="Modbus">Modbus TCP</option>
+                            <option value="OPC-UA">OPC UA</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Device ID</label>
+                        <input type="text" class="form-control" @bind="_tcpDeviceId" placeholder="Örn: DEV001" />
+                    </div>
+                </div>
+
+                <div class="row g-3 mt-2">
+                    <div class="col-md-6">
+                        <label class="form-label">Timeout (ms)</label>
+                        <input type="number" class="form-control" @bind="_tcpTimeout" value="5000" min="100" max="60000" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Polling Interval (ms)</label>
+                        <input type="number" class="form-control" @bind="_tcpPollInterval" value="1000" min="100" max="60000" />
+                    </div>
+                </div>
+
+                <div class="mt-3">
+                    <label class="form-label">Açıklama</label>
+                    <textarea class="form-control" @bind="_tcpDescription" rows="2" placeholder="İsteğe bağlı notlar..."></textarea>
+                </div>
+
+                @if (!string.IsNullOrEmpty(_saveError))
+                {
+                    <div class="alert alert-danger mt-2 py-2 small">@_saveError</div>
+                }
+
+                <div class="mt-3 d-flex gap-2">
+                    <button class="btn btn-success" disabled="@(string.IsNullOrWhiteSpace(_tcpSensorName) || string.IsNullOrWhiteSpace(_tcpSensorType) || string.IsNullOrWhiteSpace(_tcpIpAddress) || !_tcpPort.HasValue || _isSaving)"
+                            @onclick="SaveTcpSensorAsync">
+                        @if (_isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        <span class="bi bi-check-lg me-1"></span>TCP/IP Sensörünü Ekle
+                    </button>
+                    <button class="btn btn-secondary" @onclick="CloseSensorPopup">İptal</button>
+                </div>
+            }
         </div>
     </div>
 }
@@ -841,6 +943,7 @@
     private List<Sensor>  _newStructureSensors = new(); // wizard adım 3'te eklenenler
 
     // ── Sensör popup ─────────────────────────────────────────────────────────
+    private string _addSensorTab            = "manual"; // "manual" or "tcp"
     private string _sensorFormName        = "";
     private string _sensorFormDeviceId    = "";
     private string _sensorFormTopic       = "";
@@ -853,6 +956,17 @@
     private int    _sensorFormTelemetryBatchSize     = 1;   // ölçüm/pencere
     private HashSet<string> _sensorFormMetrics = new(); // seçili metrikler
     private (double x, double y)? _pendingPos;
+
+    // ── TCP/IP Sensör Popup ──────────────────────────────────────────────────
+    private string _tcpSensorName = string.Empty;
+    private string _tcpSensorType = string.Empty;
+    private string _tcpIpAddress = string.Empty;
+    private int? _tcpPort;
+    private string _tcpProtocol = "TCP";
+    private string _tcpDeviceId = string.Empty;
+    private int? _tcpTimeout = 5000;
+    private int? _tcpPollInterval = 1000;
+    private string _tcpDescription = string.Empty;
 
     // ── Edit popup ────────────────────────────────────────────────────────────
     private string        _editName        = "";
@@ -1534,6 +1648,8 @@
     {
         _showSensorPopup = false;
         _pendingPos      = null;
+        _addSensorTab    = "manual"; // Reset to manual tab
+        ResetTcpSensorForm();
         _ = JS.InvokeVoidAsync("clearPendingClickPosition");
     }
 
@@ -1724,6 +1840,99 @@
 
     private string GetStructureLabel(StructureType t) =>
         _structureTypes.TryGetValue(t, out var v) ? v.Label : t.ToString();
+
+    /// <summary>
+    /// TCP/IP Sekmesinden sensör ekle
+    /// </summary>
+    private async Task SaveTcpSensorAsync()
+    {
+        // Validasyon
+        if (string.IsNullOrWhiteSpace(_tcpSensorName) || 
+            string.IsNullOrWhiteSpace(_tcpSensorType) ||
+            string.IsNullOrWhiteSpace(_tcpIpAddress) ||
+            !_tcpPort.HasValue)
+        {
+            _saveError = "Zorunlu alanları doldurunuz.";
+            return;
+        }
+
+        if (_pendingPos == null) return;
+
+        try
+        {
+            _isSaving = true;
+
+            // Yeni sensör oluştur
+            var newSensor = new Sensor
+            {
+                Id = Guid.NewGuid(),
+                Name = _tcpSensorName,
+                DeviceId = !string.IsNullOrWhiteSpace(_tcpDeviceId) ? _tcpDeviceId : _tcpSensorName,
+                SensorType = Enum.Parse<SensorType>(_tcpSensorType),
+                Description = _tcpDescription,
+                ProtocolType = _tcpProtocol,
+                IpAddress = _tcpIpAddress,
+                Port = _tcpPort,
+                TimeoutMs = _tcpTimeout,
+                PollingIntervalMs = _tcpPollInterval ?? 1000,
+                Topic = string.Empty, // Will be set by backend
+                Unit = string.Empty,
+                Metrics = string.Empty,
+                IsEnabled = true,
+                IsActive = true,
+                TelemetryIntervalMs = 5000,
+                TelemetryBatchSize = 1,
+                ImagePositionX = _pendingPos?.x,
+                ImagePositionY = _pendingPos?.y,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            if (_isWizardSensorMode)
+            {
+                // Wizard adım 3'te: listeye ekle
+                _newStructureSensors.Add(newSensor);
+            }
+            else
+            {
+                // Mevcut yapı detayı: sensörü DB'ye oluştur, sonra yapıya bağla
+                if (_editingStructure == null) return;
+
+                var createdSensor = await StructureUC.CreateSensorAsync(newSensor);
+                var sensorIds = _editingStructure.Sensors?.Select(x => x.SensorId).ToList() ?? new();
+                sensorIds.Add(createdSensor.Id);
+                await StructureUC.UpdateAsync(_editingStructure.Id, _editingStructure, sensorIds);
+                _detailImageInitialized = false;
+                await OpenStructureDetail(_editingStructure.Id);
+            }
+
+            CloseSensorPopup();
+        }
+        catch (Exception ex)
+        {
+            _saveError = $"Sensör kaydedilemedi: {ex.Message}";
+        }
+        finally 
+        { 
+            _isSaving = false;
+        }
+    }
+
+    /// <summary>
+    /// TCP/IP Sensör Form'unu sıfırla
+    /// </summary>
+    private void ResetTcpSensorForm()
+    {
+        _tcpSensorName = string.Empty;
+        _tcpSensorType = string.Empty;
+        _tcpIpAddress = string.Empty;
+        _tcpPort = null;
+        _tcpProtocol = "TCP";
+        _tcpDeviceId = string.Empty;
+        _tcpTimeout = 5000;
+        _tcpPollInterval = 1000;
+        _tcpDescription = string.Empty;
+    }
 
     // ── Dispose ───────────────────────────────────────────────────────────────
     public async ValueTask DisposeAsync()

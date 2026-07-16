@@ -28,6 +28,11 @@ public class Sensor
     public bool IsEnabled { get; set; } = true;
     public bool IsActive { get; set; } = true;
     public string ProtocolType { get; set; } = string.Empty;
+    public string? IpAddress { get; set; }
+    public int? Port { get; set; }
+    public int? TimeoutMs { get; set; } = 5000;
+    public int PollingIntervalMs { get; set; } = 1000;
+
     /// <summary>
     /// Kafka'ya kaç milisaniyede bir telemetri mesajı gönderileceği.
     /// test-sensor-worker bu değeri kullanarak sensöre özgü publish hızını belirler.

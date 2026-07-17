@@ -94,6 +94,7 @@ else
                                             <th class="text-center">Parser</th>
                                             <th class="text-center">Metrikler</th>
                                             <th class="text-center">Durum</th>
+                                            <th class="text-center">Eylemler</th>
                                             <th>Eksikler</th>
                                         </tr>
                                     </thead>
@@ -156,6 +157,23 @@ else
                                                     <span class="badge" style="background:#e9ecef; color:#000; font-weight:600;">
                                                         @lifecycleStatus.ToTurkish()
                                                     </span>
+                                                </td>
+                                                <td class="text-center">
+                                                    <div class="d-flex flex-column gap-1">
+                                                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => OpenSensorManagement(sensor.SensorId)">
+                                                            Yönetim
+                                                        </button>
+                                                        <button class="btn btn-sm btn-outline-primary" disabled="@(r is null || r.ConnectionValid)" @onclick="() => RunConnectionTestAsync(sensor.SensorId)">
+                                                            @if (_activeConnectionTestSensorId == sensor.SensorId && _lifecycleLoading)
+                                                            {
+                                                                <span class="spinner-grow spinner-grow-sm me-1" role="status" aria-hidden="true"></span>
+                                                            }
+                                                            Bağlantı Testi
+                                                        </button>
+                                                        <button class="btn btn-sm btn-outline-success" disabled="@(r is null || !r.ParserValid)" @onclick="() => GenerateMetricPreviewAsync(sensor.SensorId)">
+                                                            Metrik Önizleme
+                                                        </button>
+                                                    </div>
                                                 </td>
                                                 <td>
                                                     @if (r?.MissingRequirements?.Count > 0)
@@ -433,6 +451,8 @@ else
     // ── Lifecycle panel state ─────────────────────────────────────────────────
     private bool _showLifecyclePanel = true;
     private bool _lifecycleLoading   = false;
+    private Guid? _activeConnectionTestSensorId;
+    private Guid? _activeMetricPreviewSensorId;
     private Dictionary<Guid, DeYas.Contracts.Sensors.SensorReadinessDto> _sensorReadinessMap = new();
 
     private async Task RefreshLifecycleAsync()
@@ -550,6 +570,75 @@ else
         if (_selectedStructureId != Guid.Empty)
             await LoadStructureDetailAsync(_selectedStructureId);
         await InvokeAsync(StateHasChanged);
+    }
+
+    private void OpenSensorManagement(Guid sensorId)
+    {
+        SelectSensor(sensorId);
+        CloseGrafana();
+    }
+
+    private async Task RunConnectionTestAsync(Guid sensorId)
+    {
+        try
+        {
+            _lifecycleLoading = true;
+            _activeConnectionTestSensorId = sensorId;
+            StateHasChanged();
+
+            var sensor = _structureSensors.FirstOrDefault(s => s.SensorId == sensorId);
+            var request = new ConnectionTestRequestDto
+            {
+                IpAddress = sensor?.IpAddress,
+                Port = sensor?.Port,
+                TimeoutMs = sensor?.TimeoutMs ?? 5000,
+                Profile = !string.IsNullOrWhiteSpace(sensor?.ProtocolType) ? sensor.ProtocolType : "Unknown",
+                Encoding = !string.IsNullOrWhiteSpace(sensor?.Encoding) ? sensor.Encoding : "utf-8"
+            };
+
+            await DashboardUC.TestConnectionLifecycleAsync(sensorId, request);
+            await RefreshLifecycleAsync();
+        }
+        catch
+        {
+            // best-effort, lifecycle panel yenilensin
+        }
+        finally
+        {
+            _lifecycleLoading = false;
+            _activeConnectionTestSensorId = null;
+            StateHasChanged();
+        }
+    }
+
+    private async Task GenerateMetricPreviewAsync(Guid sensorId)
+    {
+        try
+        {
+            _lifecycleLoading = true;
+            StateHasChanged();
+
+            var sensor = _structureSensors.FirstOrDefault(s => s.SensorId == sensorId);
+            var request = new GenerateMetricPreviewRequestDto
+            {
+                ParserProfile = sensor?.ProtocolType,
+                Metrics = GetSensorMetrics(sensor!)
+                    .Select(m => new MetricPreviewInputDto { MetricCode = m })
+                    .ToList()
+            };
+
+            await DashboardUC.GenerateMetricPreviewAsync(sensorId, request);
+            await RefreshLifecycleAsync();
+        }
+        catch
+        {
+            // best-effort
+        }
+        finally
+        {
+            _lifecycleLoading = false;
+            StateHasChanged();
+        }
     }
 
     // ── Realtime (Kafka lag guard) ─────────────────────────────────────────────

@@ -86,4 +86,16 @@ public class SensorDashboardUseCases
         }
         return result;
     }
+
+    public Task<ConnectionTestResultDto> TestConnectionLifecycleAsync(
+        Guid sensorId,
+        ConnectionTestRequestDto request,
+        CancellationToken ct = default) =>
+        _sensorRepo.TestConnectionLifecycleAsync(sensorId, request, ct);
+
+    public Task<MetricPreviewGeneratedDto> GenerateMetricPreviewAsync(
+        Guid sensorId,
+        GenerateMetricPreviewRequestDto request,
+        CancellationToken ct = default) =>
+        _sensorRepo.GenerateMetricPreviewAsync(sensorId, request, ct);
 }

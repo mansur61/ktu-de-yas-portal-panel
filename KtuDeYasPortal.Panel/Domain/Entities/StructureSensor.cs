@@ -14,6 +14,11 @@ public class StructureSensor
     public string  Description    { get; set; } = string.Empty;
     /// <summary>Virgülle ayrılmış metrik key listesi. Örnek: "temperature,humidity"</summary>
     public string  Metrics        { get; set; } = string.Empty;
+    public string  ProtocolType   { get; set; } = string.Empty;
+    public string  Encoding       { get; set; } = "utf-8";
+    public string? IpAddress      { get; set; }
+    public int?    Port           { get; set; }
+    public int?    TimeoutMs      { get; set; } = 5000;
     public double? ImagePositionX { get; set; }
     public double? ImagePositionY { get; set; }
     public bool    IsActive       { get; set; }

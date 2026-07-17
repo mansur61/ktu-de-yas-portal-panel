@@ -299,7 +299,6 @@ function _showSensorDetailPopup(sensor, event) {
             ${_popupRow('Son Güncelleme', sensor.lastUpdated ? new Date(sensor.lastUpdated).toLocaleString('tr-TR') : '-')}
             ${sensor.alertMessage ? _popupRow('Alarm', `<span style="color:#dc3545">${sensor.alertMessage}</span>`) : ''}
         </div>`;
-
     document.body.appendChild(popup);
     _activeSensorPopup = popup;
 

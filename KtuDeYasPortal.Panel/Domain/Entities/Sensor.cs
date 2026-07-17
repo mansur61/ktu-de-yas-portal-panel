@@ -1,5 +1,6 @@
 namespace KtuDeYasPortal.Panel.Domain.Entities;
 
+using DeYas.Contracts.Integration;
 using DeYas.Contracts.Sensors;
 
 // SensorType is now imported from DeYas.Contracts.Sensors
@@ -25,6 +26,7 @@ public class Sensor
     public string Description { get; set; } = string.Empty;
     /// <summary>Bu sensörün yayınladığı metrik key'leri (CSV). Örnek: "temperature,humidity"</summary>
     public string Metrics { get; set; } = string.Empty;
+    public List<SensorMapping>? Mappings { get; set; }
     public bool IsEnabled { get; set; } = true;
     public bool IsActive { get; set; } = true;
     public string ProtocolType { get; set; } = string.Empty;

@@ -1,6 +1,8 @@
 @page "/structures"
 @rendermode InteractiveServer
 @using DeYas.Contracts.Sensors
+@using DeYas.Contracts.Simulation
+@using DeYas.Contracts.Integration
 @inject StructureUseCases StructureUC
 @inject IStructureSimulationClient StructureSimClient
 @inject IConfiguration Configuration
@@ -757,8 +759,14 @@
                 </div>
 
                 <div class="mt-3">
-                    <label class="form-label">Açıklama</label>
-                    <textarea class="form-control" @bind="_tcpDescription" rows="2" placeholder="İsteğe bağlı notlar..."></textarea>
+                                <label class="form-label">Açıklama</label>
+                                <textarea class="form-control" @bind="_tcpDescription" rows="2" placeholder="İsteğe bağlı notlar..."></textarea>
+                            </div>
+
+                            <div class="mt-3">
+                                <label class="form-label">Mappings (JSON)</label>
+                                <textarea class="form-control" @bind="_tcpMappingsJson" rows="4" placeholder='[{"FieldName":"temperature","SourceKey":"reg0","DataType":"float32","Scale":0.1}]'></textarea>
+                                <div class="form-text">Opsiyonel. Cihaz verisini mantıksal alanlara eşlemek için JSON dizi formatında mapping girin.</div>
                 </div>
 
                 @if (_tcpDiscoveryResult is not null && _tcpDiscoveryResult.Count > 0)
@@ -1004,6 +1012,8 @@
     private string _tcpEncoding = "utf-8";
     private bool _tcpReconnectEnabled = true;
     private List<string> _tcpDiscoveryResult = new();
+    private string _tcpMappingsJson = string.Empty;
+    private readonly Dictionary<Guid, List<DeYas.Contracts.Integration.SensorMapping>> _tempSensorMappings = new();
 
     // ── Edit popup ────────────────────────────────────────────────────────────
     private string        _editName        = "";
@@ -1227,7 +1237,45 @@
 
         try
         {
-            await StructureSimClient.StartAsync(structureId);
+            // Build structured simulation request including per-sensor connection info
+            var allSensors = await StructureUC.GetAllSensorsAsync();
+            var simSensors = new List<SensorSimRequest>();
+
+            foreach (var ss in structure!.Sensors ?? new())
+            {
+                var sdet = allSensors.FirstOrDefault(x => x.Id == ss.SensorId);
+                if (sdet == null) continue;
+
+                var sr = new SensorSimRequest
+                {
+                    SensorId = sdet.Id,
+                    DeviceId = sdet.DeviceId,
+                    SensorType = sdet.SensorType.ToString(),
+                    SensorLabel = ss.SensorLabel ?? sdet.Name,
+                    IpAddress = sdet.IpAddress,
+                    Port = sdet.Port,
+                    Unit = sdet.Unit,
+                    Metrics = sdet.Metrics,
+                    Topic = sdet.Topic,
+                    TelemetryIntervalMs = sdet.TelemetryIntervalMs,
+                    TelemetryBatchSize = sdet.TelemetryBatchSize,
+                    Mappings = _tempSensorMappings.TryGetValue(sdet.Id, out var _m) ? _m : null
+                };
+
+                simSensors.Add(sr);
+            }
+
+            var req = new StructureSimRequest
+            {
+                StructureId = structure.Id,
+                StructureName = structure.Name,
+                StructureType = structure.StructureType.ToString(),
+                IntervalMs = 3000,
+                Sensors = simSensors
+            };
+
+            await StructureSimClient.StartAsync(req);
+
             var structureName = structure?.Name ?? "yapı";
             _simulationStatusMessage = $"{structureName} için edge simülasyonu başlatıldı.";
             _runningStructureIds.Add(structureId);
@@ -1723,6 +1771,7 @@
             IsActive            = true,
             IsEnabled           = true,
         };
+
         if (Enum.TryParse<SensorType>(_sensorFormType, out var st))
             newSensor.SensorType = st;
 
@@ -1893,6 +1942,9 @@
         _isSaving = true;
         try
         {
+            if (!TryParseTcpMappings(out var mappings))
+                return;
+
             var request = new TcpSensorCreateRequest
             {
                 Name = _tcpSensorName,
@@ -1906,10 +1958,11 @@
                 TimeoutMs = _tcpTimeout ?? 5000,
                 PollingIntervalMs = _tcpPollInterval ?? 1000,
                 Description = _tcpDescription,
-                ConnectionMode = "Client"
+                ConnectionMode = "Client",
+                Mappings = mappings
             };
 
-            var result = await StructureUC.CreateTcpSensorAsync(request);
+            var result = await StructureUC.TestTcpConnectionAsync(request);
             _tcpDiscoveryResult = new List<string>();
         }
         catch (Exception ex)
@@ -1943,6 +1996,9 @@
             var defaultMetrics = SensorMetricsConfiguration.GetMetrics(sensorType);
             var defaultUnit = SensorMetricsConfiguration.GetUnit(sensorType);
 
+            if (!TryParseTcpMappings(out var mappings))
+                return;
+
             var request = new TcpSensorCreateRequest
             {
                 Name = _tcpSensorName,
@@ -1957,7 +2013,8 @@
                 PollingIntervalMs = _tcpPollInterval ?? 1000,
                 Description = _tcpDescription,
                 ConnectionMode = "Client",
-                DiscoveredMetrics = _tcpDiscoveryResult
+                DiscoveredMetrics = _tcpDiscoveryResult,
+                Mappings = mappings
             };
 
             var createdSensor = await StructureUC.CreateTcpSensorAsync(request);
@@ -2027,6 +2084,36 @@
         _tcpEncoding = "utf-8";
         _tcpReconnectEnabled = true;
         _tcpDiscoveryResult = new();
+        _tcpMappingsJson = string.Empty;
+    }
+
+    private bool TryParseTcpMappings(out List<SensorMapping>? mappings)
+    {
+        mappings = null;
+        if (string.IsNullOrWhiteSpace(_tcpMappingsJson))
+            return true;
+
+        try
+        {
+            mappings = System.Text.Json.JsonSerializer.Deserialize<List<SensorMapping>>(_tcpMappingsJson, new System.Text.Json.JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+        }
+        catch (System.Text.Json.JsonException ex)
+        {
+            _saveError = $"Mappings JSON hatalı: {ex.Message}";
+            return false;
+        }
+
+        if (mappings == null)
+            return true;
+
+        mappings = mappings
+            .Where(m => !string.IsNullOrWhiteSpace(m.FieldName) && !string.IsNullOrWhiteSpace(m.SourceKey))
+            .ToList();
+
+        return true;
     }
 
     // ── Dispose ───────────────────────────────────────────────────────────────

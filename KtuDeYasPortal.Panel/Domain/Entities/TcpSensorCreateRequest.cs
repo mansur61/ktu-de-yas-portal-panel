@@ -1,3 +1,5 @@
+using DeYas.Contracts.Integration;
+
 namespace KtuDeYasPortal.Panel.Domain.Entities;
 
 public sealed class TcpSensorCreateRequest
@@ -17,4 +19,5 @@ public sealed class TcpSensorCreateRequest
     public int TimeoutMs { get; set; } = 5000;
     public int PollingIntervalMs { get; set; } = 1000;
     public List<string> DiscoveredMetrics { get; set; } = [];
+    public List<SensorMapping>? Mappings { get; set; }
 }

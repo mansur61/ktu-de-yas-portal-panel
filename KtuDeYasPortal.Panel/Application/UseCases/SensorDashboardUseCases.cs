@@ -1,5 +1,6 @@
 using KtuDeYasPortal.Panel.Domain.Entities;
 using KtuDeYasPortal.Panel.Domain.Interfaces;
+using DeYas.Contracts.Sensors;
 
 namespace KtuDeYasPortal.Panel.Application.UseCases;
 
@@ -7,13 +8,16 @@ public class SensorDashboardUseCases
 {
     private readonly IStructureRepository _structureRepo;
     private readonly ITimeseriesRepository _timeseriesRepo;
+    private readonly ISensorRepository _sensorRepo;
 
     public SensorDashboardUseCases(
         IStructureRepository structureRepo,
-        ITimeseriesRepository timeseriesRepo)
+        ITimeseriesRepository timeseriesRepo,
+        ISensorRepository sensorRepo)
     {
-        _structureRepo = structureRepo;
+        _structureRepo  = structureRepo;
         _timeseriesRepo = timeseriesRepo;
+        _sensorRepo     = sensorRepo;
     }
 
     public Task<List<Structure>> GetAllStructuresAsync(CancellationToken ct = default) =>
@@ -29,11 +33,17 @@ public class SensorDashboardUseCases
         _timeseriesRepo.QueryAsync(deviceId, locationId, from, to, limit, ct);
 
     /// <summary>
+    /// Sensörün prod hazırlık durumunu döner.
+    /// Sensor Dashboard lifecycle panel bu metodu kullanır.
+    /// </summary>
+    public Task<SensorReadinessDto> GetSensorReadinessAsync(
+        Guid sensorId,
+        CancellationToken ct = default) =>
+        _sensorRepo.GetReadinessAsync(sensorId, ct);
+
+    /// <summary>
     /// Returns true if at least one SensorData record exists for any of the
     /// given device IDs in the last <paramref name="lookbackHours"/> hours.
-    ///
-    /// This is the guard that prevents displaying Grafana panels or realtime
-    /// values when no actual data has flowed through the pipeline.
     /// </summary>
     public async Task<bool> HasSensorDataAsync(
         IEnumerable<string> deviceIds,
@@ -46,7 +56,6 @@ public class SensorDashboardUseCases
         var to   = DateTime.UtcNow;
         var from = to.AddHours(-lookbackHours);
 
-        // Query each device — stop at first hit to keep it fast
         foreach (var deviceId in deviceList)
         {
             var data = await _timeseriesRepo.QueryAsync(deviceId, null, from, to, limit: 1, ct);
@@ -56,9 +65,7 @@ public class SensorDashboardUseCases
     }
 
     /// <summary>
-    /// Returns the most recent SensorData record for each device in the given
-    /// list, within the last <paramref name="lookbackHours"/> hours.
-    /// Only devices that actually have data are included in the result.
+    /// Returns the most recent SensorData record for each device in the given list.
     /// </summary>
     public async Task<List<SensorDataPoint>> GetLatestPerDeviceAsync(
         IEnumerable<string> deviceIds,

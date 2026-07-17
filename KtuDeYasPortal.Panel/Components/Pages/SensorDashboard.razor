@@ -58,6 +58,144 @@ else
         }
         else
         {
+            @* ── Prod Modu: Sensör Kurulum Durumu bölümü ─────────────────────── *@
+            @if (_showLifecyclePanel)
+            {
+                <div class="card border-0 shadow-sm mb-3">
+                    <div class="card-header d-flex justify-content-between align-items-center py-2"
+                         style="background:linear-gradient(90deg,#1e3a5f,#2d5986)">
+                        <span class="text-white fw-semibold">
+                            <span class="bi bi-shield-check me-2"></span>Sensör Kurulum Durumu
+                        </span>
+                        <div class="d-flex gap-2 align-items-center">
+                            @if (_lifecycleLoading)
+                            {
+                                <span class="spinner-border spinner-border-sm text-white-50"></span>
+                            }
+                            <button class="btn btn-sm btn-outline-light py-0"
+                                    @onclick="RefreshLifecycleAsync" title="Yenile">
+                                <span class="bi bi-arrow-clockwise"></span>
+                            </button>
+                            <button class="btn btn-sm btn-outline-light py-0"
+                                    @onclick="() => _showLifecyclePanel = false" title="Gizle">
+                                <span class="bi bi-chevron-up"></span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        @if (_sensorReadinessMap.Count > 0)
+                        {
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover mb-0" style="font-size:0.82rem">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Sensör</th>
+                                            <th class="text-center">Bağlantı</th>
+                                            <th class="text-center">Parser</th>
+                                            <th class="text-center">Metrikler</th>
+                                            <th class="text-center">Durum</th>
+                                            <th>Eksikler</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var sensor in _structureSensors)
+                                        {
+                                            var r = _sensorReadinessMap.GetValueOrDefault(sensor.SensorId);
+                                            var lifecycleStatus = r?.ParsedLifecycleStatus ?? DeYas.Contracts.Sensors.SensorLifecycleStatus.Draft;
+                                            var badgeColor = lifecycleStatus.ToBadgeColor();
+                                            <tr>
+                                                <td>
+                                                    <div class="fw-semibold text-truncate" style="max-width:140px" title="@sensor.Name">
+                                                        @sensor.Name
+                                                    </div>
+                                                    <code class="text-muted" style="font-size:0.68rem">@sensor.DeviceId</code>
+                                                </td>
+                                                <td class="text-center">
+                                                    @if (r is null)
+                                                    {
+                                                        <span class="badge bg-secondary">?</span>
+                                                    }
+                                                    else if (r.ConnectionValid)
+                                                    {
+                                                        <span class="badge bg-success" title="@r.LastConnectionTestAt?.ToLocalTime().ToString("dd.MM.yyyy HH:mm")">✓</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge bg-danger" title="@r.LastConnectionTestError">✗</span>
+                                                    }
+                                                </td>
+                                                <td class="text-center">
+                                                    @if (r is null)
+                                                    {
+                                                        <span class="badge bg-secondary">?</span>
+                                                    }
+                                                    else if (r.ParserValid)
+                                                    {
+                                                        <span class="badge bg-success">✓</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge bg-danger" title="@r.LastParserValidationError">✗</span>
+                                                    }
+                                                </td>
+                                                <td class="text-center">
+                                                    @if (r is null)
+                                                    {
+                                                        <span class="badge bg-secondary">?</span>
+                                                    }
+                                                    else if (r.MetricPreviewValid && r.MetricCount > 0)
+                                                    {
+                                                        <span class="badge bg-success" title="@r.MetricCount metrik">@r.MetricCount</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge bg-warning text-dark">0</span>
+                                                    }
+                                                </td>
+                                                <td class="text-center">
+                                                    <span class="badge bg-@badgeColor"
+                                                          title="@lifecycleStatus.ToTurkish()">
+                                                        @lifecycleStatus.ToTurkish()
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    @if (r?.MissingRequirements?.Count > 0)
+                                                    {
+                                                        <small class="text-danger">
+                                                            @string.Join(", ", r.MissingRequirements.Take(2))
+                                                            @if (r.MissingRequirements.Count > 2) { <span>…</span> }
+                                                        </small>
+                                                    }
+                                                    else if (r?.IsReady == true)
+                                                    {
+                                                        <small class="text-success">Tüm doğrulamalar tamam</small>
+                                                    }
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                        else if (!_lifecycleLoading)
+                        {
+                            <div class="p-3 text-muted small">
+                                <span class="bi bi-info-circle me-1"></span>
+                                Sensör doğrulama bilgisi yüklenemedi. Yenile butonuna basın.
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="mb-2">
+                    <button class="btn btn-sm btn-outline-secondary"
+                            @onclick="async () => { _showLifecyclePanel = true; await RefreshLifecycleAsync(); }">
+                        <span class="bi bi-shield-check me-1"></span>Sensör Kurulum Durumunu Göster
+                    </button>
+                </div>
+            }
             @* ── Sensör Filtresi (pill butonlar) ────────────────────────────── *@
             <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
                 <small class="text-muted fw-semibold me-1">Sensör:</small>
@@ -293,12 +431,52 @@ else
         finally { _loading = false; }
     }
 
+    // ── Lifecycle panel state ─────────────────────────────────────────────────
+    private bool _showLifecyclePanel = true;
+    private bool _lifecycleLoading   = false;
+    private Dictionary<Guid, DeYas.Contracts.Sensors.SensorReadinessDto> _sensorReadinessMap = new();
+
+    private async Task RefreshLifecycleAsync()
+    {
+        if (_structureSensors.Count == 0) return;
+        _lifecycleLoading = true;
+        StateHasChanged();
+        try
+        {
+            // Her sensörün readiness'ını paralel çek (max 8 eş zamanlı)
+            var semaphore = new SemaphoreSlim(8);
+            var tasks = _structureSensors.Select(async ss =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    var r = await DashboardUC.GetSensorReadinessAsync(ss.SensorId);
+                    return (ss.SensorId, Readiness: r);
+                }
+                catch { return (ss.SensorId, Readiness: (DeYas.Contracts.Sensors.SensorReadinessDto?)null); }
+                finally { semaphore.Release(); }
+            });
+
+            var results = await Task.WhenAll(tasks);
+            _sensorReadinessMap = results
+                .Where(r => r.Readiness is not null)
+                .ToDictionary(r => r.SensorId, r => r.Readiness!);
+        }
+        catch { /* best-effort */ }
+        finally
+        {
+            _lifecycleLoading = false;
+            StateHasChanged();
+        }
+    }
+
     // ── Load structure detail with sensors ────────────────────────────────────
     private async Task LoadStructureDetailAsync(Guid structureId)
     {
         _structureSensors.Clear();
         _structureDeviceSet.Clear();
-        _selectedSensorId = null;
+        _selectedSensorId   = null;
+        _sensorReadinessMap = new();
 
         var detail = await DashboardUC.GetStructureByIdAsync(structureId);
         _selectedStructure = detail;
@@ -311,6 +489,9 @@ else
 
         foreach (var s in _structureSensors)
             _structureDeviceSet.Add(s.DeviceId);
+
+        // Lifecycle panel'i arka planda yükle
+        _ = RefreshLifecycleAsync();
     }
 
     // ── Tab selection ──────────────────────────────────────────────────────────

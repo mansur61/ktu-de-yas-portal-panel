@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using KtuDeYasPortal.Panel.Domain.Entities;
 using KtuDeYasPortal.Panel.Domain.Interfaces;
+using DeYas.Contracts.Sensors;
 
 namespace KtuDeYasPortal.Panel.Infrastructure.Persistence;
 
@@ -77,5 +78,90 @@ public class SensorHttpRepository : ISensorRepository
         var response = await _http.PostAsJsonAsync("api/tcp-sensors", request, _json, ct);
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<Sensor>(_json, ct))!;
+    }
+
+    // ── Prod Lifecycle endpoint'leri ──────────────────────────────────────────
+
+    /// <summary>
+    /// Bağlantı testini çalıştırır ve sonucu DB'ye kaydeder.
+    /// POST /api/sensors/{sensorId}/lifecycle/test-connection
+    /// </summary>
+    public async Task<ConnectionTestResultDto> TestConnectionLifecycleAsync(
+        Guid sensorId,
+        ConnectionTestRequestDto request,
+        CancellationToken ct = default)
+    {
+        var resp = await _http.PostAsJsonAsync(
+            $"api/sensors/{sensorId}/lifecycle/test-connection", request, _json, ct);
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<ConnectionTestResultDto>(_json, ct))!;
+    }
+
+    /// <summary>
+    /// Parser doğrulaması yapar ve sonucu kaydeder.
+    /// POST /api/sensors/{sensorId}/lifecycle/validate-parser
+    /// </summary>
+    public async Task<ParserValidationResultDto> ValidateParserAsync(
+        Guid sensorId,
+        ParserValidationRequestDto request,
+        CancellationToken ct = default)
+    {
+        var resp = await _http.PostAsJsonAsync(
+            $"api/sensors/{sensorId}/lifecycle/validate-parser", request, _json, ct);
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<ParserValidationResultDto>(_json, ct))!;
+    }
+
+    /// <summary>
+    /// Parser çıktısından metrik önizleme oluşturur ve kaydeder.
+    /// Başarılıysa sensör otomatik Ready'e geçer.
+    /// POST /api/sensors/{sensorId}/lifecycle/generate-metric-preview
+    /// </summary>
+    public async Task<MetricPreviewGeneratedDto> GenerateMetricPreviewAsync(
+        Guid sensorId,
+        GenerateMetricPreviewRequestDto request,
+        CancellationToken ct = default)
+    {
+        var resp = await _http.PostAsJsonAsync(
+            $"api/sensors/{sensorId}/lifecycle/generate-metric-preview", request, _json, ct);
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<MetricPreviewGeneratedDto>(_json, ct))!;
+    }
+
+    /// <summary>
+    /// Sensörün hazırlık durumunu döner.
+    /// GET /api/sensors/{sensorId}/lifecycle/readiness
+    /// </summary>
+    public async Task<SensorReadinessDto> GetReadinessAsync(
+        Guid sensorId,
+        CancellationToken ct = default)
+    {
+        var result = await _http.GetFromJsonAsync<SensorReadinessDto>(
+            $"api/sensors/{sensorId}/lifecycle/readiness", _json, ct);
+        return result ?? new SensorReadinessDto();
+    }
+
+    /// <summary>
+    /// Sensörün oluşturulmuş metrik önizlemelerini döner.
+    /// GET /api/sensors/{sensorId}/lifecycle/metric-previews
+    /// </summary>
+    public async Task<List<MetricPreviewItemDto>> GetMetricPreviewsAsync(
+        Guid sensorId,
+        CancellationToken ct = default)
+    {
+        var result = await _http.GetFromJsonAsync<List<MetricPreviewItemDto>>(
+            $"api/sensors/{sensorId}/lifecycle/metric-previews", _json, ct);
+        return result ?? new();
+    }
+
+    /// <summary>
+    /// Sensörü Draft'a sıfırlar, doğrulamaları temizler.
+    /// POST /api/sensors/{sensorId}/lifecycle/reset
+    /// </summary>
+    public async Task ResetLifecycleAsync(Guid sensorId, CancellationToken ct = default)
+    {
+        var resp = await _http.PostAsync(
+            $"api/sensors/{sensorId}/lifecycle/reset", null, ct);
+        resp.EnsureSuccessStatusCode();
     }
 }

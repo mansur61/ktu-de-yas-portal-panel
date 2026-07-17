@@ -105,7 +105,7 @@ else
                                             var badgeColor = lifecycleStatus.ToBadgeColor();
                                             <tr>
                                                 <td>
-                                                    <div class="fw-semibold text-truncate" style="max-width:140px" title="@sensor.Name">
+                                                    <div class="fw-semibold" style="max-width:260px; white-space:normal; word-break:break-word; overflow-wrap:break-word;" title="@sensor.Name">
                                                         @sensor.Name
                                                     </div>
                                                     <code class="text-muted" style="font-size:0.68rem">@sensor.DeviceId</code>
@@ -153,8 +153,7 @@ else
                                                     }
                                                 </td>
                                                 <td class="text-center">
-                                                    <span class="badge bg-@badgeColor"
-                                                          title="@lifecycleStatus.ToTurkish()">
+                                                    <span class="badge" style="background:#e9ecef; color:#000; font-weight:600;">
                                                         @lifecycleStatus.ToTurkish()
                                                     </span>
                                                 </td>

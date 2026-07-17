@@ -388,6 +388,19 @@
             using var response = await client.PostAsync($"/api/nodered/custom-flow?structureId={_request.StructureId}", content);
             var body = await response.Content.ReadAsStringAsync();
             _resultText = body;
+            if (response.IsSuccessStatusCode)
+            {
+                try
+                {
+                    using var doc = JsonDocument.Parse(body);
+                    if (doc.RootElement.TryGetProperty("fileName", out var fileName) &&
+                        fileName.ValueKind == JsonValueKind.String)
+                    {
+                        _request.CustomFlowFileName = fileName.GetString() ?? _request.CustomFlowFileName;
+                    }
+                }
+                catch { /* ignore parse errors, keep existing filename if any */ }
+            }
             _statusMessage = response.IsSuccessStatusCode ? "Custom flow başarıyla yüklendi." : "Custom flow yüklenemedi.";
             _statusKind = response.IsSuccessStatusCode ? "success" : "danger";
         }

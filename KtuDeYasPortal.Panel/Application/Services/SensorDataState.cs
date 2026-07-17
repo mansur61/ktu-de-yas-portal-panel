@@ -19,7 +19,8 @@ namespace KtuDeYasPortal.Panel.Application.Services;
 public sealed class SensorDataState
 {
     // Key: DeviceId → latest SensorData record as SignalR event
-    private readonly ConcurrentDictionary<string, SensorUpdatedEvent> _latestData = new();
+    private readonly ConcurrentDictionary<string, SensorUpdatedEvent> _latestData =
+        new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Fired on the thread that calls Update, which is typically the SignalR

@@ -62,7 +62,12 @@ public sealed class PanelRealtimeForwarder : IRealtimeMessageHandler
 
         var deviceId = payload.TryGetString("deviceId")
                     ?? root.TryGetString("deviceId")
+                    ?? payload.TryGetString("device_id")
+                    ?? root.TryGetString("device_id")
                     ?? payload.TryGetString("sensorId")
+                    ?? root.TryGetString("sensorId")
+                    ?? payload.TryGetString("sensor_id")
+                    ?? root.TryGetString("sensor_id")
                     ?? string.Empty;
 
         if (string.IsNullOrWhiteSpace(deviceId))
@@ -78,10 +83,16 @@ public sealed class PanelRealtimeForwarder : IRealtimeMessageHandler
         if (metrics.Count == 0) metrics = root.TryGetFlatMetrics();
 
         var evt = new SensorUpdatedEvent(
-            SensorId     : payload.TryGetString("sensorId") ?? deviceId,
+            SensorId     : payload.TryGetString("sensorId")
+                        ?? root.TryGetString("sensorId")
+                        ?? payload.TryGetString("sensor_id")
+                        ?? root.TryGetString("sensor_id")
+                        ?? deviceId,
             DeviceId     : deviceId,
             LocationId   : payload.TryGetString("locationId")
                         ?? root.TryGetString("locationId")
+                        ?? payload.TryGetString("location_id")
+                        ?? root.TryGetString("location_id")
                         ?? "default",
             CurrentValue : metrics.Values.FirstOrDefault(),
             MetricKey    : metrics.Keys.FirstOrDefault() ?? "value",
@@ -142,7 +153,7 @@ file static class JsonElementExtensions
 
     public static Dictionary<string, double> TryGetMetrics(this JsonElement el)
     {
-        var result = new Dictionary<string, double>();
+        var result = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
         if (!el.TryGetPropertyIgnoreCase("metrics", out var m) ||
             m.ValueKind != JsonValueKind.Object)
             return result;
@@ -160,7 +171,7 @@ file static class JsonElementExtensions
 
     public static Dictionary<string, double> TryGetFlatMetrics(this JsonElement el)
     {
-        var result = new Dictionary<string, double>();
+        var result = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
         foreach (var p in el.EnumerateObject())
         {
             if (MetaKeys.Contains(p.Name)) continue;

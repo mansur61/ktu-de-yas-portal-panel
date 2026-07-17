@@ -36,11 +36,17 @@
             <h4 class="mb-0 fw-bold">Yapı Yönetimi</h4>
             <small class="text-muted">Kayıtlı yapılar, sensörler ve konum bilgileri</small>
         </div>
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-2 align-items-center">
             <button class="btn btn-outline-warning" @onclick="OpenCentralNodeRedAsync"
                     title="Merkez Node-RED — tüm yapıların MQTT akışını izler">
                 <span class="bi bi-diagram-3-fill me-1"></span>Merkez Node-RED
             </button>
+
+            <div class="form-check form-switch mb-0 d-flex align-items-center">
+                <input class="form-check-input" type="checkbox" id="simulationModeSwitch" @bind="_isProdMode" />
+                <label class="form-check-label ms-2" for="simulationModeSwitch">@(_isProdMode ? "Prod" : "Dev")</label>
+            </div>
+
             <button class="btn btn-primary" @onclick="ShowCreateWizard">
                 <span class="bi bi-plus-lg me-1"></span> Yeni Yapı
             </button>
@@ -960,6 +966,7 @@
     private bool             _showEditPopup;
     private bool             _showSaveConfirm; // wizard adım 3 onay modalı
     private bool             _isSaving;
+    private bool             _isProdMode;
     private Guid?            _deletingId;
     private string?          _saveError;
     private string?          _simulationStatusMessage;
@@ -1003,7 +1010,6 @@
     private string _tcpSensorType = string.Empty;
     private string _tcpIpAddress = string.Empty;
     private int? _tcpPort;
-    private string _tcpProtocol = "TCP";
     private string _tcpProfile = "GenericTcp";
     private string _tcpDeviceId = string.Empty;
     private int? _tcpTimeout = 5000;
@@ -1227,56 +1233,98 @@
         _simulationStatusMessage = null;
 
         var structure = _structures?.FirstOrDefault(s => s.Id == structureId);
-        if (structure?.SensorCount == 0)
+        if (structure == null)
+        {
+            _simulationErrorMessage = "Yapı bulunamadı; simülasyon başlatılamadı.";
+            return;
+        }
+
+        if (structure.SensorCount == 0)
         {
             _simulationErrorMessage = $"{structure.Name} için sensör tanımlı değil; yapı çalıştırılamaz.";
             return;
         }
 
         _startingStructureIds.Add(structureId);
+        var structureName = structure.Name;
 
         try
         {
-            // Build structured simulation request including per-sensor connection info
-            var allSensors = await StructureUC.GetAllSensorsAsync();
-            var simSensors = new List<SensorSimRequest>();
-
-            foreach (var ss in structure!.Sensors ?? new())
-            {
-                var sdet = allSensors.FirstOrDefault(x => x.Id == ss.SensorId);
-                if (sdet == null) continue;
-
-                var sr = new SensorSimRequest
-                {
-                    SensorId = sdet.Id,
-                    DeviceId = sdet.DeviceId,
-                    SensorType = sdet.SensorType.ToString(),
-                    SensorLabel = ss.SensorLabel ?? sdet.Name,
-                    IpAddress = sdet.IpAddress,
-                    Port = sdet.Port,
-                    Unit = sdet.Unit,
-                    Metrics = sdet.Metrics,
-                    Topic = sdet.Topic,
-                    TelemetryIntervalMs = sdet.TelemetryIntervalMs,
-                    TelemetryBatchSize = sdet.TelemetryBatchSize,
-                    Mappings = _tempSensorMappings.TryGetValue(sdet.Id, out var _m) ? _m : null
-                };
-
-                simSensors.Add(sr);
-            }
-
             var req = new StructureSimRequest
             {
                 StructureId = structure.Id,
-                StructureName = structure.Name,
+                StructureName = structureName,
                 StructureType = structure.StructureType.ToString(),
-                IntervalMs = 3000,
-                Sensors = simSensors
+                IntervalMs = 3000
             };
 
-            await StructureSimClient.StartAsync(req);
+            if (_isProdMode)
+            {
+                var allSensors = await StructureUC.GetAllSensorsAsync();
+                var simSensors = new List<SensorSimRequest>();
 
-            var structureName = structure?.Name ?? "yapı";
+                foreach (var ss in structure?.Sensors ?? new())
+                {
+                    var sdet = allSensors.FirstOrDefault(x => x.Id == ss.SensorId);
+                    if (sdet == null) continue;
+
+                    var sr = new SensorSimRequest
+                    {
+                        SensorId = sdet.Id,
+                        DeviceId = sdet.DeviceId,
+                        SensorType = sdet.SensorType.ToString(),
+                        SensorLabel = ss.SensorLabel ?? sdet.Name,
+                        IpAddress = sdet.IpAddress,
+                        Port = sdet.Port,
+                        Unit = sdet.Unit,
+                        Metrics = sdet.Metrics,
+                        Topic = sdet.Topic,
+                        TelemetryIntervalMs = sdet.TelemetryIntervalMs,
+                        TelemetryBatchSize = sdet.TelemetryBatchSize,
+                        Mappings = _tempSensorMappings.TryGetValue(sdet.Id, out var _m) ? _m : null
+                    };
+
+                    simSensors.Add(sr);
+                }
+
+                if (simSensors.Count == 0)
+                {
+                    _simulationErrorMessage = $"{structure.Name} için prod modda TCP sensörler alınamadı. Lütfen yapı sensörleri ve TCP bağlantı ayarlarını kontrol edin.";
+                    return;
+                }
+
+                req.Sensors = simSensors;
+                await StructureSimClient.StartProductionAsync(new DeYas.Contracts.Simulation.Production.ProductionStructureSimRequest
+                {
+                    StructureId = req.StructureId,
+                    StructureName = req.StructureName,
+                    StructureType = req.StructureType,
+                    LocationId = req.LocationId,
+                    IntervalMs = req.IntervalMs,
+                    Sensors = req.Sensors?.Select(s => new DeYas.Contracts.Simulation.Production.ProductionSensorSimRequest
+                    {
+                        SensorId = s.SensorId,
+                        DeviceId = s.DeviceId,
+                        LocationId = s.LocationId,
+                        SensorType = s.SensorType,
+                        SensorLabel = s.SensorLabel,
+                        ProtocolType = s.ProtocolType,
+                        IpAddress = s.IpAddress,
+                        Port = s.Port,
+                        Unit = s.Unit,
+                        Metrics = s.Metrics,
+                        Topic = s.Topic,
+                        TelemetryIntervalMs = s.TelemetryIntervalMs,
+                        TelemetryBatchSize = s.TelemetryBatchSize,
+                        Mappings = s.Mappings
+                    }).ToList()
+                });
+            }
+            else
+            {
+                await StructureSimClient.StartAsync(req);
+            }
+
             _simulationStatusMessage = $"{structureName} için edge simülasyonu başlatıldı.";
             _runningStructureIds.Add(structureId);
         }
@@ -2075,7 +2123,6 @@
         _tcpSensorType = string.Empty;
         _tcpIpAddress = string.Empty;
         _tcpPort = null;
-        _tcpProtocol = "TCP";
         _tcpProfile = "GenericTcp";
         _tcpDeviceId = string.Empty;
         _tcpTimeout = 5000;

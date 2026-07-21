@@ -80,6 +80,17 @@ public class SensorHttpRepository : ISensorRepository
         return (await response.Content.ReadFromJsonAsync<Sensor>(_json, ct))!;
     }
 
+    public async Task<ConnectedSensorResponse> CreateConnectedSensorAsync(
+        Guid structureId,
+        ConnectedSensorRequest request,
+        CancellationToken ct = default)
+    {
+        var resp = await _http.PostAsJsonAsync(
+            $"api/structures/{structureId}/sensors/connected", request, _json, ct);
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<ConnectedSensorResponse>(_json, ct))!;
+    }
+
     // ── Prod Lifecycle endpoint'leri ──────────────────────────────────────────
 
     /// <summary>

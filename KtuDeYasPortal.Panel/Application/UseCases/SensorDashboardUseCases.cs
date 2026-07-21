@@ -93,6 +93,12 @@ public class SensorDashboardUseCases
         CancellationToken ct = default) =>
         _sensorRepo.TestConnectionLifecycleAsync(sensorId, request, ct);
 
+    public Task<ParserValidationResultDto> ValidateParserAsync(
+        Guid sensorId,
+        ParserValidationRequestDto request,
+        CancellationToken ct = default) =>
+        _sensorRepo.ValidateParserAsync(sensorId, request, ct);
+
     public Task<MetricPreviewGeneratedDto> GenerateMetricPreviewAsync(
         Guid sensorId,
         GenerateMetricPreviewRequestDto request,

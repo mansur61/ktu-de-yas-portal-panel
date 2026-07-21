@@ -50,6 +50,17 @@ public class StructureUseCases
     public Task<Sensor> CreateTcpSensorAsync(TcpSensorCreateRequest request, CancellationToken ct = default) =>
         _sensorRepo.CreateTcpSensorAsync(request, ct);
 
+    /// <summary>
+    /// Sensör + TCP config + yapı ilişkisini tek transaction ile oluşturur.
+    /// Herhangi biri başarısız olursa backend tüm işlemi geri alır.
+    /// POST /api/structures/{structureId}/sensors/connected
+    /// </summary>
+    public Task<ConnectedSensorResponse> CreateConnectedSensorAsync(
+        Guid structureId,
+        ConnectedSensorRequest request,
+        CancellationToken ct = default) =>
+        _sensorRepo.CreateConnectedSensorAsync(structureId, request, ct);
+
     // ── Prod Lifecycle Use Cases ──────────────────────────────────────────────
 
     /// <summary>

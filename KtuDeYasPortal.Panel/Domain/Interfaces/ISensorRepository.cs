@@ -9,6 +9,15 @@ public interface ISensorRepository
     Task<object> TestTcpConnectionAsync(TcpSensorCreateRequest request, CancellationToken ct = default);
     Task<Sensor> CreateTcpSensorAsync(TcpSensorCreateRequest request, CancellationToken ct = default);
 
+    /// <summary>
+    /// Sensör + TCP config + yapı ilişkisini tek transaction ile oluşturur.
+    /// POST /api/structures/{structureId}/sensors/connected
+    /// </summary>
+    Task<ConnectedSensorResponse> CreateConnectedSensorAsync(
+        Guid structureId,
+        ConnectedSensorRequest request,
+        CancellationToken ct = default);
+
     // ── Prod Lifecycle endpoint'leri ─────────────────────────────────────────
     Task<DeYas.Contracts.Sensors.ConnectionTestResultDto> TestConnectionLifecycleAsync(
         Guid sensorId,

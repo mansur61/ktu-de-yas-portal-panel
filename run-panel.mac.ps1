@@ -123,29 +123,29 @@ SERVICE_LOG=$serviceLog
 PID_FILE=$pidFile
 OSA_FILE=$osaFile
 
-printf '=== $Name ===\n' | tee -a "\$SERVICE_LOG"
-printf 'Log: %s\n\n' "\$SERVICE_LOG" | tee -a "\$SERVICE_LOG"
+printf '=== $Name ===\n' | tee -a "`$SERVICE_LOG"
+printf 'Log: %s\n\n' "`$SERVICE_LOG" | tee -a "`$SERVICE_LOG"
 
-dotnet run --project '$ProjectPath' -c Release --no-build 2>&1 | tee -a "\$SERVICE_LOG" &
-DOTNET_PID=\$!
-printf '%s\n' "\$DOTNET_PID" >> "\$PID_FILE"
-printf '  PID=%s kaydedildi.\n' "\$DOTNET_PID" | tee -a "\$SERVICE_LOG"
+dotnet run --project '$ProjectPath' -c Release --no-build 2>&1 | tee -a "`$SERVICE_LOG" &
+DOTNET_PID=`$!
+printf '%s\n' "`$DOTNET_PID" >> "`$PID_FILE"
+printf '  PID=%s kaydedildi.\n' "`$DOTNET_PID" | tee -a "`$SERVICE_LOG"
 
-wait \$DOTNET_PID
-EXIT_CODE=\$?
+wait `$DOTNET_PID
+EXIT_CODE=`$?
 
-printf '\n' | tee -a "\$SERVICE_LOG"
-if [ "\$EXIT_CODE" -eq 0 ]; then
-    printf '=== $Name tamamlandi ===\n' | tee -a "\$SERVICE_LOG"
+printf '\n' | tee -a "`$SERVICE_LOG"
+if [ "`$EXIT_CODE" -eq 0 ]; then
+    printf '=== $Name tamamlandi ===\n' | tee -a "`$SERVICE_LOG"
 else
-    printf '=== $Name durdu (exit=%s) ===\n' "\$EXIT_CODE" | tee -a "\$SERVICE_LOG"
+    printf '=== $Name durdu (exit=%s) ===\n' "`$EXIT_CODE" | tee -a "`$SERVICE_LOG"
 fi
 
 printf '\nEnter basilinca bu pencere kapanacak...\n'
 read -r _REPLY
 
-osascript "\$OSA_FILE" 2>/dev/null
-exit \$EXIT_CODE
+osascript "`$OSA_FILE" 2>/dev/null
+exit `$EXIT_CODE
 "@
 
     Set-Content -Path $bashFile -Value $bashContent -Encoding ASCII

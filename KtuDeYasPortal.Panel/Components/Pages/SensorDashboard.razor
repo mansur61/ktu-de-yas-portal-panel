@@ -339,6 +339,30 @@ else
                         </div>
                     }
 
+                    @if (IsSampleSensor(sensor))
+                    {
+                        var isWaveformActive = _grafanaDevice == sensor.DeviceId && _grafanaMetric == "samples";
+                        <div class="col-sm-6 col-md-4 col-xl-3">
+                            <div class="card h-100 shadow-sm @(isWaveformActive ? "border-primary" : "border-info border-opacity-50")">
+                                <div class="card-header py-2 bg-info bg-opacity-10 d-flex justify-content-between">
+                                    <span class="fw-semibold small">〽 Ham örnekler</span>
+                                    <span class="badge bg-info text-dark">Samples</span>
+                                </div>
+                                <div class="card-body py-2 px-3">
+                                    <div class="fw-semibold text-truncate">@sensor.Name</div>
+                                    <div class="text-muted small text-truncate">@sensor.DeviceId · kanal bazlı waveform</div>
+                                    <div class="small mt-2 text-muted">Ölçümler metrik kartına dönüştürülmeden ham örnek dizisi olarak izlenir.</div>
+                                </div>
+                                <div class="card-footer py-1 px-2 bg-transparent">
+                                    <button class="btn btn-sm w-100 py-0 @(isWaveformActive ? "btn-primary" : "btn-outline-info")"
+                                            style="font-size:0.7rem" @onclick="() => ToggleSampleGrafana(sensor.DeviceId)">
+                                        <span class="bi bi-activity me-1"></span>@(isWaveformActive ? "Waveform Açık" : "Waveform Aç")
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
                     @foreach (var metric in metrics)
                     {
                         double?   val = null;
@@ -613,6 +637,16 @@ else
             timeRange: _selectedRange);
     }
 
+    private void ToggleSampleGrafana(string deviceId)
+    {
+        if (_grafanaDevice == deviceId && _grafanaMetric == "samples") { CloseGrafana(); return; }
+        _grafanaDevice = deviceId;
+        _grafanaMetric = "samples";
+        _iframeSrc = GrafanaOpts.Value.BuildPanelUrl(
+            panelId: 84, metricVar: "samples", deviceVar: deviceId,
+            structureId: _selectedStructureId.ToString(), timeRange: _selectedRange);
+    }
+
     private void CloseGrafana()
     {
         _iframeSrc     = string.Empty;
@@ -784,7 +818,7 @@ else
 
     private static List<string> GetSensorMetrics(Domain.Entities.StructureSensor sensor)
     {
-        if (IsMediaSensor(sensor)) return new();
+        if (IsMediaSensor(sensor) || IsSampleSensor(sensor)) return new();
         var csv = string.IsNullOrWhiteSpace(sensor.Metrics) ? sensor.Description : sensor.Metrics;
         if (string.IsNullOrWhiteSpace(csv)) return new();
         return csv.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
@@ -798,6 +832,12 @@ else
         sensor.SensorType.Contains("camera", StringComparison.OrdinalIgnoreCase) ||
         sensor.SensorType.Contains("video", StringComparison.OrdinalIgnoreCase) ||
         sensor.SensorType.Contains("stream", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsSampleSensor(Domain.Entities.StructureSensor sensor) =>
+        sensor.SensorType.Contains("vibration", StringComparison.OrdinalIgnoreCase) ||
+        sensor.SensorType.Contains("accelerometer", StringComparison.OrdinalIgnoreCase) ||
+        sensor.SensorType.Contains("acceleration", StringComparison.OrdinalIgnoreCase) ||
+        sensor.SensorType.Contains("ivme", StringComparison.OrdinalIgnoreCase);
 
     private static string GetMetricLabel(string metric) => metric.ToLowerInvariant() switch
     {

@@ -1,0 +1,91 @@
+@page "/sensor-assignment"
+@rendermode InteractiveServer
+@using System.Net.Http.Json
+@using System.Text.Json
+@inject IHttpClientFactory HttpFactory
+
+<PageTitle>Yapı–Sensör İlişkilendir</PageTitle>
+
+<div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+        <h3 class="mb-0">Yapı–Sensör İlişkilendir</h3>
+        <small class="text-muted">Henüz bir yapıya bağlı olmayan sensörleri aktif yapılara bağlayın; kanal/port ekleyin ve test edin.</small>
+    </div>
+    <button class="btn btn-outline-secondary" @onclick="LoadAsync"><span class="bi bi-arrow-clockwise"></span> Yenile</button>
+</div>
+
+@if (_loading) { <div class="spinner-border spinner-border-sm"></div> }
+else if (_error is not null) { <div class="alert alert-danger">@_error</div> }
+else if (_sensors.Count == 0) { <div class="alert alert-info">İlişkilendirilmeyi bekleyen sensör yok.</div> }
+else
+{
+    <div class="card shadow-sm"><div class="table-responsive"><table class="table table-hover mb-0">
+        <thead class="table-light"><tr><th>Sensör</th><th>Tip</th><th>Device / Konum</th><th>Kanallar</th><th class="text-end">İşlem</th></tr></thead>
+        <tbody>
+        @foreach (var sensor in _sensors)
+        {
+            <tr>
+                <td><strong>@sensor.Name</strong><br /><code>@sensor.Id</code></td>
+                <td><span class="badge bg-primary">@sensor.SensorType</span></td>
+                <td><code>@sensor.DeviceId</code><br /><small>@sensor.LocationId</small></td>
+                <td>
+                    @foreach (var channel in sensor.TcpConfigurations)
+                    { <span class="badge text-bg-light border me-1">@channel.ChannelKey: @(channel.IpAddress ?? channel.SerialPort):@channel.Port</span> }
+                </td>
+                <td class="text-end">
+                    <button class="btn btn-sm btn-primary me-1" @onclick="() => OpenAssign(sensor)">Yapıya bağla</button>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => OpenChannel(sensor)">Port / Serial ekle</button>
+                    <button class="btn btn-sm btn-outline-info ms-1" @onclick="() => _expandedSensorId = _expandedSensorId == sensor.Id ? null : sensor.Id">Kanalları test et</button>
+                </td>
+            </tr>
+            @if (_expandedSensorId == sensor.Id)
+            {
+                <tr><td colspan="5" class="bg-light"><div class="p-2">
+                    <strong>Kanal testleri</strong>
+                    @foreach (var channel in sensor.TcpConfigurations)
+                    { <div class="d-inline-flex align-items-center border rounded p-2 m-1"><code class="me-2">@channel.ChannelKey</code><span class="me-2">@(channel.IpAddress ?? channel.SerialPort):@channel.Port</span><button class="btn btn-sm btn-outline-primary" @onclick="() => TestChannelAsync(channel)">Bağlantı testi</button></div> }
+                    @if (_testResult is not null) { <pre class="mt-2 mb-0 small">@_testResult</pre> }
+                </div></td></tr>
+            }
+        }
+        </tbody>
+    </table></div></div>
+}
+
+@if (_selected is not null && _mode == "assign")
+{
+    <div class="modal fade show d-block" style="background:#0008"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5>@_selected.Name — yapı seç</h5><button class="btn-close" @onclick="Close"></button></div><div class="modal-body">
+        <select class="form-select" @bind="_structureId"><option value="">Aktif yapı seçin</option>@foreach(var s in _structures){<option value="@s.Id">@s.Name (@s.StructureType)</option>}</select>
+    </div><div class="modal-footer"><button class="btn btn-secondary" @onclick="Close">Vazgeç</button><button class="btn btn-primary" disabled="@string.IsNullOrWhiteSpace(_structureId)" @onclick="AssignAsync">İlişkilendir</button></div></div></div></div>
+}
+
+@if (_selected is not null && _mode == "channel")
+{
+    <div class="modal fade show d-block" style="background:#0008"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5>@_selected.Name — port / serial kanal</h5><button class="btn-close" @onclick="Close"></button></div><div class="modal-body row g-2">
+        <div class="col-6"><label class="form-label">Kanal anahtarı</label><input class="form-control" @bind="_channel.ChannelKey" placeholder="x" /></div>
+        <div class="col-6"><label class="form-label">Kanal adı</label><input class="form-control" @bind="_channel.ChannelName" placeholder="X ekseni" /></div>
+        <div class="col-8"><label class="form-label">IP adresi</label><input class="form-control" @bind="_channel.IpAddress" placeholder="192.168.30.243" /></div>
+        <div class="col-4"><label class="form-label">TCP port</label><input class="form-control" type="number" @bind="_channel.Port" /></div>
+        <div class="col-8"><label class="form-label">Serial port (opsiyonel)</label><input class="form-control" @bind="_channel.SerialPort" placeholder="/dev/ttyUSB0" /></div>
+        <div class="col-4"><label class="form-label">Baud rate</label><input class="form-control" type="number" @bind="_channel.BaudRate" /></div>
+    </div><div class="modal-footer"><button class="btn btn-secondary" @onclick="Close">Vazgeç</button><button class="btn btn-primary" @onclick="AddChannelAsync">Kaydet</button></div></div></div></div>
+}
+
+@code {
+    private readonly JsonSerializerOptions _json = new() { PropertyNameCaseInsensitive = true };
+    private List<SensorDto> _sensors = []; private List<StructureDto> _structures = []; private SensorDto? _selected;
+    private bool _loading; private string? _error; private string? _mode; private string _structureId = ""; private Guid? _expandedSensorId; private string? _testResult;
+    private ChannelDto _channel = new();
+    protected override Task OnInitializedAsync() => LoadAsync();
+    private HttpClient Api => HttpFactory.CreateClient("timeseries-api");
+    private async Task LoadAsync(){ _loading=true; _error=null; try { _sensors=await Api.GetFromJsonAsync<List<SensorDto>>("api/sensors/unassigned",_json)??[]; _structures=(await Api.GetFromJsonAsync<List<StructureDto>>("api/structures",_json)??[]).Where(x=>x.IsActive).ToList(); } catch(Exception e){_error=e.Message;} finally {_loading=false;} }
+    private void OpenAssign(SensorDto s){_selected=s;_mode="assign";_structureId="";}
+    private void OpenChannel(SensorDto s){_selected=s;_mode="channel";_channel=new();}
+    private void Close(){_selected=null;_mode=null;_testResult=null;}
+    private async Task AssignAsync(){if(_selected is null||!Guid.TryParse(_structureId,out var id))return; await Api.PostAsync($"api/sensors/{_selected.Id}/structures/{id}",null); Close(); await LoadAsync();}
+    private async Task AddChannelAsync(){if(_selected is null)return; var r=await Api.PostAsJsonAsync($"api/sensors/{_selected.Id}/tcp-configurations",_channel,_json); if(!r.IsSuccessStatusCode){_error=await r.Content.ReadAsStringAsync();return;} Close(); await LoadAsync();}
+    private async Task TestChannelAsync(ChannelDto c){ var r=await Api.PostAsJsonAsync("api/tcp-sensors/test-connection",new { ipAddress=c.IpAddress, port=c.Port??0, connectionMode="Client", profile=c.Profile, timeoutMs=5000, encoding=c.Encoding, reconnectEnabled=c.ReconnectEnabled },_json);_testResult=await r.Content.ReadAsStringAsync();}
+    private sealed class SensorDto { public Guid Id{get;set;} public string Name{get;set;}=""; public string DeviceId{get;set;}=""; public string LocationId{get;set;}=""; public string SensorType{get;set;}=""; public List<ChannelDto> TcpConfigurations{get;set;}=[]; }
+    private sealed class ChannelDto { public string ChannelKey{get;set;}=""; public string? ChannelName{get;set;} public string Profile{get;set;}="JsonTcp"; public string ConnectionMode{get;set;}="Client"; public string Encoding{get;set;}="utf-8"; public bool ReconnectEnabled{get;set;}=true; public string? IpAddress{get;set;} public int? Port{get;set;} public string? SerialPort{get;set;} public int? BaudRate{get;set;} public int PollingIntervalMs{get;set;}=1000; }
+    private sealed class StructureDto { public Guid Id{get;set;} public string Name{get;set;}=""; public string StructureType{get;set;}=""; public bool IsActive{get;set;} }
+}

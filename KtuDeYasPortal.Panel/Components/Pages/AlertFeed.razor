@@ -1,0 +1,57 @@
+@page "/alert-feed"
+@rendermode InteractiveServer
+@implements IDisposable
+@inject AlertState AlertState
+
+<PageTitle>Canlı Alertler</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h3 class="mb-0"><span class="bi bi-bell-fill text-danger me-2"></span>Canlı Alertler</h3>
+        <small class="text-muted">GCF saha akışlarından gelen aktif bildirimler</small>
+    </div>
+    <span class="badge bg-danger fs-6">@AlertState.ActiveCount aktif</span>
+</div>
+
+@if (AlertState.Alerts.Count == 0)
+{
+    <div class="alert alert-info">Henüz canlı alert alınmadı.</div>
+}
+else
+{
+    <div class="list-group shadow-sm">
+        @foreach (var alert in AlertState.Alerts)
+        {
+            var severityClass = alert.Severity.ToLowerInvariant() switch
+            {
+                "critical" => "border-danger",
+                "warning" => "border-warning",
+                _ => "border-info"
+            };
+            <div class="list-group-item border-start border-4 @severityClass">
+                <div class="d-flex justify-content-between gap-3">
+                    <div>
+                        <span class="badge @(alert.Severity.Equals("critical", StringComparison.OrdinalIgnoreCase) ? "bg-danger" : "bg-warning text-dark")">@alert.Severity</span>
+                        <strong class="ms-2">@alert.Message</strong>
+                        <div class="small text-muted mt-1">
+                            Cihaz: <code>@alert.DeviceId</code> · Konum: @alert.LocationId
+                            @if (!string.IsNullOrWhiteSpace(alert.Metric))
+                            {
+                                <span> · @alert.Metric: @alert.Value (eşik: @alert.Threshold)</span>
+                            }
+                        </div>
+                    </div>
+                    <small class="text-nowrap text-muted">@alert.Timestamp.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss")</small>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    protected override void OnInitialized() => AlertState.OnAlertReceived += HandleAlert;
+
+    private void HandleAlert(PortalAlert _) => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose() => AlertState.OnAlertReceived -= HandleAlert;
+}

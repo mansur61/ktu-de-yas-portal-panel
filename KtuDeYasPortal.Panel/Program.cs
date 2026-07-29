@@ -45,6 +45,7 @@ builder.Services.AddSignalR(options =>
 
 // ── Realtime: SensorData state (singleton, Blazor components read from this) ──
 builder.Services.AddSingleton<SensorDataState>();
+builder.Services.AddSingleton<AlertState>();
 
 // ── Redis Pub/Sub subscriber — panel connects directly to Redis, no portal dep ─
 //

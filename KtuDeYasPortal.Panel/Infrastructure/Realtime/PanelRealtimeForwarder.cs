@@ -20,6 +20,7 @@ namespace KtuDeYasPortal.Panel.Infrastructure.Realtime;
 public sealed class PanelRealtimeForwarder : IRealtimeMessageHandler
 {
     private readonly SensorDataState _state;
+    private readonly AlertState _alertState;
     private readonly ILogger<PanelRealtimeForwarder> _logger;
 
     private static readonly JsonSerializerOptions JsonOpts = new()
@@ -27,27 +28,53 @@ public sealed class PanelRealtimeForwarder : IRealtimeMessageHandler
         PropertyNameCaseInsensitive = true
     };
 
-    public PanelRealtimeForwarder(SensorDataState state, ILogger<PanelRealtimeForwarder> logger)
+    public PanelRealtimeForwarder(
+        SensorDataState state,
+        AlertState alertState,
+        ILogger<PanelRealtimeForwarder> logger)
     {
-        _state  = state;
-        _logger = logger;
+        _state      = state;
+        _alertState = alertState;
+        _logger     = logger;
     }
 
     public async Task HandleAsync(string channel, string message, CancellationToken ct = default)
     {
-        // Panel only cares about timeseries/sensor data channels
-        if (channel != RealtimeChannels.TimeseriesUpdated &&
-            channel != RealtimeChannels.SensorUpdated)
-            return;
-
         try
         {
-            await HandleTimeseriesAsync(message);
+            if (channel == RealtimeChannels.AlarmCreated)
+                await HandleAlarmCreatedAsync(message);
+            else if (channel == RealtimeChannels.TimeseriesUpdated || channel == RealtimeChannels.SensorUpdated)
+                await HandleTimeseriesAsync(message);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "[panel-forwarder] Parse error ch={Channel}", channel);
         }
+    }
+
+    private Task HandleAlarmCreatedAsync(string json)
+    {
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+        var payload = root.TryGetPropertyIgnoreCase("payload", out var p) ? p : root;
+        var alarmId = payload.TryGetString("alarmId") ?? root.TryGetString("alarmId") ?? Guid.NewGuid().ToString("N");
+        var deviceId = payload.TryGetString("deviceId") ?? root.TryGetString("deviceId") ?? "unknown";
+
+        var alert = new PortalAlert(
+            AlarmId: alarmId,
+            DeviceId: deviceId,
+            LocationId: payload.TryGetString("locationId") ?? root.TryGetString("locationId") ?? "default",
+            Severity: payload.TryGetString("severity") ?? root.TryGetString("severity") ?? "warning",
+            Message: payload.TryGetString("message") ?? root.TryGetString("message") ?? "Yeni alert",
+            Timestamp: payload.TryGetDateTime(),
+            Metric: payload.TryGetString("metric") ?? root.TryGetString("metric"),
+            Value: payload.TryGetNumber("value"),
+            Threshold: payload.TryGetNumber("threshold"));
+
+        _alertState.Upsert(alert);
+        _logger.LogInformation("[panel-forwarder] Alert received alarm={AlarmId} device={DeviceId}", alarmId, deviceId);
+        return Task.CompletedTask;
     }
 
     private Task HandleTimeseriesAsync(string json)
@@ -150,6 +177,9 @@ file static class JsonElementExtensions
         d = 0;
         return false;
     }
+
+    public static double? TryGetNumber(this JsonElement el, string key) =>
+        el.TryGetPropertyIgnoreCase(key, out var value) && value.TryGetNumber(out var number) ? number : null;
 
     public static Dictionary<string, double> TryGetMetrics(this JsonElement el)
     {

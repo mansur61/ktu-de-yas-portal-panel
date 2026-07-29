@@ -1,4 +1,7 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
+﻿@implements IDisposable
+@inject AlertState AlertState
+
+<div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
         <a class="navbar-brand" href="">KTU DeYas Panel</a>
         <button title="Navigation menu" class="navbar-toggler" />
@@ -38,6 +41,15 @@
             </NavLink>
         </div>
         <div class="nav-item px-3">
+            <NavLink class="nav-link" href="alert-feed">
+                <span class="bi bi-bell-fill me-2 text-danger" aria-hidden="true"></span> Canlı Alertler
+                @if (AlertState.ActiveCount > 0)
+                {
+                    <span class="badge rounded-pill bg-danger ms-1">@AlertState.ActiveCount</span>
+                }
+            </NavLink>
+        </div>
+        <div class="nav-item px-3">
             <NavLink class="nav-link" href="media-dashboard">
                 <span class="bi bi-camera-video me-2" aria-hidden="true"></span> Video / Image
             </NavLink>
@@ -54,3 +66,11 @@
         </div>
     </nav>
 </div>
+
+@code {
+    protected override void OnInitialized() => AlertState.OnAlertReceived += HandleAlert;
+
+    private void HandleAlert(PortalAlert _) => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose() => AlertState.OnAlertReceived -= HandleAlert;
+}

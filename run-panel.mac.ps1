@@ -50,6 +50,7 @@ if (-not $NoBuild) {
     $buildProjects = @(
         @{ Name = "timeseries-service"; Path = "$($backendRoot.Path)/src/timeseries-service/TimeseriesService.csproj" },
         @{ Name = "edge-layer";         Path = "$($backendRoot.Path)/src/edge-layer/EdgeLayer.csproj" },
+        @{ Name = "alert-notification-worker"; Path = "$($backendRoot.Path)/src/alert-notification-worker/AlertNotificationWorker.csproj" },
         @{ Name = "panel";              Path = $panelCsproj }
     )
     foreach ($proj in $buildProjects) {
@@ -86,12 +87,12 @@ function Test-PortListening([int]$Port) {
 function Start-Service {
     param(
         [string] $Name,
-        [int]    $Port,
+        [Nullable[int]] $Port = $null,
         [string] $ProjectPath,
         [string] $ExtraEnv = ""          # ek env satırları, bash syntax'ında
     )
 
-    if (Test-PortListening $Port) {
+    if ($null -ne $Port -and (Test-PortListening $Port)) {
         Write-Host "  [SKIP] $Name — port $Port zaten kullanimda." -ForegroundColor Yellow
         Write-Log "SKIP $Name — port $Port in use"
         return
@@ -152,8 +153,9 @@ exit `$EXIT_CODE
     & chmod +x $bashFile
     & open -a Terminal $bashFile
 
-    Write-Host "  [OK] $Name baslatildi (port $Port)" -ForegroundColor Green
-    Write-Log "started $Name | port=$Port | log=$serviceLog | bash=$bashFile"
+    $runTarget = if ($null -eq $Port) { "background worker" } else { "port $Port" }
+    Write-Host "  [OK] $Name baslatildi ($runTarget)" -ForegroundColor Green
+    Write-Log "started $Name | $runTarget | log=$serviceLog | bash=$bashFile"
 }
 
 # ── Servisleri sırayla başlat ─────────────────────────────────────────────────
@@ -183,7 +185,12 @@ Start-Service -Name "edge-layer" `
     -ProjectPath "$($backendRoot.Path)/src/edge-layer/EdgeLayer.csproj"
 Start-Sleep -Seconds 2
 
-# 3. panel
+# 3. Saha uygulamasının doğrudan yazdığı alert-events topic'ini dinler ve
+# Redis üzerinden portal'a canlı bildirim yayınlar.
+Start-Service -Name "alert-notification-worker" `
+    -ProjectPath "$($backendRoot.Path)/src/alert-notification-worker/AlertNotificationWorker.csproj"
+
+# 4. panel
 Start-Service -Name "panel" `
     -Port 5056 `
     -ProjectPath $panelCsproj `
@@ -200,6 +207,7 @@ Write-Host "=== PANEL ACTIVE ===" -ForegroundColor Green
 Write-Host "  Admin Panel    : http://localhost:5056/structures" -ForegroundColor White
 Write-Host "  timeseries-api : http://localhost:5000" -ForegroundColor White
 Write-Host "  Edge API       : http://localhost:5080" -ForegroundColor White
+Write-Host "  Alert pipeline : saha hesaplama -> alert-events -> Portal" -ForegroundColor White
 Write-Host ""
 Write-Host "  Node-RED Merkez: http://localhost:1880  (Docker)" -ForegroundColor DarkCyan
 Write-Host "  Node-RED Baraj : http://localhost:1881/ui (Docker)" -ForegroundColor DarkCyan
@@ -232,7 +240,7 @@ if (-not $AutoConfirm) {
     }
 
     # 2. Güvenlik ağı: hâlâ çalışan proje-adı dotnet process'leri
-    foreach ($pattern in @("timeseries-service", "EdgeLayer", "KtuDeYasPortal")) {
+    foreach ($pattern in @("timeseries-service", "EdgeLayer", "AlertNotificationWorker", "KtuDeYasPortal")) {
         $procs = & pgrep -f $pattern 2>$null
         foreach ($p in ($procs -split '\n' | Where-Object { $_ -match '^\d+$' })) {
             Write-Host "  kill (pattern=$pattern) PID=$p" -ForegroundColor DarkGray

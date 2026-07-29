@@ -39,6 +39,7 @@ if (-not $NoBuild) {
     $projects = @(
         @{ Name = "timeseries-service"; Path = "$($backendRoot.Path)\src\timeseries-service\TimeseriesService.csproj" },
         @{ Name = "edge-layer";         Path = "$($backendRoot.Path)\src\edge-layer\EdgeLayer.csproj" },
+        @{ Name = "alert-notification-worker"; Path = "$($backendRoot.Path)\src\alert-notification-worker\AlertNotificationWorker.csproj" },
         @{ Name = "panel";              Path = $panelCsproj }
     )
 
@@ -95,11 +96,21 @@ $script:launchedProcesses = @()
 function Start-Service {
     param(
         [string]$Name,
-        [int]   $Port,
+        [Nullable[int]]$Port = $null,
         [string]$Project
     )
 
-    $portInUse = Test-PortListening -Port $Port
+    if ($null -eq $Port) {
+        $projectName = Split-Path $Project -Leaf
+        $existingWorker = Get-CimInstance Win32_Process -Filter "Name = 'dotnet.exe'" -ErrorAction SilentlyContinue |
+            Where-Object { $_.CommandLine -like "*$projectName*" } | Select-Object -First 1
+        if ($existingWorker) {
+            Write-Host "  [SKIP] $Name — worker zaten calisiyor (PID $($existingWorker.ProcessId))." -ForegroundColor Yellow
+            return
+        }
+    }
+
+    $portInUse = $null -ne $Port -and (Test-PortListening -Port $Port)
 
     if ($portInUse) {
         $hasChanges = Test-HasChanges -ProjectPath $Project
@@ -132,7 +143,8 @@ function Start-Service {
         -PassThru
 
     $script:launchedProcesses += $proc
-    Write-Host "  [OK] $Name baslatildi (port $Port, PID $($proc.Id))." -ForegroundColor Green
+    $runTarget = if ($null -eq $Port) { "background worker" } else { "port $Port" }
+    Write-Host "  [OK] $Name baslatildi ($runTarget, PID $($proc.Id))." -ForegroundColor Green
 }
 
 # ── Servisleri sirayla baslt ──────────────────────────────────────────────────
@@ -160,7 +172,12 @@ Start-Service -Name "edge-layer" -Port 5080 `
     -Project "$($backendRoot.Path)\src\edge-layer\EdgeLayer.csproj"
 Start-Sleep -Seconds 2
 
-# 3. panel
+# 3. Saha uygulamasının doğrudan yazdığı alert-events topic'ini dinler
+# ve Redis üzerinden portal'a canlı bildirim yayınlar.
+Start-Service -Name "alert-notification-worker" `
+    -Project "$($backendRoot.Path)\src\alert-notification-worker\AlertNotificationWorker.csproj"
+
+# 4. panel
 Start-Service -Name "panel" -Port 5056 -Project $panelCsproj
 Start-Sleep -Seconds 1
 
@@ -170,6 +187,7 @@ Write-Host "=== PANEL ACTIVE ===" -ForegroundColor Green
 Write-Host "  Admin Panel    : http://localhost:5056" -ForegroundColor White
 Write-Host "  timeseries-api : http://localhost:5000" -ForegroundColor White
 Write-Host "  Edge API       : http://localhost:5080" -ForegroundColor White
+Write-Host "  Alert pipeline : saha hesaplama -> alert-events -> Portal" -ForegroundColor White
 Write-Host ""
 Write-Host "  Node-RED Merkez: http://localhost:1880  (Docker)" -ForegroundColor DarkCyan
 Write-Host "  Node-RED Baraj : http://localhost:1881/ui (Docker)" -ForegroundColor DarkCyan

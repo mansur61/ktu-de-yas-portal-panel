@@ -70,7 +70,7 @@
 @code {
     protected override void OnInitialized() => AlertState.OnAlertReceived += HandleAlert;
 
-    private void HandleAlert(PortalAlert _) => _ = InvokeAsync(StateHasChanged);
+    private void HandleAlert(PortalAlert alert) => _ = InvokeAsync(StateHasChanged);
 
     public void Dispose() => AlertState.OnAlertReceived -= HandleAlert;
 }

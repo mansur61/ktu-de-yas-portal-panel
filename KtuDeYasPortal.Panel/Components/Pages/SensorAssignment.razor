@@ -9,38 +9,60 @@
 <div class="d-flex align-items-center justify-content-between mb-3">
     <div>
         <h3 class="mb-0">Yapı–Sensör İlişkilendir</h3>
-        <small class="text-muted">Henüz bir yapıya bağlı olmayan sensörleri aktif yapılara bağlayın; kanal/port ekleyin ve test edin.</small>
+        <small class="text-muted">Sensörlerin yapı bağlantı durumunu yönetin; bağlantıyı kaldırmak sensör kaydını silmez.</small>
     </div>
     <button class="btn btn-outline-secondary" @onclick="LoadAsync"><span class="bi bi-arrow-clockwise"></span> Yenile</button>
 </div>
 
+<div class="mb-3 d-flex align-items-center gap-2">
+    <label class="form-label mb-0" for="assignment-status">Yapı durumu</label>
+    <select id="assignment-status" class="form-select" style="max-width:220px" value="@_assignmentFilter" @onchange="OnAssignmentFilterChanged">
+        <option value="unassigned">Atanmamış</option>
+        <option value="assigned">Bağlı</option>
+        <option value="all">Tümü</option>
+    </select>
+</div>
+
 @if (_loading) { <div class="spinner-border spinner-border-sm"></div> }
 else if (_error is not null) { <div class="alert alert-danger">@_error</div> }
-else if (_sensors.Count == 0) { <div class="alert alert-info">İlişkilendirilmeyi bekleyen sensör yok.</div> }
+else if (_sensors.Count == 0) { <div class="alert alert-info">Sensör kaydı yok.</div> }
 else
 {
     <div class="card shadow-sm"><div class="table-responsive"><table class="table table-hover mb-0">
-        <thead class="table-light"><tr><th>Sensör</th><th>Tip</th><th>Device / Konum</th><th>Kanallar</th><th class="text-end">İşlem</th></tr></thead>
+        <thead class="table-light"><tr><th>Sensör</th><th>Tip</th><th>Device / Konum</th><th>Yapı durumu</th><th>Kanallar</th><th class="text-end">İşlem</th></tr></thead>
         <tbody>
         @foreach (var sensor in _sensors)
         {
+            var sensorAssignment = GetAssignment(sensor.Id);
             <tr>
                 <td><strong>@sensor.Name</strong><br /><code>@sensor.Id</code></td>
                 <td><span class="badge bg-primary">@sensor.SensorType</span></td>
                 <td><code>@sensor.DeviceId</code><br /><small>@sensor.LocationId</small></td>
                 <td>
+                    @if (sensorAssignment is not null)
+                    { <span class="badge text-bg-success">Bağlı</span><br /><small>@sensorAssignment.Name (@sensorAssignment.StructureType)</small> }
+                    else
+                    { <span class="badge text-bg-secondary">Atanmamış</span> }
+                </td>
+                <td>
                     @foreach (var channel in sensor.TcpConfigurations)
                     { <span class="badge text-bg-light border me-1">@channel.ChannelKey: @(channel.IpAddress ?? channel.SerialPort):@channel.Port</span> }
                 </td>
                 <td class="text-end">
-                    <button class="btn btn-sm btn-primary me-1" @onclick="() => OpenAssign(sensor)">Yapıya bağla</button>
+                    @if (sensorAssignment is not null)
+                    {
+                        <button class="btn btn-sm btn-outline-warning me-1" title="Yapı bağlantısını kaldır (sensör korunur)" aria-label="Yapı bağlantısını kaldır" @onclick="() => RemoveAssignmentAsync(sensor.Id, sensorAssignment.Id)"><span class="bi bi-link-45deg"></span></button>
+                        <button class="btn btn-sm btn-outline-danger me-1" title="Sensörü ve tüm bağlantı/tcp ayarlarını sil" aria-label="Sensörü sil" @onclick="() => DeleteSensorAsync(sensor.Id)"><span class="bi bi-trash"></span></button>
+                    }
+                    else
+                    { <button class="btn btn-sm btn-primary me-1" @onclick="() => OpenAssign(sensor)">Yapıya bağla</button> }
                     <button class="btn btn-sm btn-outline-secondary" @onclick="() => OpenChannel(sensor)">Port / Serial ekle</button>
                     <button class="btn btn-sm btn-outline-info ms-1" @onclick="() => _expandedSensorId = _expandedSensorId == sensor.Id ? null : sensor.Id">Kanalları test et</button>
                 </td>
             </tr>
             @if (_expandedSensorId == sensor.Id)
             {
-                <tr><td colspan="5" class="bg-light"><div class="p-2">
+                <tr><td colspan="6" class="bg-light"><div class="p-2">
                     <strong>Kanal testleri</strong>
                     @foreach (var channel in sensor.TcpConfigurations)
                     { <div class="d-inline-flex align-items-center border rounded p-2 m-1"><code class="me-2">@channel.ChannelKey</code><span class="me-2">@(channel.IpAddress ?? channel.SerialPort):@channel.Port</span><button class="btn btn-sm btn-outline-primary" @onclick="() => TestChannelAsync(channel)">Bağlantı testi</button></div> }
@@ -73,19 +95,24 @@ else
 
 @code {
     private readonly JsonSerializerOptions _json = new() { PropertyNameCaseInsensitive = true };
-    private List<SensorDto> _sensors = []; private List<StructureDto> _structures = []; private SensorDto? _selected;
+    private List<SensorDto> _sensors = []; private List<StructureDto> _structures = []; private Dictionary<Guid, StructureDto> _assignments = []; private SensorDto? _selected;
     private bool _loading; private string? _error; private string? _mode; private string _structureId = ""; private Guid? _expandedSensorId; private string? _testResult;
+    private string _assignmentFilter = "unassigned";
     private ChannelDto _channel = new();
     protected override Task OnInitializedAsync() => LoadAsync();
     private HttpClient Api => HttpFactory.CreateClient("timeseries-api");
-    private async Task LoadAsync(){ _loading=true; _error=null; try { _sensors=await Api.GetFromJsonAsync<List<SensorDto>>("api/sensors/unassigned",_json)??[]; _structures=(await Api.GetFromJsonAsync<List<StructureDto>>("api/structures",_json)??[]).Where(x=>x.IsActive).ToList(); } catch(Exception e){_error=e.Message;} finally {_loading=false;} }
+    private async Task LoadAsync(){ _loading=true; _error=null; try { var sensorEndpoint=_assignmentFilter == "assigned" ? "api/sensors/assigned" : _assignmentFilter == "all" ? "api/sensors" : "api/sensors/unassigned"; _sensors=await Api.GetFromJsonAsync<List<SensorDto>>(sensorEndpoint,_json)??[]; _structures=(await Api.GetFromJsonAsync<List<StructureDto>>("api/structures",_json)??[]).Where(x=>x.IsActive).ToList(); _assignments=_structures.SelectMany(s=>s.SensorIds.Select(sensorId=>new {sensorId, structure=s})).GroupBy(x=>x.sensorId).ToDictionary(x=>x.Key,x=>x.First().structure); } catch(Exception e){_error=e.Message;} finally {_loading=false;} }
+    private async Task OnAssignmentFilterChanged(ChangeEventArgs args){ _assignmentFilter=args.Value?.ToString() ?? "unassigned"; await LoadAsync(); }
+    private StructureDto? GetAssignment(Guid sensorId) => _assignments.GetValueOrDefault(sensorId);
     private void OpenAssign(SensorDto s){_selected=s;_mode="assign";_structureId="";}
     private void OpenChannel(SensorDto s){_selected=s;_mode="channel";_channel=new();}
     private void Close(){_selected=null;_mode=null;_testResult=null;}
     private async Task AssignAsync(){if(_selected is null||!Guid.TryParse(_structureId,out var id))return; await Api.PostAsync($"api/sensors/{_selected.Id}/structures/{id}",null); Close(); await LoadAsync();}
+    private async Task RemoveAssignmentAsync(Guid sensorId, Guid structureId){ var response=await Api.DeleteAsync($"api/sensors/{sensorId}/structures/{structureId}"); if(!response.IsSuccessStatusCode){_error=await response.Content.ReadAsStringAsync();return;} await LoadAsync(); }
+    private async Task DeleteSensorAsync(Guid sensorId){ var response=await Api.DeleteAsync($"api/sensors/{sensorId}"); if(!response.IsSuccessStatusCode){_error=await response.Content.ReadAsStringAsync();return;} await LoadAsync(); }
     private async Task AddChannelAsync(){if(_selected is null)return; var r=await Api.PostAsJsonAsync($"api/sensors/{_selected.Id}/tcp-configurations",_channel,_json); if(!r.IsSuccessStatusCode){_error=await r.Content.ReadAsStringAsync();return;} Close(); await LoadAsync();}
     private async Task TestChannelAsync(ChannelDto c){ var r=await Api.PostAsJsonAsync("api/tcp-sensors/test-connection",new { ipAddress=c.IpAddress, port=c.Port??0, connectionMode="Client", profile=c.Profile, timeoutMs=5000, encoding=c.Encoding, reconnectEnabled=c.ReconnectEnabled },_json);_testResult=await r.Content.ReadAsStringAsync();}
     private sealed class SensorDto { public Guid Id{get;set;} public string Name{get;set;}=""; public string DeviceId{get;set;}=""; public string LocationId{get;set;}=""; public string SensorType{get;set;}=""; public List<ChannelDto> TcpConfigurations{get;set;}=[]; }
     private sealed class ChannelDto { public string ChannelKey{get;set;}=""; public string? ChannelName{get;set;} public string Profile{get;set;}="JsonTcp"; public string ConnectionMode{get;set;}="Client"; public string Encoding{get;set;}="utf-8"; public bool ReconnectEnabled{get;set;}=true; public string? IpAddress{get;set;} public int? Port{get;set;} public string? SerialPort{get;set;} public int? BaudRate{get;set;} public int PollingIntervalMs{get;set;}=1000; }
-    private sealed class StructureDto { public Guid Id{get;set;} public string Name{get;set;}=""; public string StructureType{get;set;}=""; public bool IsActive{get;set;} }
+    private sealed class StructureDto { public Guid Id{get;set;} public string Name{get;set;}=""; public string StructureType{get;set;}=""; public bool IsActive{get;set;} public List<Guid> SensorIds{get;set;}=[]; }
 }

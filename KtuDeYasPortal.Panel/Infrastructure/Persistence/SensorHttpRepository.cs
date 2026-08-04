@@ -66,6 +66,12 @@ public class SensorHttpRepository : ISensorRepository
         return (await resp.Content.ReadFromJsonAsync<Sensor>(_json, ct))!;
     }
 
+    public async Task UpdateImagePositionAsync(Guid sensorId, double x, double y, CancellationToken ct = default)
+    {
+        var resp = await _http.PutAsJsonAsync($"api/sensors/{sensorId}/image-position", new { x, y }, _json, ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
     public async Task<object> TestTcpConnectionAsync(TcpSensorCreateRequest request, CancellationToken ct = default)
     {
         var response = await _http.PostAsJsonAsync("api/tcp-sensors/test-connection", request, _json, ct);

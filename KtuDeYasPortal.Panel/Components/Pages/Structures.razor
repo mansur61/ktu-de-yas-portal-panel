@@ -86,6 +86,7 @@
                         }
                         <div class="structure-card-body">
                             <div class="structure-card-title">@s.Name</div>
+                            <div class="small text-secondary font-monospace mb-1">@s.Id</div>
                             <div class="structure-card-sub">
                                 <span class="bi bi-geo-alt me-1"></span>
                                 @s.Province@(string.IsNullOrEmpty(s.District) ? "" : " / " + s.District)
@@ -470,8 +471,22 @@
             @* JS tarafından doldurulur *@
         </div>
         <div class="structure-image-click-hint">
-            <span class="bi bi-plus-circle me-1"></span>Resme tıklayarak sensör ekleyin
+            <span class="bi bi-crosshair me-1"></span>@(_placingSensorId.HasValue ? "Seçili sensörün konumunu resme tıklayarak belirleyin" : "Resme tıklayarak sensör ekleyin")
         </div>
+
+        @if (_editingStructure.Sensors?.Any(s => !s.ImagePositionX.HasValue || !s.ImagePositionY.HasValue) == true)
+        {
+            <div class="alert alert-warning mx-3 mt-3 mb-0 d-flex align-items-center gap-2">
+                <span class="bi bi-geo-alt-fill"></span>
+                <select class="form-select form-select-sm" @bind="_placingSensorId">
+                    <option value="">Konumu belirlenmemiş sensör seçin</option>
+                    @foreach (var sensor in _editingStructure.Sensors.Where(s => !s.ImagePositionX.HasValue || !s.ImagePositionY.HasValue))
+                    {
+                        <option value="@sensor.SensorId">@sensor.Name (@sensor.DeviceId)</option>
+                    }
+                </select>
+            </div>
+        }
 
         @* ── Alt bilgi + Kayıtlı Sensörler ── *@
         <div class="structure-detail-info">
@@ -1701,6 +1716,7 @@
         var s = await StructureUC.GetByIdAsync(id);
         if (s is null) return;
         _detailImageInitialized = false; // yeniden render etsin
+        _placingSensorId = null;
         _editingStructure = s;
         StateHasChanged();
         try { await JS.InvokeVoidAsync("connectSensorHub"); await JS.InvokeVoidAsync("joinStructureGroup", id.ToString()); }
@@ -1748,11 +1764,13 @@
             _ = JS.InvokeVoidAsync("disconnectSensorHub");
         }
         _editingStructure       = null;
+        _placingSensorId        = null;
         _detailImageInitialized = false;
     }
 
     // ── Sensör ekleme ─────────────────────────────────────────────────────────
     private bool _isWizardSensorMode = false; // true = wizard adım 3, false = mevcut yapı detayı
+    private Guid? _placingSensorId;
 
     private async Task CheckPendingClickAsync()
     {
@@ -1762,6 +1780,14 @@
             double x = await JS.InvokeAsync<double>("getPendingClickPositionX");
             double y = await JS.InvokeAsync<double>("getPendingClickPositionY");
             await JS.InvokeVoidAsync("clearPendingClickPosition");
+            if (_placingSensorId.HasValue && _editingStructure is not null)
+            {
+                await StructureUC.UpdateSensorImagePositionAsync(_placingSensorId.Value, x, y);
+                _placingSensorId = null;
+                _detailImageInitialized = false;
+                await OpenStructureDetail(_editingStructure.Id);
+                return;
+            }
             _isWizardSensorMode    = false;
             _pendingPos            = (x, y);
             _sensorFormDeviceId    = $"sensor-{DateTime.UtcNow:yyMMddHHmmss}";

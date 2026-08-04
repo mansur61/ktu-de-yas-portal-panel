@@ -44,6 +44,9 @@ public class StructureUseCases
     public Task<Sensor> CreateSensorAsync(Sensor sensor, CancellationToken ct = default) =>
         _sensorRepo.CreateAsync(sensor, ct);
 
+    public Task UpdateSensorImagePositionAsync(Guid sensorId, double x, double y, CancellationToken ct = default) =>
+        _sensorRepo.UpdateImagePositionAsync(sensorId, x, y, ct);
+
     public Task<object> TestTcpConnectionAsync(TcpSensorCreateRequest request, CancellationToken ct = default) =>
         _sensorRepo.TestTcpConnectionAsync(request, ct);
 

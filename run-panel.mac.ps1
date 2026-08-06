@@ -106,14 +106,18 @@ function Start-Service {
     $script:TempBashFiles.Add($bashFile)
     $script:TempBashFiles.Add($osaFile)
 
-    # AppleScript dosyasını ayrı yaz — bash içinden çağrılır
-    @'
+    # Yalnız bu servise ait Terminal penceresini kapat.
+    $terminalWindowToken = [IO.Path]::GetFileName($bashFile)
+    @"
 tell application "Terminal"
-    close front window saving no
+    set targetWindows to every window whose name contains "$terminalWindowToken"
+    repeat with targetWindow in targetWindows
+        close targetWindow saving no
+    end repeat
 end tell
-'@ | Set-Content -Path $osaFile -Encoding ASCII
+"@ | Set-Content -Path $osaFile -Encoding ASCII
 
-    # bash script: PID'i kaydet, dotnet çalıştır, log yaz, Enter → pencere kapat
+    # bash script: gerçek servis PID'ini kaydet, log yaz, bittiğinde otomatik kapat
     $bashContent = @"
 #!/bin/bash
 export DOTNET_ENVIRONMENT=Development
@@ -127,7 +131,7 @@ OSA_FILE=$osaFile
 printf '=== $Name ===\n' | tee -a "`$SERVICE_LOG"
 printf 'Log: %s\n\n' "`$SERVICE_LOG" | tee -a "`$SERVICE_LOG"
 
-dotnet run --project '$ProjectPath' -c Release --no-build 2>&1 | tee -a "`$SERVICE_LOG" &
+dotnet run --project '$ProjectPath' -c Release > >(tee -a "`$SERVICE_LOG") 2>&1 &
 DOTNET_PID=`$!
 printf '%s\n' "`$DOTNET_PID" >> "`$PID_FILE"
 printf '  PID=%s kaydedildi.\n' "`$DOTNET_PID" | tee -a "`$SERVICE_LOG"
@@ -142,10 +146,9 @@ else
     printf '=== $Name durdu (exit=%s) ===\n' "`$EXIT_CODE" | tee -a "`$SERVICE_LOG"
 fi
 
-printf '\nEnter basilinca bu pencere kapanacak...\n'
-read -r _REPLY
-
-osascript "`$OSA_FILE" 2>/dev/null
+# Terminal bu bash betiği hâlâ çalışıyor diye macOS onayı göstermesin.
+# Bash çıktıktan sonra gecikmeli kapatma çağrısı çalışır.
+( sleep 1; osascript "`$OSA_FILE" 2>/dev/null ) >/dev/null 2>&1 &
 exit `$EXIT_CODE
 "@
 
@@ -231,19 +234,16 @@ if (-not $AutoConfirm) {
             try {
                 $procName = & ps -p $p -o comm= 2>$null
                 if ($procName) {
-                    Write-Host "  kill PID=$p ($procName)" -ForegroundColor DarkGray
+                    & pkill -TERM -P $p 2>$null
+                    Start-Sleep -Milliseconds 300
                     & kill -9 $p 2>$null
-                    Write-Log "killed PID=$p ($procName)"
+                    Write-Log "terminated PID=$p ($procName)"
                 }
             } catch {}
         }
     }
 
-    # 2. Temp bash script dosyalarını temizle
-    foreach ($f in $script:TempBashFiles) {
-        Remove-Item $f -Force -ErrorAction SilentlyContinue
-    }
-
+    # 2. OSA dosyası çocuk bash tarafından kullanıldığı için burada silinmez.
     # 3. Başka bir betiğin süreçlerini öldürmemek için global pgrep blokları kaldırıldı.
 
     Write-Log "shutdown complete"

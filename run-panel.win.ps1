@@ -138,7 +138,7 @@ function Start-Service {
     }
 
     $proc = Start-Process -FilePath "cmd.exe" `
-        -ArgumentList "/c set DOTNET_ENVIRONMENT=Development && set ASPNETCORE_ENVIRONMENT=Development && dotnet run --project `"$Project`" -c Release --no-build" `
+        -ArgumentList "/c set DOTNET_ENVIRONMENT=Development && set ASPNETCORE_ENVIRONMENT=Development && dotnet run --project `"$Project`" -c Release" `
         -WindowStyle Normal `
         -PassThru
 

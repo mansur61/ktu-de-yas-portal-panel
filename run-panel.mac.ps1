@@ -224,7 +224,7 @@ if (-not $AutoConfirm) {
     Write-Host "Servisler durduruluyor..." -ForegroundColor Yellow
     Write-Log "shutdown initiated"
 
-    # 1. PID dosyasındaki dotnet process'lerini kill et
+    # 1. Sadece bu çalıştırma tarafından kaydedilen PID'leri durdur
     if (Test-Path $pidFile) {
         $pids = Get-Content $pidFile -Encoding utf8 | Where-Object { $_ -match '^\d+$' }
         foreach ($p in $pids) {
@@ -239,24 +239,12 @@ if (-not $AutoConfirm) {
         }
     }
 
-    # 2. Güvenlik ağı: hâlâ çalışan proje-adı dotnet process'leri
-    foreach ($pattern in @("timeseries-service", "EdgeLayer", "AlertNotificationWorker", "KtuDeYasPortal")) {
-        $procs = & pgrep -f $pattern 2>$null
-        foreach ($p in ($procs -split '\n' | Where-Object { $_ -match '^\d+$' })) {
-            Write-Host "  kill (pattern=$pattern) PID=$p" -ForegroundColor DarkGray
-            & kill -9 $p 2>$null
-        }
-    }
-
-    # 3. Temp bash script dosyalarını temizle
+    # 2. Temp bash script dosyalarını temizle
     foreach ($f in $script:TempBashFiles) {
         Remove-Item $f -Force -ErrorAction SilentlyContinue
     }
 
-    # 4. Terminal pencerelerini kapat
-    try {
-        & osascript -e 'tell application "Terminal" to close every window asking no-save' 2>$null
-    } catch {}
+    # 3. Başka bir betiğin süreçlerini öldürmemek için global pgrep blokları kaldırıldı.
 
     Write-Log "shutdown complete"
     Write-Host "Durduruldu. Docker calismaya devam ediyor." -ForegroundColor Green

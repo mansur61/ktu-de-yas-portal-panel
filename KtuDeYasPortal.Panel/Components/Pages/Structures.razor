@@ -5,6 +5,7 @@
 @using DeYas.Contracts.Integration
 @inject StructureUseCases StructureUC
 @inject IStructureSimulationClient StructureSimClient
+@inject ITimeseriesRepository TimeseriesRepo
 @inject IConfiguration Configuration
 @inject IJSRuntime JS
 @implements IAsyncDisposable
@@ -94,7 +95,9 @@
                             <div class="structure-card-badges">
                                 <span class="badge" style="background:#6f42c1">@GetStructureLabel(s.StructureType)</span>
                                 <span class="badge bg-primary">@s.SensorCount sensör</span>
-                                @if (s.IsActive)
+                                @if (IsReceivingTelemetry(s.Id))
+                                { <span class="badge bg-success"><span class="bi bi-broadcast me-1"></span>Çalışıyor</span> }
+                                else if (s.IsActive)
                                 { <span class="badge bg-success">Aktif</span> }
                                 else
                                 { <span class="badge bg-secondary">Pasif</span> }
@@ -126,7 +129,7 @@
                                 }
                             </div>
                             <div class="mt-3 d-flex justify-content-end gap-2">
-                                @if (_runningStructureIds.Contains(s.Id))
+                                @if (_runningStructureIds.Contains(s.Id) || IsReceivingTelemetry(s.Id))
                                 {
                                     <button class="btn btn-sm btn-outline-danger"
                                             @onclick="() => StopStructureSimulationAsync(s.Id)"
@@ -1087,6 +1090,7 @@
     private HashSet<Guid>    _startingStructureIds = new();
     private HashSet<Guid>    _runningStructureIds  = new(); // aktif çalışan simülasyonlar
     private HashSet<Guid>    _stoppingStructureIds = new(); // durdurma isteği gönderildi
+    private HashSet<Guid>    _telemetryRunningStructureIds = new();
 
     // ── Wizard ───────────────────────────────────────────────────────────────
     private int           _wizardStep  = 1;
@@ -1336,8 +1340,44 @@
     // ── Data ──────────────────────────────────────────────────────────────────
     private async Task LoadStructuresAsync()
     {
-        _structures = (await StructureUC.GetAllAsync()).OrderByDescending(s => s.CreatedAt).ToList();
+        try
+        {
+            _structures = (await StructureUC.GetAllAsync()).OrderByDescending(s => s.CreatedAt).ToList();
+        }
+        catch (Exception ex)
+        {
+            _structures = new();
+            _simulationErrorMessage = $"Yapılar merkez API'den alınamadı: {ex.Message}";
+            return;
+        }
+        _telemetryRunningStructureIds.Clear();
+
+        // Merkez TimescaleDB'ye son iki dakika içinde veri yazılmışsa yapı
+        // gerçekten çalışıyordur. UI lifecycle state'ine değil canlı kayda bakar.
+        var since = DateTime.UtcNow.AddMinutes(-2);
+        foreach (var structure in _structures)
+        {
+            try
+            {
+                var rows = await TimeseriesRepo.QueryAsync(
+                    deviceId: null,
+                    locationId: null,
+                    from: since,
+                    to: DateTime.UtcNow,
+                    limit: 1,
+                    structureId: structure.Id.ToString());
+                if (rows.Count > 0)
+                    _telemetryRunningStructureIds.Add(structure.Id);
+            }
+            catch
+            {
+                // DB durum sorgusundaki geçici hata yapı yönetimini engellemez.
+            }
+        }
     }
+
+    private bool IsReceivingTelemetry(Guid structureId) =>
+        _telemetryRunningStructureIds.Contains(structureId);
 
     private async Task StartStructureSimulationAsync(Guid structureId)
     {

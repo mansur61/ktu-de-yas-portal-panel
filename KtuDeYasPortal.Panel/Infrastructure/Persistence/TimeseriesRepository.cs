@@ -14,7 +14,14 @@ public class TimeseriesRepository : ITimeseriesRepository
         _http = factory.CreateClient("timeseries-api");
     }
 
-    public async Task<List<SensorDataPoint>> QueryAsync(string? deviceId, string? locationId, DateTime from, DateTime to, int limit = 1000, CancellationToken ct = default)
+    public async Task<List<SensorDataPoint>> QueryAsync(
+        string? deviceId,
+        string? locationId,
+        DateTime from,
+        DateTime to,
+        int limit = 1000,
+        string? structureId = null,
+        CancellationToken ct = default)
     {
         var q = new List<string>
         {
@@ -26,6 +33,8 @@ public class TimeseriesRepository : ITimeseriesRepository
             q.Add($"deviceId={Uri.EscapeDataString(deviceId)}");
         if (!string.IsNullOrWhiteSpace(locationId))
             q.Add($"locationId={Uri.EscapeDataString(locationId)}");
+        if (!string.IsNullOrWhiteSpace(structureId))
+            q.Add($"structureId={Uri.EscapeDataString(structureId)}");
         var url = $"api/sensor-data?{string.Join('&', q)}";
 
         try

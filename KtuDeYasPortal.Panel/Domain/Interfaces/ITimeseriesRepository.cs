@@ -8,5 +8,12 @@ public record SensorDataPoint(
 
 public interface ITimeseriesRepository
 {
-    Task<List<SensorDataPoint>> QueryAsync(string? deviceId, string? locationId, DateTime from, DateTime to, int limit = 1000, CancellationToken ct = default);
+    Task<List<SensorDataPoint>> QueryAsync(
+        string? deviceId,
+        string? locationId,
+        DateTime from,
+        DateTime to,
+        int limit = 1000,
+        string? structureId = null,
+        CancellationToken ct = default);
 }

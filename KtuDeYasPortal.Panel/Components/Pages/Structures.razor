@@ -186,6 +186,12 @@
                             </div>
                         </div>
                     </div>
+                    <div class="col-12">
+                        <label class="form-label"><span class="bi bi-hdd-network me-1"></span>Saha Edge URL</label>
+                        <input class="form-control" @bind="_newEdgeApiUrl"
+                               placeholder="http://100.116.167.67:5080" />
+                        <div class="form-text">Çalıştır/Durdur bu yapının kendi Edge lifecycle API'sine gönderilir.</div>
+                    </div>
                 </div>
             }
         </div>
@@ -880,6 +886,11 @@
                     <label class="form-label">Açıklama</label>
                     <input class="form-control" @bind="_editDescription" />
                 </div>
+                <div class="col-12">
+                    <label class="form-label"><span class="bi bi-hdd-network me-1"></span>Saha Edge URL</label>
+                    <input class="form-control" @bind="_editEdgeApiUrl" placeholder="http://100.116.167.67:5080" />
+                    <div class="form-text">Çalıştır/Durdur çağrıları bu URL'deki Edge'e gider.</div>
+                </div>
                 <div class="col-md-4">
                     <label class="form-label">İl</label>
                     <select class="form-select" value="@_editProvince" @onchange="OnEditProvinceChanged">
@@ -1089,6 +1100,7 @@
     private double        _newLat         = 40.5;
     private double        _newLng         = 40.0;
     private string        _newNodeRedUrl  = "";
+    private string        _newEdgeApiUrl  = "";
     private List<string>  _newDistricts   = new();
     private List<Sensor>  _newStructureSensors = new(); // wizard adım 3'te eklenenler
 
@@ -1132,6 +1144,7 @@
     private string        _editAddress     = "";
     private bool          _editIsActive    = true;
     private string        _editNodeRedUrl  = "";
+    private string        _editEdgeApiUrl  = "";
     private List<string>  _editDistricts   = new();
 
     // ── Timer (click polling) ─────────────────────────────────────────────────
@@ -1352,77 +1365,14 @@
 
         try
         {
-            var req = new StructureSimRequest
+            if (string.IsNullOrWhiteSpace(structure.EdgeApiUrl))
             {
-                StructureId = structure.Id,
-                StructureName = structureName,
-                StructureType = structure.StructureType.ToString(),
-                IntervalMs = 3000
-            };
-
-            if (_isProdMode)
-            {
-                // ── Prod modu: lifecycle filtreli başlatma ─────────────────────
-                // BuildProdSensorList her sensörün readiness'ını kontrol eder
-                var (startableSensors, skippedSensors) = await StructureUC.BuildProdSensorListAsync(structure);
-
-                if (startableSensors.Count == 0)
-                {
-                    var skipReasons = skippedSensors
-                        .Take(3)
-                        .Select(s => $"{s.DeviceId}: {s.Reason}")
-                        .ToList();
-                    _simulationErrorMessage = $"{structure.Name}: Çalıştırılabilir sensör bulunamadı. " +
-                        (skipReasons.Count > 0 ? string.Join("; ", skipReasons) : "Sensörlerin doğrulamalarını tamamlayın.");
-                    return;
-                }
-
-                var prodRequest = new DeYas.Contracts.Simulation.Production.ProductionStructureSimRequest
-                {
-                    StructureId   = structure.Id,
-                    StructureName = structure.Name,
-                    StructureType = structure.StructureType.ToString(),
-                    IntervalMs    = 3000,
-                    Sensors       = startableSensors
-                };
-
-                await StructureSimClient.StartProductionAsync(prodRequest);
-
-                // Kısmi başlatma özeti
-                var totalSensors = structure.Sensors.Count;
-                var skippedCount = skippedSensors.Count;
-                if (skippedCount > 0)
-                {
-                    _simulationStatusMessage = $"{structure.Name}: {startableSensors.Count} sensör başlatıldı, " +
-                        $"{skippedCount} sensör doğrulama eksikliği nedeniyle atlandı.";
-                    _lastProdStartResult = new DeYas.Contracts.Sensors.ProductionStartResultDto
-                    {
-                        StructureId          = structure.Id,
-                        StructureName        = structure.Name,
-                        TotalSensorCount     = totalSensors,
-                        StartableSensorCount = startableSensors.Count,
-                        StartedSensorCount   = startableSensors.Count,
-                        SkippedSensorCount   = skippedCount,
-                        Running              = true,
-                        SkippedSensors       = skippedSensors.Select(s => new DeYas.Contracts.Sensors.SkippedSensorInfoDto
-                        {
-                            SensorId = s.SensorId,
-                            DeviceId = s.DeviceId,
-                            Reason   = s.Reason
-                        }).ToList()
-                    };
-                    _showProdStartResult = true;
-                }
-                else
-                {
-                    _simulationStatusMessage = $"{structure.Name}: {startableSensors.Count} sensör başlatıldı.";
-                }
+                _simulationErrorMessage = $"{structure.Name} için saha Edge URL tanımlı değil.";
+                return;
             }
-            else
-            {
-                await StructureSimClient.StartAsync(req);
-                _simulationStatusMessage = $"{structureName} için edge simülasyonu başlatıldı.";
-            }
+
+            await StructureSimClient.StartAsync(structure.EdgeApiUrl, structure.Id);
+            _simulationStatusMessage = $"{structureName} için saha telemetry iletimi başlatıldı.";
 
             _runningStructureIds.Add(structureId);
         }
@@ -1447,9 +1397,14 @@
 
         try
         {
-            await StructureSimClient.StopAsync(structureId);
-            var structureName = _structures?.FirstOrDefault(s => s.Id == structureId)?.Name ?? "yapı";
-            _simulationStatusMessage = $"{structureName} simülasyonu durduruldu.";
+            var structure = _structures?.FirstOrDefault(s => s.Id == structureId);
+            if (string.IsNullOrWhiteSpace(structure?.EdgeApiUrl))
+            {
+                _simulationErrorMessage = $"{structure?.Name ?? "Yapı"} için saha Edge URL tanımlı değil.";
+                return;
+            }
+            await StructureSimClient.StopAsync(structure.EdgeApiUrl, structureId);
+            _simulationStatusMessage = $"{structure.Name} için saha telemetry iletimi durduruldu.";
             _runningStructureIds.Remove(structureId);
         }
         catch (Exception ex)
@@ -1672,6 +1627,7 @@
                 StructureType = _newType.Value,
                 ImageUrl      = _structureTypes[_newType.Value].ImagePath,
                 NodeRedUrl    = string.IsNullOrWhiteSpace(_newNodeRedUrl) ? null : _newNodeRedUrl.Trim(),
+                EdgeApiUrl    = string.IsNullOrWhiteSpace(_newEdgeApiUrl) ? null : _newEdgeApiUrl.Trim(),
                 SensorCount   = _newStructureSensors.Count,
             };
             var created = await StructureUC.CreateAsync(s, new List<Guid>());
@@ -2023,6 +1979,7 @@
         _editAddress     = _editingStructure.Address ?? "";
         _editIsActive    = _editingStructure.IsActive;
         _editNodeRedUrl  = _editingStructure.NodeRedUrl ?? "";
+        _editEdgeApiUrl  = _editingStructure.EdgeApiUrl ?? "";
         _editDistricts   = _districtMap.TryGetValue(_editProvince, out var d) ? d : new();
         _showEditPopup   = true;
     }
@@ -2049,6 +2006,7 @@
             _editingStructure.IsActive     = _editIsActive;
             _editingStructure.ImageUrl     = _structureTypes[_editType].ImagePath;
             _editingStructure.NodeRedUrl   = string.IsNullOrWhiteSpace(_editNodeRedUrl) ? null : _editNodeRedUrl.Trim();
+            _editingStructure.EdgeApiUrl   = string.IsNullOrWhiteSpace(_editEdgeApiUrl) ? null : _editEdgeApiUrl.Trim();
 
             var ids = _editingStructure.Sensors?.Select(s => s.SensorId).ToList() ?? new();
             await StructureUC.UpdateAsync(_editingStructure.Id, _editingStructure, ids);

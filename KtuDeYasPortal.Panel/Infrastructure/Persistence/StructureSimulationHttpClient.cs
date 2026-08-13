@@ -5,24 +5,20 @@ namespace KtuDeYasPortal.Panel.Infrastructure.Persistence;
 
 public interface IStructureSimulationClient
 {
-    Task StartAsync(Guid structureId, CancellationToken ct = default);
-    Task StartAsync(DeYas.Contracts.Simulation.StructureSimRequest request, CancellationToken ct = default);
-    Task StartProductionAsync(DeYas.Contracts.Simulation.Production.ProductionStructureSimRequest request, CancellationToken ct = default);
-    Task StopAsync(Guid structureId, CancellationToken ct = default);
+    Task StartAsync(string edgeApiUrl, Guid structureId, CancellationToken ct = default);
+    Task StopAsync(string edgeApiUrl, Guid structureId, CancellationToken ct = default);
 }
 
 public sealed class StructureSimulationHttpClient : IStructureSimulationClient
 {
-    private readonly HttpClient _http;
+    private readonly IHttpClientFactory _factory;
 
-    public StructureSimulationHttpClient(IHttpClientFactory factory)
-    {
-        _http = factory.CreateClient("edge-api");
-    }
+    public StructureSimulationHttpClient(IHttpClientFactory factory) => _factory = factory;
 
-    public async Task StartAsync(Guid structureId, CancellationToken ct = default)
+    public async Task StartAsync(string edgeApiUrl, Guid structureId, CancellationToken ct = default)
     {
-        var resp = await _http.PostAsync($"api/simulation/start/{structureId}", null, ct);
+        using var http = CreateEdgeClient(edgeApiUrl);
+        var resp = await http.PostAsync($"api/edge/lifecycle/start/{structureId}", null, ct);
 
         if (!resp.IsSuccessStatusCode)
         {
@@ -51,69 +47,10 @@ public sealed class StructureSimulationHttpClient : IStructureSimulationClient
         }
     }
 
-    public async Task StartAsync(DeYas.Contracts.Simulation.StructureSimRequest request, CancellationToken ct = default)
+    public async Task StopAsync(string edgeApiUrl, Guid structureId, CancellationToken ct = default)
     {
-        var resp = await _http.PostAsJsonAsync($"api/simulation/start/{request.StructureId}", request, ct);
-
-        if (!resp.IsSuccessStatusCode)
-        {
-            string detail;
-            try
-            {
-                var body = await resp.Content.ReadAsStringAsync(ct);
-                using var doc = JsonDocument.Parse(body);
-                var root = doc.RootElement;
-
-                if (root.TryGetProperty("detail", out var d))
-                    detail = d.GetString() ?? body;
-                else if (root.TryGetProperty("error", out var e))
-                    detail = e.GetString() ?? body;
-                else
-                    detail = body;
-            }
-            catch
-            {
-                detail = resp.ReasonPhrase ?? "Bilinmeyen hata";
-            }
-
-            throw new InvalidOperationException(
-                $"[{(int)resp.StatusCode}] {detail}");
-        }
-    }
-
-    public async Task StartProductionAsync(DeYas.Contracts.Simulation.Production.ProductionStructureSimRequest request, CancellationToken ct = default)
-    {
-        var resp = await _http.PostAsJsonAsync($"api/simulation/production/start/{request.StructureId}", request, ct);
-
-        if (!resp.IsSuccessStatusCode)
-        {
-            string detail;
-            try
-            {
-                var body = await resp.Content.ReadAsStringAsync(ct);
-                using var doc = JsonDocument.Parse(body);
-                var root = doc.RootElement;
-
-                if (root.TryGetProperty("detail", out var d))
-                    detail = d.GetString() ?? body;
-                else if (root.TryGetProperty("error", out var e))
-                    detail = e.GetString() ?? body;
-                else
-                    detail = body;
-            }
-            catch
-            {
-                detail = resp.ReasonPhrase ?? "Bilinmeyen hata";
-            }
-
-            throw new InvalidOperationException(
-                $"[{(int)resp.StatusCode}] {detail}");
-        }
-    }
-
-    public async Task StopAsync(Guid structureId, CancellationToken ct = default)
-    {
-        var resp = await _http.PostAsync($"api/simulation/stop/{structureId}", null, ct);
+        using var http = CreateEdgeClient(edgeApiUrl);
+        var resp = await http.PostAsync($"api/edge/lifecycle/stop/{structureId}", null, ct);
 
         if (!resp.IsSuccessStatusCode)
         {
@@ -129,5 +66,16 @@ public sealed class StructureSimulationHttpClient : IStructureSimulationClient
 
             throw new InvalidOperationException($"[{(int)resp.StatusCode}] {detail}");
         }
+    }
+
+    private HttpClient CreateEdgeClient(string edgeApiUrl)
+    {
+        if (!Uri.TryCreate(edgeApiUrl.TrimEnd('/') + "/", UriKind.Absolute, out var baseAddress)
+            || (baseAddress.Scheme != Uri.UriSchemeHttp && baseAddress.Scheme != Uri.UriSchemeHttps))
+            throw new InvalidOperationException("Yapının Edge URL değeri geçerli bir http/https adresi değil.");
+
+        var http = _factory.CreateClient("edge-api");
+        http.BaseAddress = baseAddress;
+        return http;
     }
 }

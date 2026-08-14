@@ -8,6 +8,8 @@ public sealed class GrafanaOptions
 {
     public const string Section = "Grafana";
 
+    // Geliştirme varsayılanı. Canlıda Docker ortam değişkeni
+    // Grafana__BaseUrl ile Tailscale IP'si veya domain verilir.
     public string BaseUrl { get; set; } = "http://localhost:3000";
     public string TimeseriesDashboard { get; set; } = "iot-platform-timeseries";
     public string TimeseriesSlug { get; set; } = "iot-platform-timescaledb";
@@ -26,7 +28,8 @@ public sealed class GrafanaOptions
     {
         // d-solo modunda template variable'lar URL'den set edilmezse boş gelir.
         // $interval boş → COALESCE fallback devreye girer ama yine de explicit set et.
-        var url = $"{BaseUrl}/d-solo/{TimeseriesDashboard}/{TimeseriesSlug}"
+        var baseUrl = BaseUrl.TrimEnd('/');
+        var url = $"{baseUrl}/d-solo/{TimeseriesDashboard}/{TimeseriesSlug}"
                 + $"?orgId=1&from=now-{timeRange}&to=now"
                 + $"&panelId={panelId}"
                 + "&timezone=browser&refresh=10s&kiosk"
@@ -49,7 +52,8 @@ public sealed class GrafanaOptions
     /// </summary>
     public string BuildDashboardUrl(string? deviceVar = null, string timeRange = "1h")
     {
-        var url = $"{BaseUrl}/d/{TimeseriesDashboard}/{TimeseriesSlug}"
+        var baseUrl = BaseUrl.TrimEnd('/');
+        var url = $"{baseUrl}/d/{TimeseriesDashboard}/{TimeseriesSlug}"
                 + $"?orgId=1&from=now-{timeRange}&to=now&timezone=browser";
 
         if (!string.IsNullOrWhiteSpace(deviceVar))

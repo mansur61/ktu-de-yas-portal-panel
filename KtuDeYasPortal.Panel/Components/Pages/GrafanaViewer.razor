@@ -1,5 +1,6 @@
 @page "/grafana"
 @rendermode InteractiveServer
+@inject Microsoft.Extensions.Options.IOptions<KtuDeYasPortal.Panel.Application.Settings.GrafanaOptions> GrafanaOpts
 
 <PageTitle>Grafana</PageTitle>
 
@@ -8,14 +9,18 @@
         <span class="bi bi-bar-chart-fill me-2" style="font-size:1.2rem"></span>
         <strong>Grafana Paneli</strong>
         <small class="text-muted ms-2">— Gerçek Zamanlı Metrikler ve Gösterge Panelleri</small>
-        <a href="http://localhost:3000" target="_blank" class="btn btn-outline-secondary btn-sm ms-auto" title="Yeni sekmede aç">
+        <a href="@GrafanaBaseUrl" target="_blank" rel="noopener noreferrer" class="btn btn-outline-secondary btn-sm ms-auto" title="Yeni sekmede aç">
             <span class="bi bi-box-arrow-up-right me-1"></span>Ayrı Pencere
         </a>
     </div>
     <div class="portal-iframe-wrapper">
-        <iframe src="http://localhost:3000"
+        <iframe src="@GrafanaBaseUrl"
                 class="portal-iframe"
                 title="Grafana Dashboard"
                 allow="fullscreen"></iframe>
     </div>
 </div>
+
+@code {
+    private string GrafanaBaseUrl => GrafanaOpts.Value.BaseUrl.TrimEnd('/');
+}

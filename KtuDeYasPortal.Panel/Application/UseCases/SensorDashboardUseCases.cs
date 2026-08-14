@@ -30,7 +30,7 @@ public class SensorDashboardUseCases
         string? deviceId, string? locationId,
         DateTime from, DateTime to, int limit = 1000,
         CancellationToken ct = default) =>
-        _timeseriesRepo.QueryAsync(deviceId, locationId, from, to, limit, ct);
+        _timeseriesRepo.QueryAsync(deviceId, locationId, from, to, limit, ct: ct);
 
     /// <summary>
     /// Sensörün prod hazırlık durumunu döner.
@@ -58,7 +58,7 @@ public class SensorDashboardUseCases
 
         foreach (var deviceId in deviceList)
         {
-            var data = await _timeseriesRepo.QueryAsync(deviceId, null, from, to, limit: 1, ct);
+            var data = await _timeseriesRepo.QueryAsync(deviceId, null, from, to, limit: 1, ct: ct);
             if (data.Count > 0) return true;
         }
         return false;
@@ -81,7 +81,7 @@ public class SensorDashboardUseCases
 
         foreach (var deviceId in deviceList)
         {
-            var data = await _timeseriesRepo.QueryAsync(deviceId, null, from, to, limit: 1, ct);
+            var data = await _timeseriesRepo.QueryAsync(deviceId, null, from, to, limit: 1, ct: ct);
             if (data.Count > 0) result.Add(data[0]);
         }
         return result;

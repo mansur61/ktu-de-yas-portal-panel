@@ -535,7 +535,9 @@ else
     }
 
     // ── Lifecycle panel state ─────────────────────────────────────────────────
-    private bool   _showLifecyclePanel = true;
+    // Kurulum ayrıntısı günlük canlı izleme ekranını kaplamasın; kullanıcı
+    // "Sensör Kurulum Durumunu Göster" düğmesiyle gerektiğinde açar.
+    private bool   _showLifecyclePanel = false;
     private bool   _lifecycleLoading   = false;
     private string? _lifecycleError    = null;
     private Guid?  _activeSensorId;          // hangi sensörde işlem yapılıyor

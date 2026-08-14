@@ -96,11 +96,17 @@
                                 <span class="badge" style="background:#6f42c1">@GetStructureLabel(s.StructureType)</span>
                                 <span class="badge bg-primary">@s.SensorCount sensör</span>
                                 @if (IsReceivingTelemetry(s.Id))
-                                { <span class="badge bg-success"><span class="bi bi-broadcast me-1"></span>Çalışıyor</span> }
+                                { <span class="badge bg-success"><span class="bi bi-broadcast me-1"></span>Yerel akış aktif</span> }
                                 else if (s.IsActive)
                                 { <span class="badge bg-success">Aktif</span> }
                                 else
                                 { <span class="badge bg-secondary">Pasif</span> }
+                                @if (_forwardingStates.TryGetValue(s.Id, out var forwarding))
+                                {
+                                    <span class="badge @(forwarding ? "bg-info text-dark" : "bg-secondary")">
+                                        @(forwarding ? "Merkeze iletim açık" : "Merkeze iletim kapalı")
+                                    </span>
+                                }
                                 @* Prod lifecycle özeti — yalnızca prod modda göster *@
                                 @if (_isProdMode && s.TotalSensorCount > 0)
                                 {
@@ -195,6 +201,10 @@
                                value="@(string.IsNullOrWhiteSpace(s.EdgeApiUrl) ? "http://100.116.167.67:5080" : s.EdgeApiUrl)"
                                readonly />
                         <div class="form-text">Çalıştır/Durdur bu yapının kendi Edge lifecycle API'sine gönderilir.</div>
+                        @if (_forwardingStates.TryGetValue(s.Id, out var knownForwarding))
+                        {
+                            <div class="form-text font-monospace">POST @s.EdgeApiUrl/api/edge/lifecycle/@(knownForwarding ? "start" : "stop")/@s.Id</div>
+                        }
                     </div>
                 </div>
             }
@@ -1092,6 +1102,7 @@
     private HashSet<Guid>    _runningStructureIds  = new(); // aktif çalışan simülasyonlar
     private HashSet<Guid>    _stoppingStructureIds = new(); // durdurma isteği gönderildi
     private HashSet<Guid>    _telemetryRunningStructureIds = new();
+    private Dictionary<Guid, bool> _forwardingStates = new();
 
     // ── Wizard ───────────────────────────────────────────────────────────────
     private int           _wizardStep  = 1;
@@ -1416,6 +1427,7 @@
             _simulationStatusMessage = $"{structureName} için saha telemetry iletimi başlatıldı.";
 
             _runningStructureIds.Add(structureId);
+            _forwardingStates[structureId] = true;
         }
         catch (Exception ex)
         {
@@ -1447,6 +1459,7 @@
             await StructureSimClient.StopAsync(structure.EdgeApiUrl, structureId);
             _simulationStatusMessage = $"{structure.Name} için saha telemetry iletimi durduruldu.";
             _runningStructureIds.Remove(structureId);
+            _forwardingStates[structureId] = false;
         }
         catch (Exception ex)
         {

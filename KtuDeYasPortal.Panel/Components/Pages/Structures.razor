@@ -96,7 +96,7 @@
                                 <span class="badge" style="background:#6f42c1">@GetStructureLabel(s.StructureType)</span>
                                 <span class="badge bg-primary">@s.SensorCount sensör</span>
                                 @if (IsReceivingTelemetry(s.Id))
-                                { <span class="badge bg-success"><span class="bi bi-broadcast me-1"></span>Yerel akış aktif</span> }
+                                { <span class="badge bg-success"><span class="bi bi-broadcast me-1"></span>Saha yerel akış aktif</span> }
                                 else if (s.IsActive)
                                 { <span class="badge bg-success">Aktif</span> }
                                 else
@@ -134,6 +134,16 @@
                                     }
                                 }
                             </div>
+                            <div class="small text-secondary mt-2 text-truncate" title="@(string.IsNullOrWhiteSpace(s.EdgeApiUrl) ? "Saha Edge URL henüz kaydedilmedi." : s.EdgeApiUrl)">
+                                <span class="bi bi-hdd-network me-1"></span>@(string.IsNullOrWhiteSpace(s.EdgeApiUrl) ? "Saha Edge URL tanımsız" : s.EdgeApiUrl)
+                                <span class="bi bi-info-circle ms-1" title="Çalıştır ve Durdur komutları yalnız bu yapının Edge lifecycle API'sine gönderilir."></span>
+                            </div>
+                            @if (_forwardingStates.TryGetValue(s.Id, out var knownForwarding))
+                            {
+                                <div class="small text-secondary font-monospace text-truncate" title="Son lifecycle komutu">
+                                    POST /api/edge/lifecycle/@(knownForwarding ? "start" : "stop")/@s.Id
+                                </div>
+                            }
                             <div class="mt-3 d-flex justify-content-end gap-2">
                                 @if (_runningStructureIds.Contains(s.Id) || IsReceivingTelemetry(s.Id))
                                 {
@@ -194,17 +204,6 @@
                                 </button>
                             </div>
                         </div>
-                    </div>
-                    <div class="col-12">
-                        <label class="form-label"><span class="bi bi-hdd-network me-1"></span>Saha Edge URL</label>
-                        <input class="form-control"
-                               value="@(string.IsNullOrWhiteSpace(s.EdgeApiUrl) ? "http://100.116.167.67:5080" : s.EdgeApiUrl)"
-                               readonly />
-                        <div class="form-text">Çalıştır/Durdur bu yapının kendi Edge lifecycle API'sine gönderilir.</div>
-                        @if (_forwardingStates.TryGetValue(s.Id, out var knownForwarding))
-                        {
-                            <div class="form-text font-monospace">POST @s.EdgeApiUrl/api/edge/lifecycle/@(knownForwarding ? "start" : "stop")/@s.Id</div>
-                        }
                     </div>
                 </div>
             }

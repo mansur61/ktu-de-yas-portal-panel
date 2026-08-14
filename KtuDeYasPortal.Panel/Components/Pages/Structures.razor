@@ -191,8 +191,9 @@
                     </div>
                     <div class="col-12">
                         <label class="form-label"><span class="bi bi-hdd-network me-1"></span>Saha Edge URL</label>
-                        <input class="form-control" @bind="_newEdgeApiUrl"
-                               placeholder="http://100.116.167.67:5080" />
+                        <input class="form-control"
+                               value="@(string.IsNullOrWhiteSpace(s.EdgeApiUrl) ? "http://100.116.167.67:5080" : s.EdgeApiUrl)"
+                               readonly />
                         <div class="form-text">Çalıştır/Durdur bu yapının kendi Edge lifecycle API'sine gönderilir.</div>
                     </div>
                 </div>
@@ -891,7 +892,7 @@
                 </div>
                 <div class="col-12">
                     <label class="form-label"><span class="bi bi-hdd-network me-1"></span>Saha Edge URL</label>
-                    <input class="form-control" @bind="_editEdgeApiUrl" placeholder="http://100.116.167.67:5080" />
+                    <input class="form-control" @bind="_editEdgeApiUrl" />
                     <div class="form-text">Çalıştır/Durdur çağrıları bu URL'deki Edge'e gider.</div>
                 </div>
                 <div class="col-md-4">
@@ -2019,7 +2020,9 @@
         _editAddress     = _editingStructure.Address ?? "";
         _editIsActive    = _editingStructure.IsActive;
         _editNodeRedUrl  = _editingStructure.NodeRedUrl ?? "";
-        _editEdgeApiUrl  = _editingStructure.EdgeApiUrl ?? "";
+        _editEdgeApiUrl  = string.IsNullOrWhiteSpace(_editingStructure.EdgeApiUrl)
+            ? "http://100.116.167.67:5080"
+            : _editingStructure.EdgeApiUrl;
         _editDistricts   = _districtMap.TryGetValue(_editProvince, out var d) ? d : new();
         _showEditPopup   = true;
     }

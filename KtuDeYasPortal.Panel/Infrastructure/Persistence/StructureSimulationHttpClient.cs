@@ -7,6 +7,7 @@ public interface IStructureSimulationClient
 {
     Task StartAsync(string edgeApiUrl, Guid structureId, CancellationToken ct = default);
     Task StopAsync(string edgeApiUrl, Guid structureId, CancellationToken ct = default);
+    Task SetForwardingAsync(string edgeApiUrl, Guid structureId, bool enabled, CancellationToken ct = default);
 }
 
 public sealed class StructureSimulationHttpClient : IStructureSimulationClient
@@ -66,6 +67,15 @@ public sealed class StructureSimulationHttpClient : IStructureSimulationClient
 
             throw new InvalidOperationException($"[{(int)resp.StatusCode}] {detail}");
         }
+    }
+
+    public async Task SetForwardingAsync(string edgeApiUrl, Guid structureId, bool enabled, CancellationToken ct = default)
+    {
+        using var http = CreateEdgeClient(edgeApiUrl);
+        var action = enabled ? "start" : "stop";
+        var resp = await http.PostAsync($"api/edge/lifecycle/forwarding/{action}/{structureId}", null, ct);
+        if (!resp.IsSuccessStatusCode)
+            throw new InvalidOperationException($"[{(int)resp.StatusCode}] {await resp.Content.ReadAsStringAsync(ct)}");
     }
 
     private HttpClient CreateEdgeClient(string edgeApiUrl)

@@ -136,12 +136,12 @@
                             </div>
                             <div class="small text-secondary mt-2 text-truncate" title="@(string.IsNullOrWhiteSpace(s.EdgeApiUrl) ? "Saha Edge URL henüz kaydedilmedi." : s.EdgeApiUrl)">
                                 <span class="bi bi-hdd-network me-1"></span>@(string.IsNullOrWhiteSpace(s.EdgeApiUrl) ? "Saha Edge URL tanımsız" : s.EdgeApiUrl)
-                                <span class="bi bi-info-circle ms-1" title="Çalıştır ve Durdur komutları yalnız bu yapının Edge lifecycle API'sine gönderilir."></span>
+                                <span class="bi bi-info-circle ms-1" title="Çalıştır/Durdur yerel saha pipeline'larını; Aktar kontrolleri merkez iletimini yönetir."></span>
                             </div>
                             @if (_forwardingStates.TryGetValue(s.Id, out var knownForwarding))
                             {
                                 <div class="small text-secondary font-monospace text-truncate" title="Son lifecycle komutu">
-                                    POST /api/edge/lifecycle/@(knownForwarding ? "start" : "stop")/@s.Id
+                                    Merkeze aktarım: @(knownForwarding ? "açık" : "kapalı")
                                 </div>
                             }
                             <div class="mt-3 d-flex justify-content-end gap-2">
@@ -187,6 +187,13 @@
                                     {
                                         @(_runningStructureIds.Contains(s.Id) ? "Çalışıyor" : "Çalıştır")
                                     }
+                                </button>
+                                <button class="btn btn-sm @( _forwardingStates.TryGetValue(s.Id, out var forwarding) && forwarding ? "btn-outline-secondary" : "btn-outline-primary")"
+                                        @onclick="() => SetStructureForwardingAsync(s.Id, !(_forwardingStates.TryGetValue(s.Id, out var current) && current))"
+                                        @onclick:stopPropagation="true"
+                                        title="Yerel akışı değiştirmeden merkez aktarımını açar veya kapatır.">
+                                    <span class="bi bi-cloud-arrow-@( _forwardingStates.TryGetValue(s.Id, out var state) && state ? "down" : "up") me-1"></span>
+                                    @( _forwardingStates.TryGetValue(s.Id, out var enabled) && enabled ? "Aktarımı durdur" : "Aktar")
                                 </button>
                                 <button class="btn btn-sm btn-outline-warning"
                                         @onclick="() => OpenNodeRedAsync(s.Id, s.Name)"
@@ -1467,6 +1474,27 @@
         finally
         {
             _stoppingStructureIds.Remove(structureId);
+        }
+    }
+
+    private async Task SetStructureForwardingAsync(Guid structureId, bool enabled)
+    {
+        var structure = _structures?.FirstOrDefault(s => s.Id == structureId);
+        if (string.IsNullOrWhiteSpace(structure?.EdgeApiUrl))
+        {
+            _simulationErrorMessage = $"{structure?.Name ?? "Yapı"} için saha Edge URL tanımlı değil.";
+            return;
+        }
+
+        try
+        {
+            await StructureSimClient.SetForwardingAsync(structure.EdgeApiUrl, structureId, enabled);
+            _forwardingStates[structureId] = enabled;
+            _simulationStatusMessage = $"{structure.Name} için merkeze aktarım {(enabled ? "açıldı" : "durduruldu")}. Yerel saha akışı değişmedi.";
+        }
+        catch (Exception ex)
+        {
+            _simulationErrorMessage = $"Merkeze aktarım değiştirilemedi: {ex.Message}";
         }
     }
 

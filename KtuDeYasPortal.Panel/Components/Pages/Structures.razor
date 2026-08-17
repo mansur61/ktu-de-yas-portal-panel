@@ -19,8 +19,8 @@
 {
     @if (!string.IsNullOrWhiteSpace(_simulationStatusMessage))
     {
-        <div class="alert alert-success d-flex align-items-center gap-2 mb-3 py-2">
-            <span class="bi bi-play-circle"></span>
+        <div class="alert @_simulationStatusAlertClass d-flex align-items-center gap-2 mb-3 py-2">
+            <span class="bi @_simulationStatusIcon"></span>
             <div>@_simulationStatusMessage</div>
         </div>
     }
@@ -99,8 +99,13 @@
                                 {
                                     <span class="badge bg-light text-dark border">@sensorType</span>
                                 }
-                                @if (IsReceivingTelemetry(s.Id))
-                                { <span class="badge bg-success"><span class="bi bi-broadcast me-1"></span>Saha yerel akış aktif</span> }
+                                @if (_localPipelineStates.TryGetValue(s.Id, out var localPipelineEnabled))
+                                {
+                                    <span class="badge @(localPipelineEnabled ? "bg-success" : "bg-danger")">
+                                        <span class="bi @(localPipelineEnabled ? "bi-broadcast" : "bi-stop-circle") me-1"></span>
+                                        @(localPipelineEnabled ? "Saha yerel akış aktif" : "Saha yerel akış durduruldu")
+                                    </span>
+                                }
                                 else if (s.IsActive)
                                 { <span class="badge bg-success">Aktif</span> }
                                 else
@@ -149,7 +154,7 @@
                                 </div>
                             }
                             <div class="mt-3 d-flex justify-content-end gap-2">
-                                @if (_runningStructureIds.Contains(s.Id) || IsReceivingTelemetry(s.Id))
+                                @if (IsLocalPipelineEnabled(s.Id))
                                 {
                                     <button class="btn btn-sm btn-outline-danger"
                                             @onclick="() => StopStructureSimulationAsync(s.Id)"
@@ -169,7 +174,7 @@
                                 <button class="btn btn-sm btn-success"
                                         @onclick="() => StartStructureSimulationAsync(s.Id)"
                                         @onclick:stopPropagation="true"
-                                        disabled="@(_startingStructureIds.Contains(s.Id) || _runningStructureIds.Contains(s.Id) || GetStartDisabled(s))"
+                                        disabled="@(_startingStructureIds.Contains(s.Id) || IsLocalPipelineEnabled(s.Id) || GetStartDisabled(s))"
                                         title="@GetStartTooltip(s)">
                                     @if (_startingStructureIds.Contains(s.Id))
                                     {
@@ -189,7 +194,7 @@
                                     }
                                     else
                                     {
-                                        @(_runningStructureIds.Contains(s.Id) ? "Çalışıyor" : "Çalıştır")
+                                        @(IsLocalPipelineEnabled(s.Id) ? "Çalışıyor" : "Çalıştır")
                                     }
                                 </button>
                                 <button class="btn btn-sm @( _forwardingStates.TryGetValue(s.Id, out var isForwardingActive) && isForwardingActive ? "btn-outline-secondary" : "btn-outline-primary")"
@@ -1113,6 +1118,9 @@
     private HashSet<Guid>    _stoppingStructureIds = new(); // durdurma isteği gönderildi
     private HashSet<Guid>    _telemetryRunningStructureIds = new();
     private Dictionary<Guid, bool> _forwardingStates = new();
+    private Dictionary<Guid, bool> _localPipelineStates = new();
+    private string _simulationStatusAlertClass = "alert-success";
+    private string _simulationStatusIcon = "bi-play-circle";
 
     // ── Wizard ───────────────────────────────────────────────────────────────
     private int           _wizardStep  = 1;
@@ -1403,6 +1411,7 @@
     private async Task LoadEdgeLifecycleStatesAsync()
     {
         _forwardingStates.Clear();
+        _localPipelineStates.Clear();
         var edgeStructures = _structures
             .Where(structure => !string.IsNullOrWhiteSpace(structure.EdgeApiUrl))
             .ToList();
@@ -1426,12 +1435,26 @@
         foreach (var result in await Task.WhenAll(checks))
         {
             if (result.Success && result.State is not null)
+            {
                 _forwardingStates[result.Id] = result.State.ForwardingEnabled;
+                _localPipelineStates[result.Id] = result.State.LocalPipelinesEnabled;
+            }
         }
     }
 
-    private bool IsReceivingTelemetry(Guid structureId) =>
-        _telemetryRunningStructureIds.Contains(structureId);
+    private bool IsLocalPipelineEnabled(Guid structureId) =>
+        _localPipelineStates.TryGetValue(structureId, out var enabled) && enabled;
+
+    private void SetStatus(string message, string level)
+    {
+        _simulationStatusMessage = message;
+        (_simulationStatusAlertClass, _simulationStatusIcon) = level switch
+        {
+            "stopped" => ("alert-danger", "bi-stop-circle"),
+            "info" => ("alert-info", "bi-info-circle"),
+            _ => ("alert-success", "bi-play-circle")
+        };
+    }
 
     private static IEnumerable<string> GetSensorTypeSummary(Structure structure) =>
         structure.SensorTypeCounts
@@ -1489,10 +1512,10 @@
             }
 
             await StructureSimClient.StartAsync(structure.EdgeApiUrl, structure.Id);
-            _simulationStatusMessage = $"{structureName} için saha telemetry iletimi başlatıldı.";
+            SetStatus($"{structureName} için saha yerel akışı çalıştırıldı.", "started");
 
             _runningStructureIds.Add(structureId);
-            _forwardingStates[structureId] = true;
+            _localPipelineStates[structureId] = true;
         }
         catch (Exception ex)
         {
@@ -1522,9 +1545,9 @@
                 return;
             }
             await StructureSimClient.StopAsync(structure.EdgeApiUrl, structureId);
-            _simulationStatusMessage = $"{structure.Name} için saha telemetry iletimi durduruldu.";
+            SetStatus($"{structure.Name} için saha yerel akışı durduruldu.", "stopped");
             _runningStructureIds.Remove(structureId);
-            _forwardingStates[structureId] = false;
+            _localPipelineStates[structureId] = false;
         }
         catch (Exception ex)
         {
@@ -1549,7 +1572,7 @@
         {
             await StructureSimClient.SetForwardingAsync(structure.EdgeApiUrl, structureId, enabled);
             _forwardingStates[structureId] = enabled;
-            _simulationStatusMessage = $"{structure.Name} için merkeze aktarım {(enabled ? "açıldı" : "durduruldu")}. Yerel saha akışı değişmedi.";
+            SetStatus($"{structure.Name} için merkeze aktarım {(enabled ? "açıldı" : "durduruldu")}. Yerel saha akışı değişmedi.", "info");
         }
         catch (Exception ex)
         {

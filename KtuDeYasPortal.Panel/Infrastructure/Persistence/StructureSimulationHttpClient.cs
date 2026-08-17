@@ -5,9 +5,17 @@ namespace KtuDeYasPortal.Panel.Infrastructure.Persistence;
 
 public interface IStructureSimulationClient
 {
+    Task<EdgeLifecycleState> GetStateAsync(string edgeApiUrl, Guid structureId, CancellationToken ct = default);
     Task StartAsync(string edgeApiUrl, Guid structureId, CancellationToken ct = default);
     Task StopAsync(string edgeApiUrl, Guid structureId, CancellationToken ct = default);
     Task SetForwardingAsync(string edgeApiUrl, Guid structureId, bool enabled, CancellationToken ct = default);
+}
+
+public sealed class EdgeLifecycleState
+{
+    public Guid StructureId { get; init; }
+    public bool LocalPipelinesEnabled { get; init; }
+    public bool ForwardingEnabled { get; init; }
 }
 
 public sealed class StructureSimulationHttpClient : IStructureSimulationClient
@@ -15,6 +23,13 @@ public sealed class StructureSimulationHttpClient : IStructureSimulationClient
     private readonly IHttpClientFactory _factory;
 
     public StructureSimulationHttpClient(IHttpClientFactory factory) => _factory = factory;
+
+    public async Task<EdgeLifecycleState> GetStateAsync(string edgeApiUrl, Guid structureId, CancellationToken ct = default)
+    {
+        using var http = CreateEdgeClient(edgeApiUrl);
+        var state = await http.GetFromJsonAsync<EdgeLifecycleState>($"api/edge/lifecycle/{structureId}", ct);
+        return state ?? throw new InvalidOperationException("Edge lifecycle durumu boş döndü.");
+    }
 
     public async Task StartAsync(string edgeApiUrl, Guid structureId, CancellationToken ct = default)
     {

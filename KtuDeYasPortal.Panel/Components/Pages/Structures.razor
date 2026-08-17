@@ -1396,6 +1396,38 @@
                 // DB durum sorgusundaki geçici hata yapı yönetimini engellemez.
             }
         }
+
+        await LoadEdgeLifecycleStatesAsync();
+    }
+
+    private async Task LoadEdgeLifecycleStatesAsync()
+    {
+        _forwardingStates.Clear();
+        var edgeStructures = _structures
+            .Where(structure => !string.IsNullOrWhiteSpace(structure.EdgeApiUrl))
+            .ToList();
+        var semaphore = new SemaphoreSlim(12);
+        var checks = edgeStructures.Select(async structure =>
+        {
+            await semaphore.WaitAsync();
+            try
+            {
+                var state = await StructureSimClient.GetStateAsync(structure.EdgeApiUrl!, structure.Id);
+                return (structure.Id, State: state, Success: true);
+            }
+            catch
+            {
+                // Bir sahanın erişilememesi diğer kartları etkilemez.
+                return (structure.Id, State: (EdgeLifecycleState?)null, Success: false);
+            }
+            finally { semaphore.Release(); }
+        });
+
+        foreach (var result in await Task.WhenAll(checks))
+        {
+            if (result.Success && result.State is not null)
+                _forwardingStates[result.Id] = result.State.ForwardingEnabled;
+        }
     }
 
     private bool IsReceivingTelemetry(Guid structureId) =>

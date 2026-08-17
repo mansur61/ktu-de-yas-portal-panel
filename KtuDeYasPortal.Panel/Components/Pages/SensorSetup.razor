@@ -71,11 +71,12 @@ else
         }
         <div class="table-responsive border rounded">
             <table class="table table-sm table-hover mb-0">
-                <thead class="table-light"><tr><th>Sensör</th><th>Tip</th><th class="text-center">Bağlantı</th><th class="text-center">Parser</th><th class="text-center">Metrikler</th><th>Durum</th><th>Eksikler</th></tr></thead>
+                <thead class="table-light"><tr><th>Sensör</th><th>Tip</th><th class="text-center">Bağlantı</th><th class="text-center">Parser</th><th class="text-center">Metrikler</th><th>Durum</th><th>Adımlar</th><th>Eksikler</th></tr></thead>
                 <tbody>
                 @foreach (var sensor in VisibleSensors)
                 {
                     var status = _readiness.GetValueOrDefault(sensor.SensorId);
+                    var running = _activeSensorId == sensor.SensorId;
                     <tr>
                         <td><div class="fw-semibold">@sensor.Name</div><code class="small">@sensor.DeviceId</code></td>
                         <td>@sensor.SensorType</td>
@@ -83,6 +84,25 @@ else
                         <td class="text-center">@StatusMark(status?.ParserValid)</td>
                         <td class="text-center">@(status?.MetricPreviewValid == true ? $"✓ {status.MetricCount}" : "—")</td>
                         <td>@(status?.ParsedLifecycleStatus.ToTurkish() ?? "Bilinmiyor")</td>
+                        <td>
+                            <div class="d-flex gap-1 flex-wrap">
+                                <button class="btn btn-sm @(status?.ConnectionValid == true ? "btn-outline-success" : "btn-outline-primary")"
+                                        disabled="@running" @onclick="() => RunConnectionTestAsync(sensor)" title="TCP bağlantısını test et ve sonucu kaydet">
+                                    @if (running && _activeStep == "conn") { <span class="spinner-border spinner-border-sm"></span> }
+                                    🔌 Bağlantı
+                                </button>
+                                <button class="btn btn-sm @(status?.ParserValid == true ? "btn-outline-success" : "btn-outline-secondary")"
+                                        disabled="@(running || status?.ConnectionValid != true)" @onclick="() => RunParserValidationAsync(sensor)" title="Önce bağlantı testi tamamlanmalıdır">
+                                    @if (running && _activeStep == "parser") { <span class="spinner-border spinner-border-sm"></span> }
+                                    ⚙️ Parser
+                                </button>
+                                <button class="btn btn-sm @(status?.MetricPreviewValid == true ? "btn-outline-success" : "btn-outline-secondary")"
+                                        disabled="@(running || status?.ParserValid != true)" @onclick="() => GenerateMetricPreviewAsync(sensor)" title="Önce parser doğrulaması tamamlanmalıdır">
+                                    @if (running && _activeStep == "metric") { <span class="spinner-border spinner-border-sm"></span> }
+                                    📊 Metrikler
+                                </button>
+                            </div>
+                        </td>
                         <td class="small text-danger">@(status?.MissingRequirements?.Count > 0 ? string.Join(", ", status.MissingRequirements) : "—")</td>
                     </tr>
                 }
@@ -102,6 +122,8 @@ else
     private bool _loading = true;
     private bool _readinessLoading;
     private string? _error;
+    private Guid? _activeSensorId;
+    private string _activeStep = string.Empty;
 
     private IEnumerable<StructureSensor> VisibleSensors => _selectedSensorId is Guid id
         ? _sensors.Where(sensor => sensor.SensorId == id) : _sensors;
@@ -143,4 +165,45 @@ else
     private void OnSensorChanged(ChangeEventArgs args) => SelectSensor(Guid.TryParse(args.Value?.ToString(), out var id) ? id : null);
     private void SelectSensor(Guid? id) => _selectedSensorId = id;
     private static string StatusMark(bool? success) => success == true ? "✓" : success == false ? "✗" : "?";
+
+    private async Task RunConnectionTestAsync(StructureSensor sensor)
+    {
+        await RunStepAsync(sensor.SensorId, "conn", () => DashboardUC.TestConnectionLifecycleAsync(sensor.SensorId, new ConnectionTestRequestDto
+        {
+            IpAddress = sensor.IpAddress, Port = sensor.Port, TimeoutMs = sensor.TimeoutMs ?? 5000,
+            Profile = string.IsNullOrWhiteSpace(sensor.ProtocolType) ? "Unknown" : sensor.ProtocolType,
+            Encoding = string.IsNullOrWhiteSpace(sensor.Encoding) ? "utf-8" : sensor.Encoding
+        }), "Bağlantı testi");
+    }
+
+    private async Task RunParserValidationAsync(StructureSensor sensor)
+    {
+        await RunStepAsync(sensor.SensorId, "parser", () => DashboardUC.ValidateParserAsync(sensor.SensorId, new ParserValidationRequestDto
+        {
+            IpAddress = sensor.IpAddress, Port = sensor.Port, TimeoutMs = sensor.TimeoutMs ?? 5000,
+            Profile = string.IsNullOrWhiteSpace(sensor.ProtocolType) ? "Unknown" : sensor.ProtocolType,
+            Encoding = string.IsNullOrWhiteSpace(sensor.Encoding) ? "utf-8" : sensor.Encoding
+        }), "Parser doğrulaması");
+    }
+
+    private async Task GenerateMetricPreviewAsync(StructureSensor sensor)
+    {
+        var metrics = (sensor.Metrics ?? string.Empty).Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .Select(metric => new MetricPreviewInputDto { MetricCode = metric }).ToList();
+        if (metrics.Count == 0) metrics.Add(new MetricPreviewInputDto { MetricCode = "value" });
+        await RunStepAsync(sensor.SensorId, "metric", () => DashboardUC.GenerateMetricPreviewAsync(sensor.SensorId, new GenerateMetricPreviewRequestDto
+        {
+            ParserProfile = sensor.ProtocolType, Metrics = metrics
+        }), "Metrik önizleme");
+    }
+
+    private async Task RunStepAsync<T>(Guid sensorId, string step, Func<Task<T>> action, string operation)
+    {
+        _error = null;
+        _activeSensorId = sensorId;
+        _activeStep = step;
+        try { await action(); await LoadReadinessAsync(); }
+        catch (Exception ex) { _error = $"{operation} başarısız: {ex.Message}"; }
+        finally { _activeSensorId = null; _activeStep = string.Empty; }
+    }
 }

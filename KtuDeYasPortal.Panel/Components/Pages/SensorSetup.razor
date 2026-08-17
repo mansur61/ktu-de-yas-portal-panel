@@ -1,0 +1,146 @@
+@page "/sensor-setup"
+@rendermode InteractiveServer
+@inject SensorDashboardUseCases DashboardUC
+
+<PageTitle>Sensör Kurulum Durumu</PageTitle>
+
+<h3>Sensör Kurulum Durumu <small class="text-muted fs-6">— Bağlantı, parser ve metrik doğrulaması</small></h3>
+
+@if (_loading)
+{
+    <div class="spinner-border spinner-border-sm text-muted my-3"></div>
+}
+else if (_structures.Count == 0)
+{
+    <div class="alert alert-info">Önce bir yapı ve sensör tanımlayın.</div>
+}
+else
+{
+    <div class="card shadow-sm mb-3">
+        <div class="card-body py-2 d-flex flex-wrap align-items-center gap-2">
+            <span class="fw-semibold">Yapı:</span>
+            @foreach (var structure in _structures.Take(10))
+            {
+                <button class="btn btn-sm @(_selectedStructureId == structure.Id ? "btn-primary" : "btn-outline-secondary")"
+                        @onclick="() => SelectStructureAsync(structure.Id)">
+                    @structure.Name <span class="badge bg-white text-dark ms-1">@structure.SensorCount</span>
+                </button>
+            }
+            @if (_structures.Count > 10)
+            {
+                <select class="form-select form-select-sm" style="width:260px" value="@_selectedStructureId" @onchange="OnStructureChanged">
+                    <option value="">Diğer yapıyı seç…</option>
+                    @foreach (var structure in _structures.Skip(10))
+                    {
+                        <option value="@structure.Id">@structure.Name (@structure.SensorCount sensör)</option>
+                    }
+                </select>
+            }
+            <button class="btn btn-sm btn-outline-secondary ms-auto" disabled="@_readinessLoading" @onclick="LoadReadinessAsync">
+                <span class="bi bi-arrow-clockwise me-1"></span>Yenile
+            </button>
+        </div>
+    </div>
+
+    @if (_selectedStructure is not null)
+    {
+        <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+            <span class="text-muted small">Sensör:</span>
+            <button class="btn btn-sm @(_selectedSensorId is null ? "btn-primary" : "btn-outline-secondary")" @onclick="() => SelectSensor(null)">
+                Tümü <span class="badge bg-white text-dark ms-1">@_sensors.Count</span>
+            </button>
+            @foreach (var sensor in _sensors.Take(10))
+            {
+                <button class="btn btn-sm @(_selectedSensorId == sensor.SensorId ? "btn-primary" : "btn-outline-secondary")" @onclick="() => SelectSensor(sensor.SensorId)">@sensor.Name</button>
+            }
+            @if (_sensors.Count > 10)
+            {
+                <select class="form-select form-select-sm" style="width:280px" value="@(_selectedSensorId?.ToString() ?? string.Empty)" @onchange="OnSensorChanged">
+                    <option value="">Diğer sensörü seç…</option>
+                    @foreach (var sensor in _sensors.Skip(10))
+                    {
+                        <option value="@sensor.SensorId">@sensor.Name</option>
+                    }
+                </select>
+            }
+        </div>
+
+        @if (_error is not null)
+        {
+            <div class="alert alert-warning">@_error</div>
+        }
+        <div class="table-responsive border rounded">
+            <table class="table table-sm table-hover mb-0">
+                <thead class="table-light"><tr><th>Sensör</th><th>Tip</th><th class="text-center">Bağlantı</th><th class="text-center">Parser</th><th class="text-center">Metrikler</th><th>Durum</th><th>Eksikler</th></tr></thead>
+                <tbody>
+                @foreach (var sensor in VisibleSensors)
+                {
+                    var status = _readiness.GetValueOrDefault(sensor.SensorId);
+                    <tr>
+                        <td><div class="fw-semibold">@sensor.Name</div><code class="small">@sensor.DeviceId</code></td>
+                        <td>@sensor.SensorType</td>
+                        <td class="text-center">@StatusMark(status?.ConnectionValid)</td>
+                        <td class="text-center">@StatusMark(status?.ParserValid)</td>
+                        <td class="text-center">@(status?.MetricPreviewValid == true ? $"✓ {status.MetricCount}" : "—")</td>
+                        <td>@(status?.ParsedLifecycleStatus.ToTurkish() ?? "Bilinmiyor")</td>
+                        <td class="small text-danger">@(status?.MissingRequirements?.Count > 0 ? string.Join(", ", status.MissingRequirements) : "—")</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+}
+
+@code {
+    private List<Structure> _structures = [];
+    private Structure? _selectedStructure;
+    private List<StructureSensor> _sensors = [];
+    private Dictionary<Guid, SensorReadinessDto> _readiness = [];
+    private Guid _selectedStructureId;
+    private Guid? _selectedSensorId;
+    private bool _loading = true;
+    private bool _readinessLoading;
+    private string? _error;
+
+    private IEnumerable<StructureSensor> VisibleSensors => _selectedSensorId is Guid id
+        ? _sensors.Where(sensor => sensor.SensorId == id) : _sensors;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _structures = await DashboardUC.GetAllStructuresAsync();
+        _loading = false;
+        if (_structures.Count > 0) await SelectStructureAsync(_structures[0].Id);
+    }
+
+    private async Task SelectStructureAsync(Guid id)
+    {
+        _selectedStructureId = id;
+        _selectedSensorId = null;
+        _selectedStructure = await DashboardUC.GetStructureByIdAsync(id);
+        _sensors = _selectedStructure?.Sensors.Where(sensor => sensor.IsActive).OrderBy(sensor => sensor.SensorOrder).ToList() ?? [];
+        await LoadReadinessAsync();
+    }
+
+    private async Task LoadReadinessAsync()
+    {
+        _readinessLoading = true;
+        _error = null;
+        try
+        {
+            var results = await Task.WhenAll(_sensors.Select(async sensor =>
+            {
+                try { return (sensor.SensorId, Data: await DashboardUC.GetSensorReadinessAsync(sensor.SensorId)); }
+                catch { return (sensor.SensorId, Data: (SensorReadinessDto?)null); }
+            }));
+            _readiness = results.Where(result => result.Data is not null).ToDictionary(result => result.SensorId, result => result.Data!);
+        }
+        catch (Exception ex) { _error = $"Kurulum bilgisi alınamadı: {ex.Message}"; }
+        finally { _readinessLoading = false; }
+    }
+
+    private Task OnStructureChanged(ChangeEventArgs args) => Guid.TryParse(args.Value?.ToString(), out var id) ? SelectStructureAsync(id) : Task.CompletedTask;
+    private void OnSensorChanged(ChangeEventArgs args) => SelectSensor(Guid.TryParse(args.Value?.ToString(), out var id) ? id : null);
+    private void SelectSensor(Guid? id) => _selectedSensorId = id;
+    private static string StatusMark(bool? success) => success == true ? "✓" : success == false ? "✗" : "?";
+}

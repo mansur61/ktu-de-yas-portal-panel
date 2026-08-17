@@ -28,7 +28,7 @@ else
 {
     @* ── Yapı Sekmeleri ─────────────────────────────────────────────────────── *@
     <ul class="nav nav-tabs mb-0">
-        @foreach (var st in _structures)
+        @foreach (var st in _structures.Take(10))
         {
             var isActive = st.Id == _selectedStructureId;
             <li class="nav-item">
@@ -39,6 +39,19 @@ else
                     @st.Name
                     <span class="badge bg-secondary ms-1">@st.SensorCount</span>
                 </a>
+            </li>
+        }
+        @if (_structures.Count > 10)
+        {
+            <li class="nav-item ms-2" style="min-width:220px">
+                <select class="form-select form-select-sm mt-1" value="@_selectedStructureId"
+                        @onchange="OnStructureSelectChanged" aria-label="Diğer yapılar">
+                    <option value="">Diğer yapıyı seç…</option>
+                    @foreach (var st in _structures.Skip(10))
+                    {
+                        <option value="@st.Id">@st.Name (@st.SensorCount sensör)</option>
+                    }
+                </select>
             </li>
         }
     </ul>
@@ -269,10 +282,9 @@ else
             else
             {
                 <div class="mb-2">
-                    <button class="btn btn-sm btn-outline-secondary"
-                            @onclick="async () => { _showLifecyclePanel = true; await RefreshLifecycleAsync(); }">
-                        <span class="bi bi-shield-check me-1"></span>Sensör Kurulum Durumunu Göster
-                    </button>
+                    <a class="btn btn-sm btn-outline-secondary" href="sensor-setup">
+                        <span class="bi bi-shield-check me-1"></span>Sensör Kurulum Durumu
+                    </a>
                 </div>
             }
             @* ── Sensör Filtresi (pill butonlar) ────────────────────────────── *@
@@ -287,7 +299,7 @@ else
                 </button>
 
                 @* Her sensör için bir pill *@
-                @foreach (var s in _structureSensors)
+                @foreach (var s in _structureSensors.Take(10))
                 {
                     var isSelected = _selectedSensorId == s.SensorId;
                     var liveCheck  = SensorDataState.GetLatest(s.DeviceId);
@@ -297,6 +309,18 @@ else
                         <span class="bi bi-circle-fill text-@dotColor me-1" style="font-size:0.45rem;vertical-align:middle"></span>
                         @s.Name
                     </button>
+                }
+                @if (_structureSensors.Count > 10)
+                {
+                    <select class="form-select form-select-sm" style="width:260px"
+                            value="@(_selectedSensorId?.ToString() ?? string.Empty)"
+                            @onchange="OnSensorSelectChanged" aria-label="Diğer sensörler">
+                        <option value="">Diğer sensörü seç…</option>
+                        @foreach (var s in _structureSensors.Skip(10))
+                        {
+                            <option value="@s.SensorId">@s.Name</option>
+                        }
+                    </select>
                 }
 
                 @* Zaman Aralığı — sağa yasla *@
@@ -612,12 +636,23 @@ else
         await InvokeAsync(StateHasChanged);
     }
 
+    private async Task OnStructureSelectChanged(ChangeEventArgs args)
+    {
+        if (Guid.TryParse(args.Value?.ToString(), out var id))
+            await SelectStructureAsync(id);
+    }
+
     // ── Sensor filter ──────────────────────────────────────────────────────────
     private void SelectSensor(Guid? sensorId)
     {
         _selectedSensorId = sensorId;
         // Grafana'yı kapat — seçim değişince eski iframe geçersiz
         CloseGrafana();
+    }
+
+    private void OnSensorSelectChanged(ChangeEventArgs args)
+    {
+        SelectSensor(Guid.TryParse(args.Value?.ToString(), out var id) ? id : null);
     }
 
     // ── Grafana toggle ─────────────────────────────────────────────────────────

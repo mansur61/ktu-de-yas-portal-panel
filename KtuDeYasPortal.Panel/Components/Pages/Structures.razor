@@ -188,7 +188,7 @@
                                         @(_runningStructureIds.Contains(s.Id) ? "Çalışıyor" : "Çalıştır")
                                     }
                                 </button>
-                                <button class="btn btn-sm @( _forwardingStates.TryGetValue(s.Id, out var forwarding) && forwarding ? "btn-outline-secondary" : "btn-outline-primary")"
+                                <button class="btn btn-sm @( _forwardingStates.TryGetValue(s.Id, out var isForwardingActive) && isForwardingActive ? "btn-outline-secondary" : "btn-outline-primary")"
                                         @onclick="() => SetStructureForwardingAsync(s.Id, !(_forwardingStates.TryGetValue(s.Id, out var current) && current))"
                                         @onclick:stopPropagation="true"
                                         title="Yerel akışı değiştirmeden merkez aktarımını açar veya kapatır.">

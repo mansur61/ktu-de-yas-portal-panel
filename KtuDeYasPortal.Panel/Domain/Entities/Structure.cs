@@ -30,6 +30,7 @@ public class Structure
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     public List<StructureSensor> Sensors { get; set; } = new();
+    public Dictionary<string, int> SensorTypeCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     // ── Prod Lifecycle Aggregate (API'den dolduruluyor, prod switch aktifken anlamlı) ─
     /// <summary>Yapıya bağlı toplam aktif sensör sayısı.</summary>

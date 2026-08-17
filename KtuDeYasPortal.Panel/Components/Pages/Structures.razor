@@ -95,6 +95,10 @@
                             <div class="structure-card-badges">
                                 <span class="badge" style="background:#6f42c1">@GetStructureLabel(s.StructureType)</span>
                                 <span class="badge bg-primary">@s.SensorCount sensör</span>
+                                @foreach (var sensorType in GetSensorTypeSummary(s))
+                                {
+                                    <span class="badge bg-light text-dark border">@sensorType</span>
+                                }
                                 @if (IsReceivingTelemetry(s.Id))
                                 { <span class="badge bg-success"><span class="bi bi-broadcast me-1"></span>Saha yerel akış aktif</span> }
                                 else if (s.IsActive)
@@ -1396,6 +1400,29 @@
 
     private bool IsReceivingTelemetry(Guid structureId) =>
         _telemetryRunningStructureIds.Contains(structureId);
+
+    private static IEnumerable<string> GetSensorTypeSummary(Structure structure) =>
+        structure.SensorTypeCounts
+            .Where(x => x.Value > 0)
+            .OrderBy(x => SensorTypeDisplayOrder(x.Key))
+            .ThenBy(x => x.Key)
+            .Select(x => $"{x.Value} {GetSensorTypeLabel(x.Key)}");
+
+    private static int SensorTypeDisplayOrder(string sensorType) => sensorType.ToLowerInvariant() switch
+    {
+        "vibration" or "accelerometer" or "acceleration" => 0,
+        "camera" or "video" => 1,
+        "lidar" => 2,
+        _ => 10
+    };
+
+    private static string GetSensorTypeLabel(string sensorType) => sensorType.ToLowerInvariant() switch
+    {
+        "vibration" or "accelerometer" or "acceleration" => "ivmeölçer",
+        "camera" or "video" => "kamera",
+        "lidar" => "lidar",
+        _ => sensorType
+    };
 
     private async Task StartStructureSimulationAsync(Guid structureId)
     {

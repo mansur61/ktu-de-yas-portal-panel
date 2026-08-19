@@ -99,6 +99,13 @@
                                 {
                                     <span class="badge bg-light text-dark border">@sensorType</span>
                                 }
+                                @foreach (var runtimeSummary in GetDeviceRuntimeSummary(s))
+                                {
+                                    <span class="badge @(runtimeSummary.Passive > 0 ? "bg-warning text-dark" : "bg-light text-dark border")"
+                                          title="Node-RED cihaz kontrolü Edge Layer'da anlık saklanır.">
+                                        @runtimeSummary.Active aktif · @runtimeSummary.Passive pasif @runtimeSummary.Label
+                                    </span>
+                                }
                                 @if (_localPipelineStates.TryGetValue(s.Id, out var localPipelineEnabled))
                                 {
                                     <span class="badge @(localPipelineEnabled ? "bg-success" : "bg-danger")">
@@ -1119,6 +1126,7 @@
     private HashSet<Guid>    _telemetryRunningStructureIds = new();
     private Dictionary<Guid, bool> _forwardingStates = new();
     private Dictionary<Guid, bool> _localPipelineStates = new();
+    private Dictionary<Guid, Dictionary<string, EdgeDeviceLifecycleState>> _deviceLifecycleStates = new();
     private string _simulationStatusAlertClass = "alert-success";
     private string _simulationStatusIcon = "bi-play-circle";
 
@@ -1184,6 +1192,7 @@
     // ── Timer (click polling) ─────────────────────────────────────────────────
     private PeriodicTimer?           _clickTimer;
     private CancellationTokenSource? _timerCts;
+    private DateTimeOffset           _lastEdgeLifecycleRefreshAt = DateTimeOffset.MinValue;
     // ── Render flags (OnAfterRenderAsync tekrar çalışmasın) ──────────────────
     private bool _mapInitialized          = false;
     private bool _wizardImageInitialized  = false;
@@ -1358,6 +1367,18 @@
     {
         while (await _clickTimer!.WaitForNextTickAsync(ct))
         {
+            // Node-RED'de cihaz durdurulduğunda Edge state dosyası değişir.
+            // Kartlar sayfa yenilemeden kısa sürede aktif/pasif sayısını günceller.
+            if (_editingStructure is null && _structures is not null &&
+                DateTimeOffset.UtcNow - _lastEdgeLifecycleRefreshAt >= TimeSpan.FromSeconds(5))
+            {
+                _lastEdgeLifecycleRefreshAt = DateTimeOffset.UtcNow;
+                await InvokeAsync(async () =>
+                {
+                    await LoadEdgeLifecycleStatesAsync();
+                    StateHasChanged();
+                });
+            }
             // Mevcut yapı detay sayfasında sensör ekle
             if (_editingStructure != null && !_showSensorPopup)
                 await InvokeAsync(CheckPendingClickAsync);
@@ -1380,6 +1401,11 @@
             _simulationErrorMessage = $"Yapılar merkez API'den alınamadı: {ex.Message}";
             return;
         }
+
+        // Liste ucu kart özetlerini (SensorCount/SensorTypeCounts) döndürür;
+        // cihaz bazlı Edge durumu için ise DeviceId içeren ilişki listesi gerekir.
+        // Sadece Edge'i tanımlı sahaların detayını alıyoruz.
+        await LoadStructureSensorDetailsAsync();
         _telemetryRunningStructureIds.Clear();
 
         // Merkez TimescaleDB'ye son iki dakika içinde veri yazılmışsa yapı
@@ -1408,15 +1434,46 @@
         await LoadEdgeLifecycleStatesAsync();
     }
 
-    private async Task LoadEdgeLifecycleStatesAsync()
+    private async Task LoadStructureSensorDetailsAsync()
     {
-        _forwardingStates.Clear();
-        _localPipelineStates.Clear();
+        if (_structures is null)
+            return;
+
         var edgeStructures = _structures
             .Where(structure => !string.IsNullOrWhiteSpace(structure.EdgeApiUrl))
             .ToList();
         var semaphore = new SemaphoreSlim(12);
-        var checks = edgeStructures.Select(async structure =>
+        var details = edgeStructures.Select(async structure =>
+        {
+            await semaphore.WaitAsync();
+            try { return (structure.Id, Detail: await StructureUC.GetByIdAsync(structure.Id)); }
+            catch { return (structure.Id, Detail: (Structure?)null); }
+            finally { semaphore.Release(); }
+        });
+
+        foreach (var result in await Task.WhenAll(details))
+        {
+            if (result.Detail is null)
+                continue;
+
+            var structure = _structures.FirstOrDefault(item => item.Id == result.Id);
+            if (structure is null)
+                continue;
+
+            structure.Sensors = result.Detail.Sensors;
+        }
+    }
+
+    private async Task LoadEdgeLifecycleStatesAsync()
+    {
+        _forwardingStates.Clear();
+        _localPipelineStates.Clear();
+        _deviceLifecycleStates.Clear();
+        var edgeStructures = _structures
+            .Where(structure => !string.IsNullOrWhiteSpace(structure.EdgeApiUrl))
+            .ToList();
+        var semaphore = new SemaphoreSlim(12);
+        var checks = edgeStructures.Select(async structure => 
         {
             await semaphore.WaitAsync();
             try
@@ -1438,12 +1495,32 @@
             {
                 _forwardingStates[result.Id] = result.State.ForwardingEnabled;
                 _localPipelineStates[result.Id] = result.State.LocalPipelinesEnabled;
+                _deviceLifecycleStates[result.Id] = result.State.DeviceStates;
             }
         }
     }
 
     private bool IsLocalPipelineEnabled(Guid structureId) =>
         _localPipelineStates.TryGetValue(structureId, out var enabled) && enabled;
+
+    private sealed record DeviceRuntimeSummary(string Label, int Active, int Passive);
+
+    private IEnumerable<DeviceRuntimeSummary> GetDeviceRuntimeSummary(Structure structure)
+    {
+        if (!_deviceLifecycleStates.TryGetValue(structure.Id, out var states) || structure.Sensors.Count == 0)
+            return Array.Empty<DeviceRuntimeSummary>();
+
+        return structure.Sensors
+            .Where(sensor => sensor.IsActive && !string.IsNullOrWhiteSpace(sensor.DeviceId))
+            .GroupBy(sensor => string.IsNullOrWhiteSpace(sensor.SensorType) ? "Sensor" : sensor.SensorType,
+                StringComparer.OrdinalIgnoreCase)
+            .Select(group =>
+            {
+                var passive = group.Count(sensor => states.TryGetValue(sensor.DeviceId, out var state) && !state.RuntimeEnabled);
+                return new DeviceRuntimeSummary(GetSensorTypeLabel(group.Key), group.Count() - passive, passive);
+            })
+            .OrderBy(summary => summary.Label);
+    }
 
     private void SetStatus(string message, string level)
     {

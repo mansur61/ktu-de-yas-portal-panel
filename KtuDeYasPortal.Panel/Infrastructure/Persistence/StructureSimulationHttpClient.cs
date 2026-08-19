@@ -16,6 +16,13 @@ public sealed class EdgeLifecycleState
     public Guid StructureId { get; init; }
     public bool LocalPipelinesEnabled { get; init; }
     public bool ForwardingEnabled { get; init; }
+    public Dictionary<string, EdgeDeviceLifecycleState> DeviceStates { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+}
+
+public sealed class EdgeDeviceLifecycleState
+{
+    public bool RuntimeEnabled { get; init; } = true;
+    public bool ForwardingEnabled { get; init; } = true;
 }
 
 public sealed class StructureSimulationHttpClient : IStructureSimulationClient

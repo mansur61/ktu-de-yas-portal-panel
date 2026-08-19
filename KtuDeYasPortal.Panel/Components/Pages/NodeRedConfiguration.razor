@@ -455,7 +455,7 @@
         }
 
         baseUrl = baseUrl.TrimEnd('/');
-        var path = page == NodeRedPage.Editor ? "/api/ui/#flow/tab-platform-pipeline" : "/api/ui";
+        var path = page == NodeRedPage.Editor ? "/#flow/tab-platform-pipeline" : "/ui";
         var url = baseUrl + path;
         await JS.InvokeVoidAsync("open", url, "_blank");
     }

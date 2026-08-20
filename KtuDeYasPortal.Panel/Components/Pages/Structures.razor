@@ -1510,13 +1510,20 @@
         if (!_deviceLifecycleStates.TryGetValue(structure.Id, out var states) || structure.Sensors.Count == 0)
             return Array.Empty<DeviceRuntimeSummary>();
 
+        // Yapı bazlı Durdur, Edge Layer'ın ortak local pipeline gate'ini kapatır.
+        // Bu durumda Node-RED'deki cihaz satırları ve tekil durumları korunur;
+        // fakat kartta tüm kayıtlı cihazların etkin durumu pasif gösterilmelidir.
+        var structureRuntimeEnabled = !_localPipelineStates.TryGetValue(structure.Id, out var localEnabled) || localEnabled;
+
         return structure.Sensors
             .Where(sensor => sensor.IsActive && !string.IsNullOrWhiteSpace(sensor.DeviceId))
             .GroupBy(sensor => string.IsNullOrWhiteSpace(sensor.SensorType) ? "Sensor" : sensor.SensorType,
                 StringComparer.OrdinalIgnoreCase)
             .Select(group =>
             {
-                var passive = group.Count(sensor => states.TryGetValue(sensor.DeviceId, out var state) && !state.RuntimeEnabled);
+                var passive = structureRuntimeEnabled
+                    ? group.Count(sensor => states.TryGetValue(sensor.DeviceId, out var state) && !state.RuntimeEnabled)
+                    : group.Count();
                 return new DeviceRuntimeSummary(GetSensorTypeLabel(group.Key), group.Count() - passive, passive);
             })
             .OrderBy(summary => summary.Label);

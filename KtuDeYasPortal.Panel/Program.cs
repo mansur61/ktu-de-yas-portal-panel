@@ -35,6 +35,13 @@ builder.Services.AddHttpClient("edge-api", c =>
     c.Timeout = TimeSpan.FromSeconds(30);
 });
 
+builder.Services.AddHttpClient("video-api", c =>
+{
+    c.BaseAddress = new Uri(
+        builder.Configuration["Services:VideoApi"] ?? "http://localhost:5010");
+    c.Timeout = TimeSpan.FromSeconds(30);
+});
+
 // ── Panel's own SignalR hub (structure group management for Structures page) ──
 builder.Services.AddSignalR(options =>
 {
@@ -61,6 +68,7 @@ builder.Services.AddRedisRealtimeSubscriber<PanelRealtimeForwarder>(builder.Conf
 builder.Services.AddScoped<IStructureRepository, StructureHttpRepository>();
 builder.Services.AddScoped<IStructureSimulationClient, StructureSimulationHttpClient>();
 builder.Services.AddScoped<IMediaSimulationClient, MediaSimulationHttpClient>();
+builder.Services.AddScoped<IMediaArchiveClient, MediaArchiveHttpClient>();
 builder.Services.AddScoped<ISensorRepository, SensorHttpRepository>();
 builder.Services.AddScoped<ITimeseriesRepository, TimeseriesRepository>();
 builder.Services.AddScoped<StructureUseCases>();

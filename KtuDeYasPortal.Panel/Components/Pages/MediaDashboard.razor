@@ -1,234 +1,64 @@
 @page "/media-dashboard"
 @rendermode InteractiveServer
-@inject IMediaSimulationClient MediaSimClient
-@inject IConfiguration Configuration
+@inject IMediaArchiveClient MediaArchive
+@inject StructureUseCases StructureUC
 
-<PageTitle>Video / Image Dashboard</PageTitle>
+<PageTitle>Medya Arşivi</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div>
-        <h4 class="mb-0 fw-bold">Video / Image Dashboard</h4>
-        <small class="text-muted">Canli stream ve dosya upload simulasyonu</small>
+        <h4 class="mb-0 fw-bold">Medya Arşivi</h4>
+        <small class="text-muted">Sahadan başarıyla merkeze aktarılan snapshot ve olay klipleri</small>
     </div>
-    <button class="btn btn-success" @onclick="StartAsync" disabled="@_isRunning">
-        @if (_isRunning)
-        {
-            <span class="spinner-border spinner-border-sm me-1"></span>
-        }
-        else
-        {
-            <span class="bi bi-play-fill me-1"></span>
-        }
-        Calistir
+    <button class="btn btn-outline-primary" @onclick="LoadAsync" disabled="@_loading">
+        <span class="bi bi-arrow-clockwise me-1"></span> Yenile
     </button>
 </div>
 
-@if (!string.IsNullOrWhiteSpace(_statusMessage))
-{
-    <div class="alert alert-success py-2">@_statusMessage</div>
-}
-@if (!string.IsNullOrWhiteSpace(_errorMessage))
-{
-    <div class="alert alert-danger py-2">@_errorMessage</div>
-}
+<div class="card shadow-sm mb-3"><div class="card-body"><div class="row g-2 align-items-end">
+    <div class="col-md-4"><label class="form-label small">Yapı</label><select class="form-select" @bind="_structureId"><option value="">Tüm yapılar</option>@foreach (var item in _structures) { <option value="@item.Id">@item.Name</option> }</select></div>
+    <div class="col-md-3"><label class="form-label small">Kamera</label><select class="form-select" @bind="_deviceId"><option value="">Tüm kameralar</option>@foreach (var item in Cameras) { <option value="@item.DeviceId">@item.Name (@item.DeviceId)</option> }</select></div>
+    <div class="col-md-2"><label class="form-label small">Başlangıç</label><input class="form-control" type="datetime-local" @bind="_from" /></div>
+    <div class="col-md-2"><label class="form-label small">Bitiş</label><input class="form-control" type="datetime-local" @bind="_to" /></div>
+    <div class="col-md-1 d-grid"><button class="btn btn-primary" @onclick="LoadAsync">Filtrele</button></div>
+</div></div></div>
 
-<div class="media-dashboard-layout">
-    <aside class="media-dashboard-sidebar">
-        <button class="media-nav-item @(_mode == "stream" ? "active" : "")" @onclick='() => SetMode("stream")'>
-            <span class="bi bi-broadcast"></span>
-            <span>Canli Stream</span>
-        </button>
-        <button class="media-nav-item @(_mode == "upload" ? "active" : "")" @onclick='() => SetMode("upload")'>
-            <span class="bi bi-cloud-arrow-up"></span>
-            <span>Upload</span>
-        </button>
-    </aside>
-
-    <section class="media-dashboard-main">
-        <div class="media-preview-panel">
-            @if (_mode == "stream")
-            {
-                <div class="media-live-stage">
-                    <div class="media-live-screen">
-                        <div class="media-live-bars">
-                            @for (var i = 0; i < 20; i++)
-                            {
-                                <span style="height:@(18 + (i * 13 % 52))%"></span>
-                            }
-                        </div>
-                        <div class="media-live-overlay">
-                            <span class="badge text-bg-danger">LIVE</span>
-                            <strong>@_devicePrefix-01</strong>
-                            <small>@_locationId / @_mediaType / @_fps FPS</small>
-                        </div>
-                    </div>
-                </div>
-            }
-            else if (_selectedPreviewUrl is not null && _mediaType == "image")
-            {
-                <img class="media-upload-preview" src="@_selectedPreviewUrl" alt="Selected upload" />
-            }
-            else if (_selectedPreviewUrl is not null)
-            {
-                <video class="media-upload-preview" src="@_selectedPreviewUrl" controls muted></video>
-            }
-            else
-            {
-                <div class="media-empty-preview">
-                    <span class="bi bi-file-earmark-play"></span>
-                    <p>Dosya secilmedi</p>
-                </div>
-            }
-        </div>
-
-        <div class="media-control-panel">
-            <div class="row g-3">
-                <div class="col-md-6">
-                    <label class="form-label">Media Type</label>
-                    <select class="form-select" @bind="_mediaType">
-                        <option value="video">Video</option>
-                        <option value="image">Image</option>
-                    </select>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label">Format</label>
-                    <input class="form-control" @bind="_mediaFormat" />
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label">Location</label>
-                    <input class="form-control" @bind="_locationId" />
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label">Device Prefix</label>
-                    <input class="form-control" @bind="_devicePrefix" />
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Device Count</label>
-                    <input type="number" min="1" max="50" class="form-control" @bind="_deviceCount" />
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">FPS</label>
-                    <input type="number" min="1" max="120" class="form-control" @bind="_fps" />
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Duration</label>
-                    <input type="number" min="1" class="form-control" @bind="_durationSeconds" disabled="@(_mode == "upload")" />
-                </div>
-
-                @if (_mode == "upload")
-                {
-                    <div class="col-12">
-                        <label class="form-label">Dosya</label>
-                        <InputFile class="form-control" OnChange="OnFileSelectedAsync" accept="@AcceptFilter" />
-                    </div>
-                    <div class="col-12">
-                        <label class="form-label">Dosya URL</label>
-                        <input class="form-control" @bind="_mediaFileUrl" placeholder="http://..." />
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Chunk KB</label>
-                        <input type="number" min="16" class="form-control" @bind="_chunkSizeKb" />
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Secilen Dosya</label>
-                        <input class="form-control" value="@(_selectedFileName ?? "-")" disabled />
-                    </div>
-                }
+@if (!string.IsNullOrWhiteSpace(_error)) { <div class="alert alert-danger">@_error</div> }
+@if (_loading) { <div class="text-center py-5"><span class="spinner-border text-primary"></span></div> }
+else if (_assets.Count == 0) { <div class="alert alert-light border"><span class="bi bi-camera-video me-2"></span>Bu filtrede merkezi arşive ulaşmış medya kaydı yok.</div> }
+else { <div class="row g-3">
+    @foreach (var asset in _assets)
+    {
+        <div class="col-sm-6 col-xl-3"><article class="card h-100 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between"><span class="badge @(asset.Kind == "video" ? "text-bg-primary" : "text-bg-success")">@(asset.Kind == "video" ? "Klip" : "Snapshot")</span><small class="text-muted">@asset.CapturedAt.ToLocalTime().ToString("dd.MM HH:mm:ss")</small></div>
+                <h6 class="mt-3 mb-1 text-truncate"><span class="bi bi-camera me-1"></span>@asset.DeviceId</h6>
+                <div class="small text-muted">@asset.LocationId · @asset.Status</div>
+                <div class="small text-muted mt-2">@FormatSize(asset.FileSizeBytes)@(asset.DurationSeconds is not null ? $" · {asset.DurationSeconds} sn" : "")</div>
             </div>
-        </div>
-    </section>
-</div>
+            <div class="card-footer bg-white border-0 pt-0"><button class="btn btn-sm btn-outline-primary w-100" @onclick="() => OpenAsync(asset)"><span class="bi bi-play-circle me-1"></span>Görüntüle</button></div>
+        </article></div>
+    }
+</div>}
+
+@if (_selected is not null)
+{
+    <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.55)"><div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title">@_selected.DeviceId · @_selected.CapturedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss")</h5><button class="btn-close" @onclick="Close"></button></div>
+        <div class="modal-body text-center bg-dark">@if (_previewLoading) { <span class="spinner-border text-light my-5"></span> } else if (_previewUrl is null) { <p class="text-light m-4">Medya bağlantısı üretilemedi.</p> } else if (_selected.Kind == "video") { <video src="@_previewUrl" controls class="w-100" style="max-height:65vh"></video> } else { <img src="@_previewUrl" class="img-fluid" style="max-height:65vh" /> }</div>
+    </div></div></div>
+}
 
 @code {
-    private const long MaxUploadBytes = 1024L * 1024L * 1024L;
-
-    private string _mode = "stream";
-    private string _mediaType = "video";
-    private string _mediaFormat = "mp4";
-    private string _locationId = "default";
-    private string _devicePrefix = "media-device";
-    private int _deviceCount = 1;
-    private int _fps = 25;
-    private int _durationSeconds = 60;
-    private int _chunkSizeKb = 1024;
-    private bool _isRunning;
-    private string? _selectedFilePath;
-    private string? _selectedFileName;
-    private string? _selectedPreviewUrl;
-    private string? _mediaFileUrl;
-    private string? _statusMessage;
-    private string? _errorMessage;
-
-    private string AcceptFilter => _mediaType == "image" ? "image/*" : "video/*";
-
-    private void SetMode(string mode)
-    {
-        _mode = mode;
-        _statusMessage = null;
-        _errorMessage = null;
-    }
-
-    private async Task OnFileSelectedAsync(InputFileChangeEventArgs e)
-    {
-        _errorMessage = null;
-        _statusMessage = null;
-
-        var file = e.File;
-        var tempRoot = Configuration["MediaSimulation:UploadTempRoot"] ?? Path.Combine(Path.GetTempPath(), "ktu-de-yas-media");
-        Directory.CreateDirectory(tempRoot);
-
-        var extension = Path.GetExtension(file.Name);
-        var fileName = $"{DateTime.UtcNow:yyyyMMddHHmmssfff}-{Guid.NewGuid():N}{extension}";
-        var targetPath = Path.Combine(tempRoot, fileName);
-
-        await using var input = file.OpenReadStream(MaxUploadBytes);
-        await using var output = System.IO.File.Create(targetPath);
-        await input.CopyToAsync(output);
-
-        _selectedFilePath = targetPath;
-        _selectedFileName = file.Name;
-        _mediaFileUrl = null;
-        _mediaFormat = string.IsNullOrWhiteSpace(extension) ? _mediaFormat : extension.TrimStart('.').ToLowerInvariant();
-        _mediaType = file.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase) ? "image" : "video";
-        _selectedPreviewUrl = $"/media-preview/{Path.GetFileName(targetPath)}";
-        _statusMessage = $"{file.Name} hazirlandi, edge dosya yolundan okuyacak.";
-    }
-
-    private async Task StartAsync()
-    {
-        _isRunning = true;
-        _errorMessage = null;
-        _statusMessage = null;
-
-        try
-        {
-            await MediaSimClient.StartAsync(new DeYas.Contracts.Simulation.MediaSimRequest
-            {
-                MediaType = _mediaType,
-                CameraMode = _mode,
-                LocationId = _locationId,
-                DevicePrefix = _devicePrefix,
-                DeviceCount = _deviceCount,
-                Fps = _fps,
-                DurationSeconds = _durationSeconds,
-                ChunkSizeKb = _chunkSizeKb,
-                MediaFormat = _mediaFormat,
-                MediaFilePath = string.IsNullOrWhiteSpace(_mediaFileUrl) ? _selectedFilePath : null,
-                MediaFileUrl = string.IsNullOrWhiteSpace(_mediaFileUrl) ? null : _mediaFileUrl,
-                IsProd = false
-            });
-
-            _statusMessage = _mode == "stream"
-                ? "Canli stream edge uzerinden baslatildi."
-                : "Upload edge uzerinden baslatildi.";
-        }
-        catch (Exception ex)
-        {
-            _errorMessage = $"Media simulasyonu baslatilamadi: {ex.Message}";
-        }
-        finally
-        {
-            _isRunning = false;
-        }
-    }
+    private List<Structure> _structures = [];
+    private List<MediaAsset> _assets = [];
+    private string _structureId = "", _deviceId = "";
+    private DateTime? _from = DateTime.Now.AddHours(-24), _to = DateTime.Now;
+    private bool _loading, _previewLoading; private string? _error, _previewUrl; private MediaAsset? _selected;
+    private IEnumerable<StructureSensor> Cameras => _structures.Where(s => string.IsNullOrWhiteSpace(_structureId) || s.Id.ToString() == _structureId).SelectMany(s => s.Sensors).Where(s => s.SensorType.Equals("Camera", StringComparison.OrdinalIgnoreCase));
+    protected override async Task OnInitializedAsync() { _structures = await StructureUC.GetAllAsync(); foreach (var s in _structures) { var detail = await StructureUC.GetByIdAsync(s.Id); if (detail is not null) s.Sensors = detail.Sensors; } await LoadAsync(); }
+    private async Task LoadAsync() { _loading = true; _error = null; try { _assets = (await MediaArchive.ListAsync(_structureId, _deviceId, _from?.ToUniversalTime(), _to?.ToUniversalTime())).ToList(); } catch (Exception ex) { _error = $"Medya arşivi okunamadı: {ex.Message}"; } finally { _loading = false; } }
+    private async Task OpenAsync(MediaAsset asset) { _selected = asset; _previewUrl = null; _previewLoading = true; try { _previewUrl = await MediaArchive.GetPresignedUrlAsync(asset.Bucket, asset.ObjectKey); } finally { _previewLoading = false; } }
+    private void Close() { _selected = null; _previewUrl = null; }
+    private static string FormatSize(long? value) => value is null ? "Boyut bilinmiyor" : value < 1024 * 1024 ? $"{value.Value / 1024d:0} KB" : $"{value.Value / 1024d / 1024d:0.0} MB";
 }

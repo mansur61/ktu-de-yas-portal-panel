@@ -1,0 +1,245 @@
+@page "/permissions"
+@rendermode InteractiveServer
+@using System.Net.Http.Json
+@using System.Text.Json
+@using DeYas.Contracts.Authorization
+@inject IHttpClientFactory HttpFactory
+
+<PageTitle>Üyeler ve Yetkiler</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-0 fw-bold">Üyeler ve Yetkiler</h4>
+        <small class="text-muted">Kullanıcıların hangi barajları ve izleme araçlarını görebileceğini yönetin.</small>
+    </div>
+    <button class="btn btn-outline-secondary" @onclick="LoadAsync" disabled="@_loading">
+        <span class="bi bi-arrow-clockwise me-1"></span>Yenile
+    </button>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(_message))
+{
+    <div class="alert alert-success py-2">@_message</div>
+}
+@if (!string.IsNullOrWhiteSpace(_error))
+{
+    <div class="alert alert-danger py-2">@_error</div>
+}
+
+<div class="row g-4">
+    <div class="col-xl-5">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white">
+                <strong><span class="bi bi-person-plus me-2 text-primary"></span>Baraj Yetkisi Tanımla</strong>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Kullanıcı kimliği <span class="text-danger">*</span></label>
+                    <input class="form-control" @bind="_userId" placeholder="Kurum kullanıcı ID'si" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Kullanıcı adı <span class="text-danger">*</span></label>
+                    <input class="form-control" @bind="_userName" placeholder="Ad Soyad" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Kurum</label>
+                    <input class="form-control" @bind="_organizationName" placeholder="DSİ Bölge Müdürlüğü" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Baraj <span class="text-danger">*</span></label>
+                    <select class="form-select" @bind="_structureId">
+                        <option value="">-- Baraj seçin --</option>
+                        @foreach (var structure in _structures)
+                        {
+                            <option value="@structure.Id">@structure.Name (@structure.Province)</option>
+                        }
+                    </select>
+                </div>
+                <fieldset class="mb-3">
+                    <legend class="form-label mb-2">İzinler</legend>
+                    @foreach (var permission in _permissionOptions)
+                    {
+                        <label class="form-check d-flex align-items-start gap-2 mb-2">
+                            <input class="form-check-input mt-1" type="checkbox"
+                                   checked="@_selectedPermissions.Contains(permission.Key)"
+                                   @onchange="() => TogglePermission(permission.Key)" />
+                            <span>
+                                <span class="d-block fw-semibold">@permission.Label</span>
+                                <small class="text-muted">@permission.Description</small>
+                            </span>
+                        </label>
+                    }
+                </fieldset>
+                <button class="btn btn-primary w-100" @onclick="GrantAsync" disabled="@(_saving || !CanGrant)">
+                    @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                    <span class="bi bi-check-lg me-1"></span>Yetkileri Kaydet
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-7">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <strong><span class="bi bi-people me-2 text-success"></span>Tanımlı Baraj Yetkileri</strong>
+                <span class="badge bg-secondary">@_permissions.Count kayıt</span>
+            </div>
+            @if (_loading)
+            {
+                <div class="card-body text-center"><span class="spinner-border spinner-border-sm"></span></div>
+            }
+            else if (_permissions.Count == 0)
+            {
+                <div class="card-body text-muted">Henüz baraj yetkisi tanımlanmadı.</div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr><th>Kullanıcı</th><th>Baraj</th><th>İzin</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var permission in _permissions)
+                            {
+                                <tr>
+                                    <td>
+                                        <strong>@permission.UserName</strong>
+                                        <small class="d-block text-muted">@permission.OrganizationName · @permission.UserId</small>
+                                    </td>
+                                    <td>@permission.StructureName</td>
+                                    <td><span class="badge bg-primary">@permission.Permission</span></td>
+                                    <td class="text-end">
+                                        <button class="btn btn-sm btn-outline-danger" title="Yetkiyi kaldır"
+                                                @onclick="() => RevokeAsync(permission.Id)">
+                                            <span class="bi bi-trash"></span>
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web);
+    private readonly (string Key, string Label, string Description)[] _permissionOptions =
+    [
+        (BarajPermissions.Read, "Baraj görünümü", "Baraj temel bilgilerini ve sensör listesini görür."),
+        (BarajPermissions.Dashboard, "Zaman serisi izleme", "Barajın canlı ve geçmiş sensör grafiklerini görür."),
+        (BarajPermissions.Alerts, "Canlı alertler", "Yetkili barajın alarm kayıtlarını görür."),
+        (BarajPermissions.Manage, "Baraj yönetimi", "Baraj ve sensör bağlantılarını yönetir."),
+        (BarajPermissions.Workspace, "Workspace", "Yetkili barajın çalışma alanlarına erişir."),
+        (BarajPermissions.NodeRed, "Node-RED", "Yetkili barajın Node-RED akışlarına erişir."),
+        (BarajPermissions.Media, "Medya arşivi", "Yetkili barajın video ve görsellerini görür."),
+        (BarajPermissions.SensorSetup, "Sensör kurulumu", "Sensör bağlantı testi ve metrik önizlemesini yönetir.")
+    ];
+
+    private readonly List<StructureOption> _structures = [];
+    private readonly List<StructurePermissionDto> _permissions = [];
+    private readonly HashSet<string> _selectedPermissions = new(StringComparer.Ordinal);
+    private string _userId = string.Empty;
+    private string _userName = string.Empty;
+    private string? _organizationName;
+    private string _structureId = string.Empty;
+    private string? _message;
+    private string? _error;
+    private bool _loading;
+    private bool _saving;
+
+    private HttpClient Api => HttpFactory.CreateClient("timeseries-api");
+    private bool CanGrant => Guid.TryParse(_structureId, out _) &&
+                              !string.IsNullOrWhiteSpace(_userId) &&
+                              !string.IsNullOrWhiteSpace(_userName) &&
+                              _selectedPermissions.Count > 0;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            var structures = await Api.GetFromJsonAsync<List<StructureOption>>("api/structures", _json) ?? [];
+            _structures.Clear();
+            _structures.AddRange(structures.Where(x => x.IsActive).OrderBy(x => x.Name));
+
+            var permissions = await Api.GetFromJsonAsync<List<StructurePermissionDto>>("api/structure-permissions", _json) ?? [];
+            _permissions.Clear();
+            _permissions.AddRange(permissions);
+        }
+        catch (Exception ex)
+        {
+            _error = $"Yetki verileri yüklenemedi: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void TogglePermission(string permission)
+    {
+        if (!_selectedPermissions.Add(permission))
+            _selectedPermissions.Remove(permission);
+    }
+
+    private async Task GrantAsync()
+    {
+        if (!CanGrant) return;
+        _saving = true;
+        _message = null;
+        _error = null;
+        try
+        {
+            foreach (var permission in _selectedPermissions.ToArray())
+            {
+                var response = await Api.PostAsJsonAsync("api/structure-permissions", new UpsertStructurePermissionRequest(
+                    _userId, _userName, _organizationName, Guid.Parse(_structureId), permission), _json);
+                if (!response.IsSuccessStatusCode && response.StatusCode != System.Net.HttpStatusCode.Conflict)
+                {
+                    _error = await response.Content.ReadAsStringAsync();
+                    return;
+                }
+            }
+
+            _message = "Baraj yetkileri kaydedildi.";
+            _selectedPermissions.Clear();
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Yetkiler kaydedilemedi: {ex.Message}";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task RevokeAsync(Guid id)
+    {
+        var response = await Api.DeleteAsync($"api/structure-permissions/{id}");
+        if (!response.IsSuccessStatusCode)
+        {
+            _error = await response.Content.ReadAsStringAsync();
+            return;
+        }
+
+        _message = "Baraj yetkisi kaldırıldı.";
+        await LoadAsync();
+    }
+
+    private sealed class StructureOption
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Province { get; set; } = string.Empty;
+        public bool IsActive { get; set; }
+    }
+}

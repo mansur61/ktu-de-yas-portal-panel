@@ -77,6 +77,8 @@ public class StructureHttpRepository : IStructureRepository
             imageUrl = structure.ImageUrl,
             nodeRedUrl = string.IsNullOrWhiteSpace(structure.NodeRedUrl) ? null : structure.NodeRedUrl.Trim(),
             edgeApiUrl = string.IsNullOrWhiteSpace(structure.EdgeApiUrl) ? null : structure.EdgeApiUrl.Trim(),
+            edgeConfigJson = structure.EdgeConfigJson,
+            siteEnvironmentJson = structure.SiteEnvironmentJson,
             sensorCount = structure.SensorCount,
             isActive = structure.IsActive,
             sensorIds
@@ -101,6 +103,8 @@ public class StructureHttpRepository : IStructureRepository
             imageUrl = structure.ImageUrl,
             nodeRedUrl = string.IsNullOrWhiteSpace(structure.NodeRedUrl) ? null : structure.NodeRedUrl.Trim(),
             edgeApiUrl = string.IsNullOrWhiteSpace(structure.EdgeApiUrl) ? null : structure.EdgeApiUrl.Trim(),
+            edgeConfigJson = structure.EdgeConfigJson,
+            siteEnvironmentJson = structure.SiteEnvironmentJson,
             isActive = structure.IsActive,
             sensorIds
         };

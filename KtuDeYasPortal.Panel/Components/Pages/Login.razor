@@ -1,37 +1,112 @@
 @page "/login"
 @rendermode InteractiveServer
+@using System.Net.Http.Json
+@inject IHttpClientFactory HttpFactory
 
-<PageTitle>Panel Girişi</PageTitle>
+<PageTitle>DSİ Panel Girişi</PageTitle>
 
 <div class="login-wrapper">
     <div class="login-card">
         <div class="login-header">
             <span class="bi bi-shield-lock-fill login-icon"></span>
-            <h4>KTU DeYas</h4>
-            <p class="text-muted">Yönetim Paneli</p>
+            <h4>DSİ Baraj İzleme</h4>
+            <p class="text-muted">Panel kullanıcı erişimi</p>
         </div>
         <div class="login-body">
+            <div class="btn-group w-100 mb-4" role="group">
+                <button class="btn @(!_registerMode ? "btn-primary" : "btn-outline-primary")" @onclick="() => _registerMode = false">Giriş Yap</button>
+                <button class="btn @(_registerMode ? "btn-primary" : "btn-outline-primary")" @onclick="() => _registerMode = true">Kayıt Ol</button>
+            </div>
+
             <div class="mb-3">
                 <label class="form-label fw-semibold">Kullanıcı Adı</label>
-                <div class="input-group">
-                    <span class="input-group-text"><span class="bi bi-person"></span></span>
-                    <input type="text" class="form-control" placeholder="admin" />
-                </div>
+                <input type="text" class="form-control" @bind="_userName" placeholder="kullanici.adi" autocomplete="username" />
             </div>
-            <div class="mb-4">
+            <div class="mb-3">
                 <label class="form-label fw-semibold">Şifre</label>
-                <div class="input-group">
-                    <span class="input-group-text"><span class="bi bi-lock"></span></span>
-                    <input type="password" class="form-control" placeholder="••••••••" />
-                </div>
+                <input type="password" class="form-control" @bind="_password" placeholder="En az 8 karakter" autocomplete="@( _registerMode ? "new-password" : "current-password")" />
             </div>
-            <button class="btn btn-primary w-100 py-2 fw-semibold" disabled>
-                <span class="bi bi-box-arrow-in-right me-2"></span>Giriş Yap
+            @if (_registerMode)
+            {
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Kurum</label>
+                    <input type="text" class="form-control" @bind="_organizationName" placeholder="DSİ Bölge Müdürlüğü" />
+                </div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(_error))
+            {
+                <div class="alert alert-danger py-2 small">@_error</div>
+            }
+            @if (_response is not null)
+            {
+                <div class="alert alert-success py-2 small">
+                    <strong>@(_registerMode ? "Kayıt tamamlandı." : "Giriş başarılı.")</strong>
+                    <div>UserId: <code>@_response.UserId</code></div>
+                    <div class="text-muted">Portal kapsamı bu UserId ile eşleştirilecektir.</div>
+                    <a class="btn btn-outline-primary btn-sm mt-2" href="http://localhost:5050/?userId=@_response.UserId" target="_blank">
+                        <span class="bi bi-globe me-1"></span>Yetkili Portalı Aç
+                    </a>
+                </div>
+            }
+
+            <button class="btn btn-primary w-100 py-2 fw-semibold" @onclick="SubmitAsync" disabled="@_busy">
+                @if (_busy) { <span class="spinner-border spinner-border-sm me-2"></span> }
+                <span class="bi bi-box-arrow-in-right me-2"></span>@(_registerMode ? "Kayıt Ol" : "Giriş Yap")
             </button>
-            <p class="text-muted small mt-3 mb-0 text-center">
-                <span class="bi bi-info-circle me-1"></span>
-                Giriş sistemi henüz aktif değil. Panel'i kullanmak için navigasyon menüsünü kullanın.
-            </p>
         </div>
     </div>
 </div>
+
+@code {
+    private string _userName = string.Empty;
+    private string _password = string.Empty;
+    private string? _organizationName;
+    private bool _registerMode;
+    private bool _busy;
+    private string? _error;
+    private AuthResponse? _response;
+
+    private HttpClient Api => HttpFactory.CreateClient("timeseries-api");
+
+    private async Task SubmitAsync()
+    {
+        _busy = true;
+        _error = null;
+        _response = null;
+        try
+        {
+            HttpResponseMessage response;
+            if (_registerMode)
+            {
+                response = await Api.PostAsJsonAsync("api/auth/register",
+                    new RegisterRequest(_userName, _password, _organizationName));
+            }
+            else
+            {
+                response = await Api.PostAsJsonAsync("api/auth/login",
+                    new LoginRequest(_userName, _password));
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _error = await response.Content.ReadAsStringAsync();
+                return;
+            }
+
+            _response = await response.Content.ReadFromJsonAsync<AuthResponse>();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Kimlik servisine ulaşılamadı: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private sealed record RegisterRequest(string UserName, string Password, string? OrganizationName);
+    private sealed record LoginRequest(string UserName, string Password);
+    private sealed record AuthResponse(string UserId, string UserName, string Role, string[] Permissions, string? Token);
+}

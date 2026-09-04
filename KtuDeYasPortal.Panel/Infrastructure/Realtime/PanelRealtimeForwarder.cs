@@ -125,7 +125,9 @@ public sealed class PanelRealtimeForwarder : IRealtimeMessageHandler
             MetricKey    : metrics.Keys.FirstOrDefault() ?? "value",
             Timestamp    : payload.TryGetDateTime(),
             Status       : "ok",
-            AllMetrics   : metrics);
+            AllMetrics   : metrics,
+            StructureId  : payload.TryGetGuid("structureId") ?? root.TryGetGuid("structureId")
+                         ?? payload.TryGetGuid("structure_id") ?? root.TryGetGuid("structure_id"));
 
         _logger.LogDebug(
             "[panel-forwarder] device={DeviceId} metrics={Count}",
@@ -158,6 +160,9 @@ file static class JsonElementExtensions
         el.TryGetPropertyIgnoreCase(key, out var v) && v.ValueKind == JsonValueKind.String
             ? v.GetString()
             : null;
+
+    public static Guid? TryGetGuid(this JsonElement el, string key) =>
+        Guid.TryParse(el.TryGetString(key), out var value) ? value : null;
 
     public static DateTime TryGetDateTime(this JsonElement el, string key = "timestamp")
     {

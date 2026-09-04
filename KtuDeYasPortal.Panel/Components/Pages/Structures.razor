@@ -338,6 +338,18 @@
                             </div>
                         </div>
                     </div>
+                    <div class="col-md-6">
+                        <label class="form-label"><span class="bi bi-file-earmark-code me-1"></span>Edge Config JSON</label>
+                        <textarea class="form-control font-monospace" rows="5" @bind="_newEdgeConfigJson"
+                                  placeholder='{"structureId":"...","mqtt":{"topicPrefix":"..."}}'></textarea>
+                        <div class="form-text">Saha edge-config.json içeriği. Eski saha dosyası korunur.</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label"><span class="bi bi-terminal me-1"></span>Saha .env JSON</label>
+                        <textarea class="form-control font-monospace" rows="5" @bind="_newSiteEnvironmentJson"
+                                  placeholder='{"MQTT_BROKER":"...","EDGE_PORT":"5080"}'></textarea>
+                        <div class="form-text">Saha bridge ortam değişkenleri JSON nesnesi olarak saklanır.</div>
+                    </div>
                     @* ── Node-RED ── *@
                     <div class="col-12"><hr class="my-1" /><small class="text-muted fw-semibold">Node-RED Entegrasyonu</small></div>
                     <div class="col-12">
@@ -781,6 +793,14 @@
                     <input class="form-control" @bind="_editEdgeApiUrl" />
                     <div class="form-text">Çalıştır/Durdur çağrıları bu URL'deki Edge'e gider.</div>
                 </div>
+                <div class="col-md-6">
+                    <label class="form-label">Edge Config JSON</label>
+                    <textarea class="form-control font-monospace" rows="5" @bind="_editEdgeConfigJson"></textarea>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Saha .env JSON</label>
+                    <textarea class="form-control font-monospace" rows="5" @bind="_editSiteEnvironmentJson"></textarea>
+                </div>
                 <div class="col-md-4">
                     <label class="form-label">İl</label>
                     <select class="form-select" value="@_editProvince" @onchange="OnEditProvinceChanged">
@@ -997,6 +1017,8 @@
     private double        _newLng         = 40.0;
     private string        _newNodeRedUrl  = "";
     private string        _newEdgeApiUrl  = "";
+    private string        _newEdgeConfigJson = "";
+    private string        _newSiteEnvironmentJson = "";
     private List<string>  _newDistricts   = new();
     private List<Sensor>  _newStructureSensors = new(); // wizard adım 3'te eklenenler
 
@@ -1041,6 +1063,8 @@
     private bool          _editIsActive    = true;
     private string        _editNodeRedUrl  = "";
     private string        _editEdgeApiUrl  = "";
+    private string        _editEdgeConfigJson = "";
+    private string        _editSiteEnvironmentJson = "";
     private List<string>  _editDistricts   = new();
 
     // ── Timer (click polling) ─────────────────────────────────────────────────
@@ -1729,6 +1753,8 @@
                 ImageUrl      = _structureTypes[_newType.Value].ImagePath,
                 NodeRedUrl    = string.IsNullOrWhiteSpace(_newNodeRedUrl) ? null : _newNodeRedUrl.Trim(),
                 EdgeApiUrl    = string.IsNullOrWhiteSpace(_newEdgeApiUrl) ? null : _newEdgeApiUrl.Trim(),
+                EdgeConfigJson = NormalizeJson(_newEdgeConfigJson),
+                SiteEnvironmentJson = NormalizeJson(_newSiteEnvironmentJson),
                 SensorCount   = _newStructureSensors.Count,
             };
             var created = await StructureUC.CreateAsync(s, new List<Guid>());
@@ -2083,6 +2109,8 @@
         _editEdgeApiUrl  = string.IsNullOrWhiteSpace(_editingStructure.EdgeApiUrl)
             ? "http://100.116.167.67:5080"
             : _editingStructure.EdgeApiUrl;
+        _editEdgeConfigJson = _editingStructure.EdgeConfigJson ?? "";
+        _editSiteEnvironmentJson = _editingStructure.SiteEnvironmentJson ?? "";
         _editDistricts   = _districtMap.TryGetValue(_editProvince, out var d) ? d : new();
         _showEditPopup   = true;
     }
@@ -2110,6 +2138,8 @@
             _editingStructure.ImageUrl     = _structureTypes[_editType].ImagePath;
             _editingStructure.NodeRedUrl   = string.IsNullOrWhiteSpace(_editNodeRedUrl) ? null : _editNodeRedUrl.Trim();
             _editingStructure.EdgeApiUrl   = string.IsNullOrWhiteSpace(_editEdgeApiUrl) ? null : _editEdgeApiUrl.Trim();
+            _editingStructure.EdgeConfigJson = NormalizeJson(_editEdgeConfigJson);
+            _editingStructure.SiteEnvironmentJson = NormalizeJson(_editSiteEnvironmentJson);
 
             var ids = _editingStructure.Sensors?.Select(s => s.SensorId).ToList() ?? new();
             await StructureUC.UpdateAsync(_editingStructure.Id, _editingStructure, ids);
@@ -2120,6 +2150,13 @@
     }
 
     private void CloseEditPopup() => _showEditPopup = false;
+
+    private static string? NormalizeJson(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        using var document = System.Text.Json.JsonDocument.Parse(value);
+        return document.RootElement.GetRawText();
+    }
 
     // ── Silme ─────────────────────────────────────────────────────────────────
     private void ConfirmDelete(Guid id) => _deletingId = id;

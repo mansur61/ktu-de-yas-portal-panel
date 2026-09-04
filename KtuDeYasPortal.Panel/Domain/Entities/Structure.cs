@@ -26,6 +26,8 @@ public class Structure
 
     /// <summary>Sahanın kendi Edge lifecycle API adresi (ör. http://100.116.167.67:5080).</summary>
     public string? EdgeApiUrl { get; set; }
+    public string? EdgeConfigJson { get; set; }
+    public string? SiteEnvironmentJson { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

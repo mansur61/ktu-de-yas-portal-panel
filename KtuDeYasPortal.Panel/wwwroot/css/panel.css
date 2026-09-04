@@ -1,10 +1,17 @@
 /* ════════════════════════════════════════════════════════════════════
-   panel.css — KTU DeYas Admin Panel
+    panel.css — DSİ Baraj İzleme Paneli
    ════════════════════════════════════════════════════════════════════ */
+
+:root {
+     --dsi-blue: #005b9a;
+     --dsi-blue-dark: #003f6b;
+     --dsi-green: #4c8c2b;
+     --dsi-water: #e8f3f8;
+}
 
 /* ── Genel kart hover efekti ──────────────────────────────────────── */
 .card-structure {
-    border-left: 4px solid #0d6efd;
+    border-left: 4px solid var(--dsi-blue);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
     cursor: pointer;
     background: #fff;
@@ -13,6 +20,13 @@
 .card-structure:hover {
     transform: translateY(-3px);
     box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+}
+
+.btn-primary {
+    --bs-btn-bg: var(--dsi-blue);
+    --bs-btn-border-color: var(--dsi-blue);
+    --bs-btn-hover-bg: var(--dsi-blue-dark);
+    --bs-btn-hover-border-color: var(--dsi-blue-dark);
 }
 
 /* ── Harita ───────────────────────────────────────────────────────── */

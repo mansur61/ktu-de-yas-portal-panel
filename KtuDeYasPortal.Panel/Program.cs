@@ -28,6 +28,13 @@ builder.Services.AddHttpClient("timeseries-api", c =>
     c.Timeout = TimeSpan.FromSeconds(30);
 });
 
+builder.Services.AddHttpClient("auth-api", c =>
+{
+    c.BaseAddress = new Uri(
+        builder.Configuration["Services:AuthApi"] ?? "http://localhost:5100");
+    c.Timeout = TimeSpan.FromSeconds(30);
+});
+
 builder.Services.AddHttpClient("edge-api", c =>
 {
     c.BaseAddress = new Uri(

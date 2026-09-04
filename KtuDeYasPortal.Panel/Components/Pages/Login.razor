@@ -67,7 +67,7 @@
     private string? _error;
     private AuthResponse? _response;
 
-    private HttpClient Api => HttpFactory.CreateClient("timeseries-api");
+    private HttpClient Api => HttpFactory.CreateClient("auth-api");
 
     private async Task SubmitAsync()
     {

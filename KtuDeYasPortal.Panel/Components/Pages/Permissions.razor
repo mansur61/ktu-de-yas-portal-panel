@@ -151,7 +151,8 @@
     private bool _loading;
     private bool _saving;
 
-    private HttpClient Api => HttpFactory.CreateClient("timeseries-api");
+    private HttpClient DataApi => HttpFactory.CreateClient("timeseries-api");
+    private HttpClient AuthApi => HttpFactory.CreateClient("auth-api");
     private bool CanGrant => Guid.TryParse(_structureId, out _) &&
                               !string.IsNullOrWhiteSpace(_userId) &&
                               !string.IsNullOrWhiteSpace(_userName) &&
@@ -165,11 +166,11 @@
         _error = null;
         try
         {
-            var structures = await Api.GetFromJsonAsync<List<StructureOption>>("api/structures", _json) ?? [];
+            var structures = await DataApi.GetFromJsonAsync<List<StructureOption>>("api/structures", _json) ?? [];
             _structures.Clear();
             _structures.AddRange(structures.Where(x => x.IsActive).OrderBy(x => x.Name));
 
-            var permissions = await Api.GetFromJsonAsync<List<StructurePermissionDto>>("api/structure-permissions", _json) ?? [];
+            var permissions = await AuthApi.GetFromJsonAsync<List<StructurePermissionDto>>("api/structure-permissions", _json) ?? [];
             _permissions.Clear();
             _permissions.AddRange(permissions);
         }
@@ -199,7 +200,7 @@
         {
             foreach (var permission in _selectedPermissions.ToArray())
             {
-                var response = await Api.PostAsJsonAsync("api/structure-permissions", new UpsertStructurePermissionRequest(
+                var response = await AuthApi.PostAsJsonAsync("api/structure-permissions", new UpsertStructurePermissionRequest(
                     _userId, _userName, _organizationName, Guid.Parse(_structureId), permission), _json);
                 if (!response.IsSuccessStatusCode && response.StatusCode != System.Net.HttpStatusCode.Conflict)
                 {
@@ -224,7 +225,7 @@
 
     private async Task RevokeAsync(Guid id)
     {
-        var response = await Api.DeleteAsync($"api/structure-permissions/{id}");
+        var response = await AuthApi.DeleteAsync($"api/structure-permissions/{id}");
         if (!response.IsSuccessStatusCode)
         {
             _error = await response.Content.ReadAsStringAsync();

@@ -3,10 +3,12 @@
    ════════════════════════════════════════════════════════════════════ */
 
 :root {
-     --dsi-blue: #005b9a;
-     --dsi-blue-dark: #003f6b;
-     --dsi-green: #4c8c2b;
-     --dsi-water: #e8f3f8;
+    --dsi-blue: #1677a8;
+    --dsi-blue-dark: #0d587d;
+    --dsi-green: #17633f;
+    --dsi-green-dark: #0d432d;
+    --dsi-water: #e5f3f8;
+    --dsi-border: #d5e2dc;
 }
 
 /* ── Genel kart hover efekti ──────────────────────────────────────── */
@@ -23,10 +25,10 @@
 }
 
 .btn-primary {
-    --bs-btn-bg: var(--dsi-blue);
-    --bs-btn-border-color: var(--dsi-blue);
-    --bs-btn-hover-bg: var(--dsi-blue-dark);
-    --bs-btn-hover-border-color: var(--dsi-blue-dark);
+    --bs-btn-bg: var(--dsi-green);
+    --bs-btn-border-color: var(--dsi-green-dark);
+    --bs-btn-hover-bg: var(--dsi-green-dark);
+    --bs-btn-hover-border-color: #093521;
 }
 
 /* ── Harita ───────────────────────────────────────────────────────── */
@@ -52,7 +54,8 @@
 }
 .sensor-tab .nav-link.active {
     font-weight: 600;
-    border-bottom: 3px solid #0d6efd;
+    color: var(--dsi-green-dark);
+    border-bottom: 3px solid var(--dsi-green);
 }
 
 /* ══════════════════════════════════════════════════════════════════════

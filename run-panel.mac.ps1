@@ -49,6 +49,7 @@ if (-not $NoBuild) {
     Write-Host "Build ediliyor..." -ForegroundColor Cyan
     $buildProjects = @(
         @{ Name = "timeseries-service"; Path = "$($backendRoot.Path)/src/timeseries-service/TimeseriesService.csproj" },
+        @{ Name = "auth-service";       Path = "$($backendRoot.Path)/src/auth-service/AuthService.csproj" },
         @{ Name = "edge-layer";         Path = "$($backendRoot.Path)/src/edge-layer/EdgeLayer.csproj" },
         @{ Name = "alert-notification-worker"; Path = "$($backendRoot.Path)/src/alert-notification-worker/AlertNotificationWorker.csproj" },
         @{ Name = "panel";              Path = $panelCsproj }
@@ -164,6 +165,14 @@ exit `$EXIT_CODE
 # ── Servisleri sırayla başlat ─────────────────────────────────────────────────
 Write-Host "Servisler baslatiliyor..." -ForegroundColor Cyan
 
+# timeseries ve auth servisleri yerel PostgreSQL'e ihtiyaç duyar.
+if (-not (Test-PortListening 5432)) {
+    Write-Host "HATA: PostgreSQL/TimescaleDB 5432 portunda dinlemiyor." -ForegroundColor Red
+    Write-Host "  Once calistirin: cd $($backendRoot.Path)/infra && docker compose up -d timescaledb" -ForegroundColor Yellow
+    Write-Log "startup aborted: PostgreSQL/TimescaleDB is not listening on port 5432"
+    exit 1
+}
+
 # 1. timeseries-service
 Start-Service -Name "timeseries-service" `
     -Port 5000 `
@@ -182,24 +191,30 @@ for ($i = 0; $i -lt 15; $i++) {
 if ($tsReady) { Write-Host "  timeseries-service hazir." -ForegroundColor Green }
 else          { Write-Host "  UYARI: 30s icinde yanit alinamadi, devam ediliyor." -ForegroundColor Yellow }
 
-# 2. edge-layer
+# 2. auth-service
+Start-Service -Name "auth-service" `
+    -Port 5100 `
+    -ProjectPath "$($backendRoot.Path)/src/auth-service/AuthService.csproj"
+
+# 3. edge-layer
 Start-Service -Name "edge-layer" `
     -Port 5080 `
     -ProjectPath "$($backendRoot.Path)/src/edge-layer/EdgeLayer.csproj"
 Start-Sleep -Seconds 2
 
-# 3. Saha uygulamasının doğrudan yazdığı alert-events topic'ini dinler ve
+# 4. Saha uygulamasının doğrudan yazdığı alert-events topic'ini dinler ve
 # Redis üzerinden portal'a canlı bildirim yayınlar.
 Start-Service -Name "alert-notification-worker" `
     -ProjectPath "$($backendRoot.Path)/src/alert-notification-worker/AlertNotificationWorker.csproj"
 
-# 4. panel
+# 5. panel
 Start-Service -Name "panel" `
     -Port 5056 `
     -ProjectPath $panelCsproj `
     -ExtraEnv @"
 export ASPNETCORE_URLS='http://localhost:5056'
 export Services__TimeseriesApi='http://localhost:5000'
+export Services__AuthApi='http://localhost:5100'
 export Services__EdgeApi='http://localhost:5080'
 "@
 Start-Sleep -Seconds 1
@@ -209,6 +224,7 @@ Write-Host ""
 Write-Host "=== PANEL ACTIVE ===" -ForegroundColor Green
 Write-Host "  Admin Panel    : http://localhost:5056/structures" -ForegroundColor White
 Write-Host "  timeseries-api : http://localhost:5000" -ForegroundColor White
+Write-Host "  auth-api       : http://localhost:5100" -ForegroundColor White
 Write-Host "  Edge API       : http://localhost:5080" -ForegroundColor White
 Write-Host "  Alert pipeline : saha hesaplama -> alert-events -> Portal" -ForegroundColor White
 Write-Host ""

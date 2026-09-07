@@ -38,6 +38,7 @@ if (-not $NoBuild) {
 
     $projects = @(
         @{ Name = "timeseries-service"; Path = "$($backendRoot.Path)\src\timeseries-service\TimeseriesService.csproj" },
+        @{ Name = "auth-service";       Path = "$($backendRoot.Path)\src\auth-service\AuthService.csproj" },
         @{ Name = "edge-layer";         Path = "$($backendRoot.Path)\src\edge-layer\EdgeLayer.csproj" },
         @{ Name = "alert-notification-worker"; Path = "$($backendRoot.Path)\src\alert-notification-worker\AlertNotificationWorker.csproj" },
         @{ Name = "panel";              Path = $panelCsproj }
@@ -150,6 +151,12 @@ function Start-Service {
 # ── Servisleri sirayla baslt ──────────────────────────────────────────────────
 Write-Host "Servisler baslatiliyor..." -ForegroundColor Cyan
 
+if (-not (Test-PortListening -Port 5432)) {
+    Write-Host "HATA: PostgreSQL/TimescaleDB 5432 portunda dinlemiyor." -ForegroundColor Red
+    Write-Host "  Once calistirin: cd $($backendRoot.Path)\infra; docker compose up -d timescaledb" -ForegroundColor Yellow
+    exit 1
+}
+
 # 1. timeseries-service
 Start-Service -Name "timeseries-service" -Port 5000 `
     -Project "$($backendRoot.Path)\src\timeseries-service\TimeseriesService.csproj"
@@ -167,17 +174,21 @@ for ($i = 0; $i -lt 15; $i++) {
 if ($tsReady) { Write-Host "  timeseries-service hazir." -ForegroundColor Green }
 else { Write-Host "  UYARI: 30s icinde yanit alinamadi, devam ediliyor." -ForegroundColor Yellow }
 
-# 2. edge-layer
+# 2. auth-service
+Start-Service -Name "auth-service" -Port 5100 `
+    -Project "$($backendRoot.Path)\src\auth-service\AuthService.csproj"
+
+# 3. edge-layer
 Start-Service -Name "edge-layer" -Port 5080 `
     -Project "$($backendRoot.Path)\src\edge-layer\EdgeLayer.csproj"
 Start-Sleep -Seconds 2
 
-# 3. Saha uygulamasının doğrudan yazdığı alert-events topic'ini dinler
+# 4. Saha uygulamasının doğrudan yazdığı alert-events topic'ini dinler
 # ve Redis üzerinden portal'a canlı bildirim yayınlar.
 Start-Service -Name "alert-notification-worker" `
     -Project "$($backendRoot.Path)\src\alert-notification-worker\AlertNotificationWorker.csproj"
 
-# 4. panel
+# 5. panel
 Start-Service -Name "panel" -Port 5056 -Project $panelCsproj
 Start-Sleep -Seconds 1
 

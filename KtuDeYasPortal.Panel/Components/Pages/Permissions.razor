@@ -27,6 +27,47 @@
 }
 
 <div class="row g-4">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <strong><span class="bi bi-list-check me-2 text-primary"></span>Portal Menü Yetkileri</strong>
+            </div>
+            <div class="card-body">
+                <div class="row g-3 align-items-end">
+                    <div class="col-lg-4">
+                        <label class="form-label">Kullanıcı kimliği</label>
+                        <input class="form-control" @bind="_menuUserId" placeholder="Kayıtlı UserId" />
+                    </div>
+                    <div class="col-lg-2">
+                        <button class="btn btn-outline-primary w-100" @onclick="LoadMenuPermissionsAsync" disabled="@_menuLoading">
+                            @if (_menuLoading) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                            Menüyü Yükle
+                        </button>
+                    </div>
+                </div>
+                <div class="row row-cols-1 row-cols-md-2 row-cols-xl-4 g-2 mt-2">
+                    @foreach (var menu in _menuOptions)
+                    {
+                        <label class="form-check border rounded p-3">
+                            <input class="form-check-input" type="checkbox"
+                                   checked="@_selectedMenus.Contains(menu.Key)"
+                                   @onchange="() => ToggleMenu(menu.Key)" />
+                            <span class="form-check-label">
+                                <strong class="d-block">@menu.Label</strong>
+                                <small class="text-muted">@menu.Description</small>
+                            </span>
+                        </label>
+                    }
+                </div>
+                <button class="btn btn-primary mt-3" @onclick="SaveMenuPermissionsAsync"
+                        disabled="@(_menuSaving || string.IsNullOrWhiteSpace(_menuUserId))">
+                    @if (_menuSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                    Menü Yetkilerini Kaydet
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div class="col-xl-5">
         <div class="card shadow-sm h-100">
             <div class="card-header bg-white">
@@ -138,10 +179,22 @@
         (BarajPermissions.Media, "Medya arşivi", "Yetkili barajın video ve görsellerini görür."),
         (BarajPermissions.SensorSetup, "Sensör kurulumu", "Sensör bağlantı testi ve metrik önizlemesini yönetir.")
     ];
+    private readonly (string Key, string Label, string Description)[] _menuOptions =
+    [
+        (PortalMenuPermissions.Home, "Ana sayfa", "Portal ana ekranını açar."),
+        (PortalMenuPermissions.Structures, "Baraj izleme", "Baraj listesini ve detaylarını açar."),
+        (PortalMenuPermissions.Sensors, "Sensör izleme", "Sensör ekranını açar."),
+        (PortalMenuPermissions.Dashboard, "Zaman serisi", "Baraj bazlı zaman serisi ekranını açar."),
+        (PortalMenuPermissions.Alerts, "Alertler", "Alert kuralları ve akışını açar."),
+        (PortalMenuPermissions.Media, "Görüntüleme", "Video ve medya ekranlarını açar."),
+        (PortalMenuPermissions.Historical, "Geçmiş veriler", "Geçmiş veri ekranını açar."),
+        (PortalMenuPermissions.DigitalTwin, "Digital Twin", "Digital Twin ekranını açar.")
+    ];
 
     private readonly List<StructureOption> _structures = [];
     private readonly List<StructurePermissionDto> _permissions = [];
     private readonly HashSet<string> _selectedPermissions = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _selectedMenus = new(StringComparer.Ordinal);
     private string _userId = string.Empty;
     private string _userName = string.Empty;
     private string? _organizationName;
@@ -150,6 +203,9 @@
     private string? _error;
     private bool _loading;
     private bool _saving;
+    private bool _menuLoading;
+    private bool _menuSaving;
+    private string _menuUserId = string.Empty;
 
     private HttpClient DataApi => HttpFactory.CreateClient("timeseries-api");
     private HttpClient AuthApi => HttpFactory.CreateClient("auth-api");
@@ -188,6 +244,50 @@
     {
         if (!_selectedPermissions.Add(permission))
             _selectedPermissions.Remove(permission);
+    }
+
+    private void ToggleMenu(string permission)
+    {
+        if (!_selectedMenus.Add(permission))
+            _selectedMenus.Remove(permission);
+    }
+
+    private async Task LoadMenuPermissionsAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_menuUserId)) return;
+        _menuLoading = true;
+        _error = null;
+        try
+        {
+            var permissions = await AuthApi.GetFromJsonAsync<List<string>>(
+                $"api/auth/menu-permissions?userId={Uri.EscapeDataString(_menuUserId)}", _json) ?? [];
+            _selectedMenus.Clear();
+            foreach (var permission in permissions)
+                _selectedMenus.Add(permission);
+        }
+        catch (Exception ex) { _error = $"Menü yetkileri yüklenemedi: {ex.Message}"; }
+        finally { _menuLoading = false; }
+    }
+
+    private async Task SaveMenuPermissionsAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_menuUserId)) return;
+        _menuSaving = true;
+        _message = null;
+        _error = null;
+        try
+        {
+            var response = await AuthApi.PutAsJsonAsync("api/auth/menu-permissions",
+                new UpdateMenuPermissionsRequest(_menuUserId, _selectedMenus.ToArray()), _json);
+            if (!response.IsSuccessStatusCode)
+            {
+                _error = await response.Content.ReadAsStringAsync();
+                return;
+            }
+            _message = "Portal menü yetkileri kaydedildi.";
+        }
+        catch (Exception ex) { _error = $"Menü yetkileri kaydedilemedi: {ex.Message}"; }
+        finally { _menuSaving = false; }
     }
 
     private async Task GrantAsync()

@@ -1,6 +1,7 @@
 @page "/sensor-setup"
 @rendermode InteractiveServer
 @inject SensorDashboardUseCases DashboardUC
+@inject ILogger<SensorSetup> Logger
 
 <PageTitle>Sensör Kurulum Durumu</PageTitle>
 
@@ -130,9 +131,17 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        _structures = await DashboardUC.GetAllStructuresAsync();
-        _loading = false;
-        if (_structures.Count > 0) await SelectStructureAsync(_structures[0].Id);
+        try
+        {
+            _structures = await DashboardUC.GetAllStructuresAsync();
+            if (_structures.Count > 0) await SelectStructureAsync(_structures[0].Id);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Sensor setup page could not load structures.");
+            _error = "Yapılar yüklenemedi. Timeseries API erişilebilir değilse 'Bir hata oluştu' yerine bu uyarı gösterilir; ayrıntı panel logundadır.";
+        }
+        finally { _loading = false; }
     }
 
     private async Task SelectStructureAsync(Guid id)
@@ -157,7 +166,11 @@ else
             }));
             _readiness = results.Where(result => result.Data is not null).ToDictionary(result => result.SensorId, result => result.Data!);
         }
-        catch (Exception ex) { _error = $"Kurulum bilgisi alınamadı: {ex.Message}"; }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Sensor readiness could not be loaded for structure {StructureId}", _selectedStructureId);
+            _error = "Kurulum bilgisi alınamadı. Ayrıntı için panel container logunu kontrol edin.";
+        }
         finally { _readinessLoading = false; }
     }
 

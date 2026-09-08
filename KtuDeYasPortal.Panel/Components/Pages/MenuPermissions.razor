@@ -15,35 +15,70 @@
 </div>
 
 @if (!string.IsNullOrWhiteSpace(_message)) { <div class="alert alert-success py-2">@_message</div> }
-@if (!string.IsNullOrWhiteSpace(_error)) { <div class="alert alert-danger py-2">@_error</div> }
+@if (!string.IsNullOrWhiteSpace(_error))   { <div class="alert alert-danger py-2">@_error</div> }
 
 <div class="card shadow-sm">
-    <div class="card-header bg-white"><strong><span class="bi bi-list-check me-2 text-primary"></span>Portal Menü Yetkileri</strong></div>
+    <div class="card-header bg-white">
+        <strong><span class="bi bi-list-check me-2 text-primary"></span>Portal Menü Yetkileri</strong>
+    </div>
     <div class="card-body">
-        <div class="row g-3 align-items-end">
-            <div class="col-lg-5">
-                <label class="form-label">Kullanıcı kimliği</label>
-                <input class="form-control" @bind="_userId" placeholder="Kayıtlı UserId" />
+        <div class="row g-3 align-items-end mb-3">
+            <div class="col-lg-6">
+                <label class="form-label">Kullanıcı <span class="text-danger">*</span></label>
+                @if (_loadingUsers)
+                {
+                    <div class="text-muted small"><span class="spinner-border spinner-border-sm me-1"></span>Kullanıcılar yükleniyor...</div>
+                }
+                else
+                {
+                    <select class="form-select" @bind="_userId" @bind:after="LoadMenuAsync">
+                        <option value="">-- Kullanıcı seçin --</option>
+                        @foreach (var user in _users)
+                        {
+                            <option value="@user.UserId">
+                                @user.UserName@(user.OrganizationName is not null ? $" · {user.OrganizationName}" : "")
+                            </option>
+                        }
+                    </select>
+                }
             </div>
-            <div class="col-lg-2">
-                <button class="btn btn-outline-primary w-100" @onclick="LoadAsync" disabled="@_loading">
-                    @if (_loading) { <span class="spinner-border spinner-border-sm me-1"></span> }
-                    Menüyü Yükle
-                </button>
-            </div>
+            @if (!string.IsNullOrWhiteSpace(_userId))
+            {
+                <div class="col-lg-auto">
+                    @if (_loadingMenu)
+                    {
+                        <span class="spinner-border spinner-border-sm text-primary"></span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-success py-2 px-3">
+                            <span class="bi bi-check-circle me-1"></span>Menü yetkileri yüklendi
+                        </span>
+                    }
+                </div>
+            }
         </div>
-        <div class="row row-cols-1 row-cols-md-2 row-cols-xl-4 g-2 mt-3">
+
+        <div class="row row-cols-1 row-cols-md-2 row-cols-xl-4 g-2 mt-1">
             @foreach (var menu in Options)
             {
-                <label class="form-check border rounded p-3">
-                    <input class="form-check-input" type="checkbox" checked="@_selected.Contains(menu.Key)" @onchange="() => Toggle(menu.Key)" />
-                    <span class="form-check-label"><strong class="d-block">@menu.Label</strong><small class="text-muted">@menu.Description</small></span>
+                <label class="form-check border rounded p-3 @(string.IsNullOrWhiteSpace(_userId) ? "opacity-50" : "")">
+                    <input class="form-check-input" type="checkbox"
+                           checked="@_selected.Contains(menu.Key)"
+                           disabled="@string.IsNullOrWhiteSpace(_userId)"
+                           @onchange="() => Toggle(menu.Key)" />
+                    <span class="form-check-label">
+                        <strong class="d-block">@menu.Label</strong>
+                        <small class="text-muted">@menu.Description</small>
+                    </span>
                 </label>
             }
         </div>
-        <button class="btn btn-primary mt-3" @onclick="SaveAsync" disabled="@(_saving || string.IsNullOrWhiteSpace(_userId))">
+
+        <button class="btn btn-primary mt-3" @onclick="SaveAsync"
+                disabled="@(_saving || string.IsNullOrWhiteSpace(_userId))">
             @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
-            Menü Yetkilerini Kaydet
+            <span class="bi bi-floppy me-1"></span>Menü Yetkilerini Kaydet
         </button>
     </div>
 </div>
@@ -51,63 +86,108 @@
 @code {
     private static readonly (string Key, string Label, string Description)[] Options =
     [
-        (PortalMenuPermissions.Home, "Ana sayfa", "Portal ana ekranını açar."),
-        (PortalMenuPermissions.Structures, "Baraj izleme", "Baraj listesini ve detaylarını açar."),
-        (PortalMenuPermissions.Sensors, "Sensör izleme", "Sensör ekranını açar."),
-        (PortalMenuPermissions.Dashboard, "Zaman serisi", "Baraj bazlı zaman serisi ekranını açar."),
-        (PortalMenuPermissions.Alerts, "Alertler", "Alert kuralları ve akışını açar."),
-        (PortalMenuPermissions.Media, "Görüntüleme", "Video ve medya ekranlarını açar."),
-        (PortalMenuPermissions.Historical, "Geçmiş veriler", "Geçmiş veri ekranını açar."),
-        (PortalMenuPermissions.DigitalTwin, "Digital Twin", "Digital Twin ekranını açar.")
+        (PortalMenuPermissions.Home,        "Ana sayfa",       "Portal ana ekranını açar."),
+        (PortalMenuPermissions.Structures,  "Baraj izleme",    "Baraj listesini ve detaylarını açar."),
+        (PortalMenuPermissions.Sensors,     "Sensör izleme",   "Sensör ekranını açar."),
+        (PortalMenuPermissions.Dashboard,   "Zaman serisi",    "Baraj bazlı zaman serisi ekranını açar."),
+        (PortalMenuPermissions.Alerts,      "Alertler",        "Alert kuralları ve akışını açar."),
+        (PortalMenuPermissions.Media,       "Görüntüleme",     "Video ve medya ekranlarını açar."),
+        (PortalMenuPermissions.Historical,  "Geçmiş veriler",  "Geçmiş veri ekranını açar."),
+        (PortalMenuPermissions.DigitalTwin, "Digital Twin",    "Digital Twin ekranını açar.")
     ];
+
     private readonly HashSet<string> _selected = new(StringComparer.Ordinal);
+    private readonly List<UserOption> _users = [];
+
     private string _userId = string.Empty;
     private string? _message;
     private string? _error;
-    private bool _loading;
+    private bool _loadingUsers;
+    private bool _loadingMenu;
     private bool _saving;
+
     private HttpClient AuthApi => HttpFactory.CreateClient("auth-api");
+
+    protected override async Task OnInitializedAsync()
+    {
+        _loadingUsers = true;
+        try
+        {
+            var users = await AuthApi.GetFromJsonAsync<List<UserOption>>("api/auth/users") ?? [];
+            _users.AddRange(users);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Kullanıcı listesi yüklenemedi.");
+            _error = "Kullanıcı listesi yüklenemedi.";
+        }
+        finally
+        {
+            _loadingUsers = false;
+        }
+    }
+
+    private async Task LoadMenuAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_userId)) return;
+        _loadingMenu = true;
+        _error = null;
+        _selected.Clear();
+        try
+        {
+            var permissions = await AuthApi.GetFromJsonAsync<List<string>>(
+                $"api/auth/menu-permissions?userId={Uri.EscapeDataString(_userId)}") ?? [];
+            foreach (var p in permissions) _selected.Add(p);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Menü yetkileri yüklenemedi: {UserId}", _userId);
+            _error = "Menü yetkileri yüklenemedi.";
+        }
+        finally
+        {
+            _loadingMenu = false;
+        }
+    }
 
     private void Toggle(string permission)
     {
         if (!_selected.Add(permission)) _selected.Remove(permission);
     }
 
-    private async Task LoadAsync()
-    {
-        if (string.IsNullOrWhiteSpace(_userId)) return;
-        _loading = true; _error = null;
-        try
-        {
-            var permissions = await AuthApi.GetFromJsonAsync<List<string>>(
-                $"api/auth/menu-permissions?userId={Uri.EscapeDataString(_userId)}") ?? [];
-            _selected.Clear();
-            foreach (var permission in permissions) _selected.Add(permission);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Menu permissions could not be loaded for {UserId}", _userId);
-            _error = "Menü yetkileri yüklenemedi. Ayrıntı için panel container logunu kontrol edin.";
-        }
-        finally { _loading = false; }
-    }
-
     private async Task SaveAsync()
     {
         if (string.IsNullOrWhiteSpace(_userId)) return;
-        _saving = true; _message = null; _error = null;
+        _saving = true;
+        _message = null;
+        _error = null;
         try
         {
             var response = await AuthApi.PutAsJsonAsync("api/auth/menu-permissions",
                 new UpdateMenuPermissionsRequest(_userId, _selected.ToArray()));
-            if (!response.IsSuccessStatusCode) { _error = await response.Content.ReadAsStringAsync(); return; }
+            if (!response.IsSuccessStatusCode)
+            {
+                _error = await response.Content.ReadAsStringAsync();
+                return;
+            }
             _message = "Menü yetkileri kaydedildi.";
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Menu permissions could not be saved for {UserId}", _userId);
-            _error = "Menü yetkileri kaydedilemedi. Ayrıntı için panel container logunu kontrol edin.";
+            Logger.LogError(ex, "Menü yetkileri kaydedilemedi: {UserId}", _userId);
+            _error = "Menü yetkileri kaydedilemedi.";
         }
-        finally { _saving = false; }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private sealed class UserOption
+    {
+        public string UserId { get; set; } = string.Empty;
+        public string UserName { get; set; } = string.Empty;
+        public string? OrganizationName { get; set; }
+        public string Role { get; set; } = string.Empty;
     }
 }

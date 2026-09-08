@@ -34,16 +34,21 @@
             </div>
             <div class="card-body">
                 <div class="mb-3">
-                    <label class="form-label">Kullanıcı kimliği <span class="text-danger">*</span></label>
-                    <input class="form-control" @bind="_userId" placeholder="Kurum kullanıcı ID'si" />
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Kullanıcı adı <span class="text-danger">*</span></label>
-                    <input class="form-control" @bind="_userName" placeholder="Ad Soyad" />
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Kurum</label>
-                    <input class="form-control" @bind="_organizationName" placeholder="DSİ Bölge Müdürlüğü" />
+                    <label class="form-label">Kullanıcı <span class="text-danger">*</span></label>
+                    @if (_users.Count == 0 && _loading)
+                    {
+                        <div class="text-muted small"><span class="spinner-border spinner-border-sm me-1"></span>Kullanıcılar yükleniyor...</div>
+                    }
+                    else
+                    {
+                        <select class="form-select" @bind="_selectedUserId" @bind:after="OnUserSelected">
+                            <option value="">-- Kullanıcı seçin --</option>
+                            @foreach (var user in _users)
+                            {
+                                <option value="@user.UserId">@user.UserName@(user.OrganizationName is not null ? $" · {user.OrganizationName}" : "")</option>
+                            }
+                        </select>
+                    }
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Baraj <span class="text-danger">*</span></label>
@@ -129,22 +134,26 @@
     private readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web);
     private readonly (string Key, string Label, string Description)[] _permissionOptions =
     [
-        (BarajPermissions.Read, "Baraj görünümü", "Baraj temel bilgilerini ve sensör listesini görür."),
-        (BarajPermissions.Dashboard, "Zaman serisi izleme", "Barajın canlı ve geçmiş sensör grafiklerini görür."),
-        (BarajPermissions.Alerts, "Canlı alertler", "Yetkili barajın alarm kayıtlarını görür."),
-        (BarajPermissions.Manage, "Baraj yönetimi", "Baraj ve sensör bağlantılarını yönetir."),
-        (BarajPermissions.Workspace, "Workspace", "Yetkili barajın çalışma alanlarına erişir."),
-        (BarajPermissions.NodeRed, "Node-RED", "Yetkili barajın Node-RED akışlarına erişir."),
-        (BarajPermissions.Media, "Medya arşivi", "Yetkili barajın video ve görsellerini görür."),
-        (BarajPermissions.SensorSetup, "Sensör kurulumu", "Sensör bağlantı testi ve metrik önizlemesini yönetir.")
+        (BarajPermissions.Read,        "Baraj görünümü",       "Baraj temel bilgilerini ve sensör listesini görür."),
+        (BarajPermissions.Dashboard,   "Zaman serisi izleme",  "Barajın canlı ve geçmiş sensör grafiklerini görür."),
+        (BarajPermissions.Alerts,      "Canlı alertler",       "Yetkili barajın alarm kayıtlarını görür."),
+        (BarajPermissions.Manage,      "Baraj yönetimi",       "Baraj ve sensör bağlantılarını yönetir."),
+        (BarajPermissions.Workspace,   "Workspace",            "Yetkili barajın çalışma alanlarına erişir."),
+        (BarajPermissions.NodeRed,     "Node-RED",             "Yetkili barajın Node-RED akışlarına erişir."),
+        (BarajPermissions.Media,       "Medya arşivi",         "Yetkili barajın video ve görsellerini görür."),
+        (BarajPermissions.SensorSetup, "Sensör kurulumu",      "Sensör bağlantı testi ve metrik önizlemesini yönetir.")
     ];
 
     private readonly List<StructureOption> _structures = [];
     private readonly List<StructurePermissionDto> _permissions = [];
+    private readonly List<UserOption> _users = [];
     private readonly HashSet<string> _selectedPermissions = new(StringComparer.Ordinal);
-    private string _userId = string.Empty;
-    private string _userName = string.Empty;
-    private string? _organizationName;
+
+    // Seçili kullanıcı
+    private string _selectedUserId = string.Empty;
+    private string _selectedUserName = string.Empty;
+    private string? _selectedOrganizationName;
+
     private string _structureId = string.Empty;
     private string? _message;
     private string? _error;
@@ -153,9 +162,9 @@
 
     private HttpClient DataApi => HttpFactory.CreateClient("timeseries-api");
     private HttpClient AuthApi => HttpFactory.CreateClient("auth-api");
+
     private bool CanGrant => Guid.TryParse(_structureId, out _) &&
-                              !string.IsNullOrWhiteSpace(_userId) &&
-                              !string.IsNullOrWhiteSpace(_userName) &&
+                              !string.IsNullOrWhiteSpace(_selectedUserId) &&
                               _selectedPermissions.Count > 0;
 
     protected override Task OnInitializedAsync() => LoadAsync();
@@ -170,18 +179,29 @@
             _structures.Clear();
             _structures.AddRange(structures.Where(x => x.IsActive).OrderBy(x => x.Name));
 
+            var users = await AuthApi.GetFromJsonAsync<List<UserOption>>("api/auth/users", _json) ?? [];
+            _users.Clear();
+            _users.AddRange(users);
+
             var permissions = await AuthApi.GetFromJsonAsync<List<StructurePermissionDto>>("api/structure-permissions", _json) ?? [];
             _permissions.Clear();
             _permissions.AddRange(permissions);
         }
         catch (Exception ex)
         {
-            _error = $"Yetki verileri yüklenemedi: {ex.Message}";
+            _error = $"Veriler yüklenemedi: {ex.Message}";
         }
         finally
         {
             _loading = false;
         }
+    }
+
+    private void OnUserSelected()
+    {
+        var user = _users.FirstOrDefault(u => u.UserId == _selectedUserId);
+        _selectedUserName = user?.UserName ?? string.Empty;
+        _selectedOrganizationName = user?.OrganizationName;
     }
 
     private void TogglePermission(string permission)
@@ -201,7 +221,7 @@
             foreach (var permission in _selectedPermissions.ToArray())
             {
                 var response = await AuthApi.PostAsJsonAsync("api/structure-permissions", new UpsertStructurePermissionRequest(
-                    _userId, _userName, _organizationName, Guid.Parse(_structureId), permission), _json);
+                    _selectedUserId, _selectedUserName, _selectedOrganizationName, Guid.Parse(_structureId), permission), _json);
                 if (!response.IsSuccessStatusCode && response.StatusCode != System.Net.HttpStatusCode.Conflict)
                 {
                     _error = await response.Content.ReadAsStringAsync();
@@ -211,6 +231,8 @@
 
             _message = "Baraj yetkileri kaydedildi.";
             _selectedPermissions.Clear();
+            _selectedUserId = string.Empty;
+            _structureId = string.Empty;
             await LoadAsync();
         }
         catch (Exception ex)
@@ -242,5 +264,13 @@
         public string Name { get; set; } = string.Empty;
         public string Province { get; set; } = string.Empty;
         public bool IsActive { get; set; }
+    }
+
+    private sealed class UserOption
+    {
+        public string UserId { get; set; } = string.Empty;
+        public string UserName { get; set; } = string.Empty;
+        public string? OrganizationName { get; set; }
+        public string Role { get; set; } = string.Empty;
     }
 }

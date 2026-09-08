@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @using System.Net.Http.Json
 @inject IHttpClientFactory HttpFactory
+@inject NavigationManager Nav
 
 <PageTitle>DSİ Panel Girişi</PageTitle>
 
@@ -38,17 +39,6 @@
             {
                 <div class="alert alert-danger py-2 small">@_error</div>
             }
-            @if (_response is not null)
-            {
-                <div class="alert alert-success py-2 small">
-                    <strong>@(_registerMode ? "Kayıt tamamlandı." : "Giriş başarılı.")</strong>
-                    <div>UserId: <code>@_response.UserId</code></div>
-                    <div class="text-muted">Portal kapsamı bu UserId ile eşleştirilecektir.</div>
-                    <a class="btn btn-outline-primary btn-sm mt-2" href="http://localhost:5050/?userId=@_response.UserId" target="_blank">
-                        <span class="bi bi-globe me-1"></span>Yetkili Portalı Aç
-                    </a>
-                </div>
-            }
 
             <button class="btn btn-primary w-100 py-2 fw-semibold" @onclick="SubmitAsync" disabled="@_busy">
                 @if (_busy) { <span class="spinner-border spinner-border-sm me-2"></span> }
@@ -65,7 +55,6 @@
     private bool _registerMode;
     private bool _busy;
     private string? _error;
-    private AuthResponse? _response;
 
     private HttpClient Api => HttpFactory.CreateClient("auth-api");
 
@@ -73,7 +62,6 @@
     {
         _busy = true;
         _error = null;
-        _response = null;
         try
         {
             HttpResponseMessage response;
@@ -94,7 +82,11 @@
                 return;
             }
 
-            _response = await response.Content.ReadFromJsonAsync<AuthResponse>();
+            var result = await response.Content.ReadFromJsonAsync<AuthResponse>();
+            if (result is not null)
+            {
+                Nav.NavigateTo($"/?userId={Uri.EscapeDataString(result.UserId)}&userName={Uri.EscapeDataString(result.UserName)}");
+            }
         }
         catch (Exception ex)
         {

@@ -260,6 +260,21 @@
                         <label class="form-label fw-semibold">Yapı Adı <span class="text-danger">*</span></label>
                         <input class="form-control" @bind="_newName" placeholder="Örn: Yusufeli Barajı" />
                     </div>
+                    <div class="col-12">
+                        <label class="form-label fw-semibold">Yapı Türü</label>
+                        <div class="d-flex flex-wrap gap-2">
+                            @foreach (var type in AvailableStructureTypes)
+                            {
+                                var selected = _newType == type.Key;
+                                <button type="button"
+                                        class="btn @(selected ? "btn-primary" : "btn-outline-secondary") d-flex align-items-center gap-2"
+                                        @onclick="() => SelectNewType(type.Key)">
+                                    <img src="@type.Value.ImagePath" alt="@type.Value.Label" style="width:28px;height:28px;object-fit:contain" />
+                                    <span>@type.Value.Label</span>
+                                </button>
+                            }
+                        </div>
+                    </div>
                     <div class="col-md-6">
                         <label class="form-label fw-semibold">Durum</label>
                         <div class="form-check mt-2">
@@ -749,7 +764,7 @@
                 <div class="col-md-6">
                     <label class="form-label">Yapı Tipi</label>
                     <select class="form-select" @bind="_editType">
-                        @foreach (var st in _structureTypes)
+                        @foreach (var st in AvailableStructureTypes)
                         {
                             <option value="@st.Key">@st.Value.Label</option>
                         }
@@ -1059,6 +1074,11 @@
         [StructureType.Building] = new("Bina",     "🏢", "/images/structures/building.svg"),
         [StructureType.Other]    = new("Diğer",    "📍", "/images/structures/other.svg"),
     };
+
+    private IEnumerable<KeyValuePair<StructureType, TypeInfo>> AvailableStructureTypes =>
+        string.Equals(Configuration["Panel:StructureAll"], "dam", StringComparison.OrdinalIgnoreCase)
+            ? _structureTypes.Where(x => x.Key == StructureType.Dam)
+            : _structureTypes;
 
     private readonly Dictionary<string, SensorTypeInfo> _sensorTypeInfos = new()
     {
@@ -1576,6 +1596,8 @@
         _newLng                 = 40.0;
         _newDistricts           = new();
         _newStructureSensors    = new();
+        _newEdgeConfigJson      = EdgeConfigTemplate;
+        _newSiteEnvironmentJson = SiteEnvironmentTemplate;
         _mapInitialized         = false;
         _wizardImageInitialized = false;
         _editingStructure       = null;
@@ -1728,6 +1750,15 @@
                 SensorCount   = _newStructureSensors.Count,
             };
             var created = await StructureUC.CreateAsync(s, new List<Guid>());
+
+            var resolvedEdgeConfig = ResolveStructurePlaceholders(_newEdgeConfigJson, created);
+            var resolvedEnvironment = ResolveStructurePlaceholders(_newSiteEnvironmentJson, created);
+            if (resolvedEdgeConfig != _newEdgeConfigJson || resolvedEnvironment != _newSiteEnvironmentJson)
+            {
+                created.EdgeConfigJson = resolvedEdgeConfig;
+                created.SiteEnvironmentJson = resolvedEnvironment;
+                await StructureUC.UpdateAsync(created.Id, created, new List<Guid>());
+            }
 
             // Wizard'da eklenen sensörleri önce DB'ye oluştur, sonra yapıya bağla
             if (_newStructureSensors.Any())
@@ -2127,6 +2158,48 @@
         using var document = System.Text.Json.JsonDocument.Parse(value);
         return document.RootElement.GetRawText();
     }
+
+        private static string ResolveStructurePlaceholders(string value, Structure structure) =>
+                value.Replace("{structureId}", structure.Id.ToString(), StringComparison.OrdinalIgnoreCase)
+                         .Replace("{structureName}", structure.Name, StringComparison.OrdinalIgnoreCase)
+                         .Replace("{structureType}", structure.StructureType.ToString(), StringComparison.OrdinalIgnoreCase)
+                         .Replace("{province}", structure.Province, StringComparison.OrdinalIgnoreCase)
+                         .Replace("{district}", structure.District ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+
+        private const string EdgeConfigTemplate = """
+{
+    "id": "{structureId}",
+    "name": "{structureName}",
+    "description": "",
+    "structureType": "{structureType}",
+    "province": "{province}",
+    "district": "{district}",
+    "latitude": null,
+    "longitude": null,
+    "address": "",
+    "nodeRedUrl": "",
+    "edgeApiUrl": "",
+    "apiBaseUrl": "http://timeseries-service:5000",
+    "autoRegister": false,
+    "isActive": true
+}
+""";
+
+        private const string SiteEnvironmentTemplate = """
+{
+    "EDGE_CONFIG_PATH": "/app/edge-config.json",
+    "EDGE_WORKER_ENABLED": "false",
+    "EDGE_API_URL": "http://edge-layer:5080",
+    "TIMESERIES_API_BASE_URL": "http://timeseries-service:5000",
+    "MQTT_BROKER": "emqx",
+    "MQTT_PORT": "1883",
+    "MQTT_INPUT_TOPIC": "edge/sensors/+/data",
+    "KAFKA_BROKERS": "kafka:29092",
+    "NODE_RED_URL": "http://nodered:1880",
+    "STRUCTURE_ID": "{structureId}",
+    "STRUCTURE_TYPE": "{structureType}"
+}
+""";
 
     // ── Silme ─────────────────────────────────────────────────────────────────
     private void ConfirmDelete(Guid id) => _deletingId = id;

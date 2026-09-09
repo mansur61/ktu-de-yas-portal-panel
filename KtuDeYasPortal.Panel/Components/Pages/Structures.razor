@@ -371,14 +371,24 @@
                     </div>
                 </div>
                 <div class="mt-3 d-flex gap-2">
-                    <button class="btn btn-primary" disabled="@(string.IsNullOrWhiteSpace(_newName) || string.IsNullOrEmpty(_newProvince) || _isSaving)"
-                            @onclick="SaveStructureAndOpenSetupAsync">
-                        Kaydet ve Saha Kurulumuna Geç <span class="bi bi-arrow-right ms-1"></span>
-                    </button>
-                    <button class="btn btn-success ms-auto" disabled="@(string.IsNullOrWhiteSpace(_newName) || string.IsNullOrEmpty(_newProvince) || _isSaving)"
-                            @onclick="SaveStructureOnlyAsync">
-                        @if (_isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
-                        <span class="bi bi-check-lg me-1"></span> Kaydet (Sensörsüz)
+                    @if (_createdStructureId == Guid.Empty)
+                    {
+                        <button class="btn btn-success" disabled="@(string.IsNullOrWhiteSpace(_newName) || string.IsNullOrEmpty(_newProvince) || _isSaving)"
+                                @onclick="SaveStructureAndOpenSetupAsync">
+                            @if (_isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                            <span class="bi bi-check-lg me-1"></span> Barajı Kaydet
+                        </button>
+                    }
+                    else
+                    {
+                        <div class="alert alert-success py-2 mb-0 me-auto">
+                            <span class="bi bi-check-circle me-1"></span>Baraj kaydedildi: <code>@_createdStructureId</code>
+                        </div>
+                    }
+                    <button class="btn btn-primary ms-auto"
+                            disabled="@(_createdStructureId == Guid.Empty || _isSaving)"
+                            @onclick="OpenSetupStep">
+                        İleri: Baraj-Saha Kurulumu <span class="bi bi-arrow-right ms-1"></span>
                     </button>
                 </div>
             }
@@ -1716,8 +1726,7 @@
             _setupStructureType = created.StructureType.ToString();
             _newEdgeConfigJson = ResolveStructurePlaceholders(EdgeConfigTemplate, created);
             _newSiteEnvironmentJson = ResolveStructurePlaceholders(SiteEnvironmentTemplate, created);
-            _wizardStep = 3;
-            _wizardImageInitialized = false;
+            _simulationStatusMessage = "Baraj kaydedildi. Saha kurulumu adımına geçebilirsiniz.";
             StateHasChanged();
         }
         catch (Exception ex)
@@ -1727,15 +1736,11 @@
         finally { _isSaving = false; }
     }
 
-    private async Task SaveStructureOnlyAsync()
+    private void OpenSetupStep()
     {
-        await SaveStructureAndOpenSetupAsync();
-        if (_createdStructureId != Guid.Empty)
-        {
-            _showCreateWizard = false;
-            _wizardStep = 2;
-            await LoadStructuresAsync();
-        }
+        if (_createdStructureId == Guid.Empty) return;
+        _wizardStep = 3;
+        _wizardImageInitialized = false;
     }
 
     private async Task SaveFieldSetupAsync()

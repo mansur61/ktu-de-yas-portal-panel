@@ -9,7 +9,14 @@ public interface IStructureSimulationClient
     Task StartAsync(string edgeApiUrl, Guid structureId, CancellationToken ct = default);
     Task StopAsync(string edgeApiUrl, Guid structureId, CancellationToken ct = default);
     Task SetForwardingAsync(string edgeApiUrl, Guid structureId, bool enabled, CancellationToken ct = default);
+    Task UpdateConfigAsync(string edgeApiUrl, EdgeConfigUpdateRequest request, CancellationToken ct = default);
 }
+
+public sealed record EdgeConfigUpdateRequest(
+    Guid Id, string Name, string? Description, string? Province, string? District,
+    double? Latitude, double? Longitude, string? Address, string? StructureType,
+    string? NodeRedUrl, string? EdgeApiUrl, bool IsActive, string? ApiBaseUrl = null,
+    bool AutoRegister = true);
 
 public sealed class EdgeLifecycleState
 {
@@ -98,6 +105,14 @@ public sealed class StructureSimulationHttpClient : IStructureSimulationClient
         var resp = await http.PostAsync($"api/edge/lifecycle/forwarding/{action}/{structureId}", null, ct);
         if (!resp.IsSuccessStatusCode)
             throw new InvalidOperationException($"[{(int)resp.StatusCode}] {await resp.Content.ReadAsStringAsync(ct)}");
+    }
+
+    public async Task UpdateConfigAsync(string edgeApiUrl, EdgeConfigUpdateRequest request, CancellationToken ct = default)
+    {
+        using var http = CreateEdgeClient(edgeApiUrl);
+        var response = await http.PutAsJsonAsync("api/edge/config", request, ct);
+        if (!response.IsSuccessStatusCode)
+            throw new InvalidOperationException($"[{(int)response.StatusCode}] {await response.Content.ReadAsStringAsync(ct)}");
     }
 
     private HttpClient CreateEdgeClient(string edgeApiUrl)

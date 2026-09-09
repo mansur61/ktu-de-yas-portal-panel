@@ -441,11 +441,30 @@
                         }
                         else
                         {
-                            <div class="row g-2">
-                                <div class="col-md-6"><label class="form-label">Sensör provisioning</label><select class="form-select" @bind="_setupProvisioningEnabled"><option value="true">true - keşif açık</option><option value="false">false - normal çalışma</option></select><div class="form-text">Sensörler keşfedilip merkeze aktarıldıktan sonra false yapılır.</div></div>
-                                <div class="col-md-6"><label class="form-label">Sensör Host</label><input class="form-control" @bind="_setupSensorHost" /></div>
-                                <div class="col-md-6"><label class="form-label">Kaynak MQTT Host</label><input class="form-control" @bind="_setupSourceMqttHost" /></div>
-                                <div class="col-md-6"><label class="form-label">UDP Sources</label><textarea class="form-control font-monospace" rows="2" @bind="_setupUdpSources"></textarea></div>
+                            <div class="row g-3">
+                                @foreach (var field in SiteEnvironmentFields)
+                                {
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold">@field.Label</label>
+                                        @if (field.Key == "DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED")
+                                        {
+                                            <select class="form-select" value="@GetEnv(field.Key)" @onchange="e => SetEnv(field.Key, e.Value?.ToString())">
+                                                <option value="true">true - keşif/provisioning açık</option>
+                                                <option value="false">false - normal çalışma</option>
+                                            </select>
+                                        }
+                                        else if (field.Key == "DEYAS_BRIDGE_UDP_SOURCES")
+                                        {
+                                            <textarea class="form-control font-monospace" rows="3" value="@GetEnv(field.Key)" @onchange="e => SetEnv(field.Key, e.Value?.ToString())"
+                                                      placeholder='[{"host":"192.168.1.51","port":1567}]'></textarea>
+                                        }
+                                        else
+                                        {
+                                            <input class="form-control" value="@GetEnv(field.Key)" @onchange="e => SetEnv(field.Key, e.Value?.ToString())" placeholder="@field.Placeholder" />
+                                        }
+                                        <div class="form-text">@field.Description</div>
+                                    </div>
+                                }
                             </div>
                         }
                         <div class="mt-3 d-flex gap-2">
@@ -1053,6 +1072,39 @@
     private string          _setupSourceMqttHost = "";
     private string          _setupUdpSources = "";
     private bool            _setupSaving;
+    private readonly Dictionary<string, string?> _siteEnvironment = new(StringComparer.OrdinalIgnoreCase);
+
+    private sealed record SiteEnvironmentField(string Key, string Label, string Description, string Placeholder = "");
+    private static readonly SiteEnvironmentField[] SiteEnvironmentFields =
+    [
+        new("DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED", "Sensör provisioning", "İlk keşifte true yapın; sensörler merkeze aktarıldıktan sonra false yapın."),
+        new("DEYAS_BRIDGE_SENSOR_HOST", "Sensör Host", "UDP sensör/GCF kaynağının IP veya DNS adresi.", "100.118.6.94"),
+        new("DEYAS_BRIDGE_SENSOR_PORT", "Sensör Port", "Tek UDP kaynağının hedef portu.", "1572"),
+        new("DEYAS_BRIDGE_UDP_LOCAL_PORT", "UDP Local Port", "Bridge'in sabit kaynak portu; cihaz tarafı port hafızalıysa değiştirmeyin.", "58431"),
+        new("DEYAS_BRIDGE_UDP_SOURCES", "UDP Sources", "Birden çok kaynak için JSON liste. Örn: [{host,port}].", "[{\"host\":\"192.168.1.51\",\"port\":1567}]"),
+        new("DEYAS_BRIDGE_SOURCE_MODE", "Source Mode", "UDP, MQTT veya both kaynak dinleme modu.", "both"),
+        new("DEYAS_BRIDGE_SOURCE_MQTT_HOST", "Kaynak MQTT Host", "Sensör kaynağının MQTT broker adresi.", "100.118.6.94"),
+        new("DEYAS_BRIDGE_SOURCE_MQTT_PORT", "Kaynak MQTT Port", "Sensör kaynağı MQTT portu.", "1883"),
+        new("DEYAS_BRIDGE_SOURCE_MQTT_TOPIC", "Kaynak MQTT Topic", "Kaynak broker'dan okunacak topic.", "shm/gumushane-baca/temperature"),
+        new("DEYAS_BRIDGE_SOURCE_MQTT_USERNAME", "Kaynak MQTT Kullanıcı", "Kaynak broker kullanıcı adı; sırları güvenli saklayın."),
+        new("DEYAS_BRIDGE_SOURCE_MQTT_PASSWORD", "Kaynak MQTT Şifre", "Kaynak broker şifresi; merkez DB'ye yazılmaz."),
+        new("DEYAS_BRIDGE_KEEPALIVE_SECONDS", "UDP Keepalive (sn)", "UDP bağlantı keepalive aralığı.", "5"),
+        new("DEVICE_CONNECTION_WATCHDOG_ENABLED", "Device Watchdog", "Telemetry gelmeyen cihazları pasif göstermek için true.", "false"),
+        new("DEVICE_OFFLINE_TIMEOUT_MS", "Offline Timeout (ms)", "Watchdog etkinse cihazın offline sayılacağı süre.", "30000"),
+        new("EDGE_FORWARDING_ENABLED", "Merkeze İletim", "Edge telemetry'nin merkeze aktarılması.", "true"),
+        new("EDGE_LOCAL_TIMESERIES_PRODUCER", "Yerel Timeseries Producer", "Saha DB telemetry yazımı.", "true"),
+        new("SAHA_ENABLED_PIPELINES", "Aktif Pipeline'lar", "Virgülle pipeline listesi; örn. ivmeolcer,kamera.", "ivmeolcer"),
+        new("SAHA_PIPELINE_RUNTIME_ENABLED", "Pipeline Runtime", "Saha pipeline başlangıç çalışma durumu.", "true"),
+        new("SAHA_MEDIA_ENABLED", "Media Pipeline", "Kamera/video pipeline etkinliği.", "true"),
+        new("LOCAL_TIMESERIES_API_BASE_URL", "Local Timeseries API", "Saha içi timeseries servis adresi.", "http://timeseries-service:5000"),
+        new("CENTRAL_TIMESERIES_API_BASE_URL", "Central Timeseries API", "Commissioning ve merkezi envanter API adresi.", "http://100.116.23.112:5000"),
+        new("CENTRAL_MQTT_HOST", "Central MQTT Host", "Merkez EMQX adresi.", "100.116.23.112"),
+        new("CENTRAL_MQTT_PORT", "Central MQTT Port", "Merkez EMQX portu.", "1883"),
+        new("CENTRAL_MQTT_USE_TLS", "Central MQTT TLS", "Merkez MQTT TLS kullanımı.", "false"),
+        new("CENTRAL_MQTT_USERNAME", "Central MQTT Kullanıcı", "Merkez MQTT kullanıcı adı."),
+        new("CENTRAL_MQTT_PASSWORD", "Central MQTT Şifre", "Merkez MQTT şifresi."),
+        new("NODE_RED_BASEURL", "Node-RED URL", "Saha Node-RED editör/runtime adresi.", "http://nodered:1880")
+    ];
     private List<string>  _newDistricts   = new();
     private List<Sensor>  _newStructureSensors = new(); // wizard adım 3'te eklenenler
 
@@ -1652,6 +1704,9 @@
         _setupSensorHost        = "";
         _setupSourceMqttHost    = "";
         _setupUdpSources        = "";
+        _siteEnvironment.Clear();
+        foreach (var field in SiteEnvironmentFields)
+            _siteEnvironment[field.Key] = field.Key == "DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED" ? "true" : field.Key == "SAHA_ENABLED_PIPELINES" ? "ivmeolcer" : field.Key == "EDGE_FORWARDING_ENABLED" || field.Key == "EDGE_LOCAL_TIMESERIES_PRODUCER" || field.Key == "SAHA_PIPELINE_RUNTIME_ENABLED" || field.Key == "SAHA_MEDIA_ENABLED" ? "true" : field.Key == "DEYAS_BRIDGE_SOURCE_MODE" ? "both" : string.Empty;
         _newEdgeConfigJson      = EdgeConfigTemplate;
         _newSiteEnvironmentJson = SiteEnvironmentTemplate;
         _mapInitialized         = false;
@@ -1757,6 +1812,14 @@
             structure.EdgeConfigJson = BuildEdgeConfigJson(structure);
             structure.SiteEnvironmentJson = BuildSiteEnvironmentJson();
             await StructureUC.UpdateAsync(structure.Id, structure, structure.Sensors?.Select(sensor => sensor.SensorId).ToList() ?? []);
+            if (!string.IsNullOrWhiteSpace(structure.EdgeApiUrl))
+            {
+                await StructureSimClient.UpdateConfigAsync(structure.EdgeApiUrl, new EdgeConfigUpdateRequest(
+                    structure.Id, structure.Name, structure.Description, structure.Province, structure.District,
+                    structure.Latitude, structure.Longitude, structure.Address, structure.StructureType.ToString(),
+                    structure.NodeRedUrl, structure.EdgeApiUrl, structure.IsActive,
+                    "http://timeseries-service:5000", true));
+            }
             _simulationStatusMessage = "Saha kurulum ayarları merkeze kaydedildi.";
             await LoadStructuresAsync();
         }
@@ -2395,16 +2458,17 @@
                     }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
 
                 private string BuildSiteEnvironmentJson() =>
-                    System.Text.Json.JsonSerializer.Serialize(new Dictionary<string, string?>
+                    System.Text.Json.JsonSerializer.Serialize(new Dictionary<string, string?>(_siteEnvironment)
                     {
-                        ["DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED"] = _setupProvisioningEnabled,
-                        ["DEYAS_BRIDGE_SENSOR_HOST"] = _setupSensorHost,
-                        ["DEYAS_BRIDGE_SOURCE_MQTT_HOST"] = _setupSourceMqttHost,
-                        ["DEYAS_BRIDGE_UDP_SOURCES"] = _setupUdpSources,
+                        ["DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED"] = GetEnv("DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED"),
+                        ["DEYAS_BRIDGE_UDP_SOURCES"] = GetEnv("DEYAS_BRIDGE_UDP_SOURCES"),
                         ["STRUCTURE_ID"] = _createdStructureId == Guid.Empty ? null : _createdStructureId.ToString(),
                         ["STRUCTURE_TYPE"] = _setupStructureType,
                         ["TIMESERIES_API_BASE_URL"] = "http://timeseries-service:5000"
                     }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+
+                private string GetEnv(string key) => _siteEnvironment.TryGetValue(key, out var value) ? value ?? string.Empty : string.Empty;
+                private void SetEnv(string key, string? value) => _siteEnvironment[key] = value ?? string.Empty;
 
                 private string BuildSiteEnvironmentEnv() => string.Join(Environment.NewLine, new[]
                 {

@@ -1,3 +1,13 @@
+window.panelDownloadBase64 = function (fileName, contentType, base64) {
+    const bytes = Uint8Array.from(atob(base64), character => character.charCodeAt(0));
+    const blob = new Blob([bytes], { type: contentType });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = fileName;
+    anchor.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
 // ════════════════════════════════════════════════════════════════════════
 //  panel-interop.js — KTU DeYas Admin Panel
 // ════════════════════════════════════════════════════════════════════════

@@ -327,18 +327,6 @@
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-6">
-                        <label class="form-label"><span class="bi bi-file-earmark-code me-1"></span>Edge Config JSON</label>
-                        <textarea class="form-control font-monospace" rows="5" @bind="_newEdgeConfigJson"
-                                  placeholder='{"structureId":"...","mqtt":{"topicPrefix":"..."}}'></textarea>
-                        <div class="form-text">Saha edge-config.json içeriği. Eski saha dosyası korunur.</div>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label"><span class="bi bi-terminal me-1"></span>Saha .env JSON</label>
-                        <textarea class="form-control font-monospace" rows="5" @bind="_newSiteEnvironmentJson"
-                                  placeholder='{"MQTT_BROKER":"...","EDGE_PORT":"5080"}'></textarea>
-                        <div class="form-text">Saha bridge ortam değişkenleri JSON nesnesi olarak saklanır.</div>
-                    </div>
                     @* ── Node-RED ── *@
                     <div class="col-12"><hr class="my-1" /><small class="text-muted fw-semibold">Node-RED Entegrasyonu</small></div>
                     <div class="col-12">
@@ -383,12 +371,12 @@
                     </div>
                 </div>
                 <div class="mt-3 d-flex gap-2">
-                    <button class="btn btn-primary" disabled="@(string.IsNullOrWhiteSpace(_newName) || string.IsNullOrEmpty(_newProvince))"
-                            @onclick="GoToSensorStep">
-                        İleri — Sensör Ekle <span class="bi bi-arrow-right ms-1"></span>
+                    <button class="btn btn-primary" disabled="@(string.IsNullOrWhiteSpace(_newName) || string.IsNullOrEmpty(_newProvince) || _isSaving)"
+                            @onclick="SaveStructureAndOpenSetupAsync">
+                        Kaydet ve Saha Kurulumuna Geç <span class="bi bi-arrow-right ms-1"></span>
                     </button>
                     <button class="btn btn-success ms-auto" disabled="@(string.IsNullOrWhiteSpace(_newName) || string.IsNullOrEmpty(_newProvince) || _isSaving)"
-                            @onclick="SaveNewStructureAsync">
+                            @onclick="SaveStructureOnlyAsync">
                         @if (_isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
                         <span class="bi bi-check-lg me-1"></span> Kaydet (Sensörsüz)
                     </button>
@@ -413,6 +401,47 @@
                             @if (_isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
                             <span class="bi bi-check-lg me-1"></span> Tamamla &amp; Kaydet
                         </button>
+                    </div>
+                </div>
+                <div class="card border-primary mb-3">
+                    <div class="card-header bg-primary text-white">
+                        <strong><span class="bi bi-hdd-network me-1"></span>Baraj-Saha Kurulumu</strong>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info py-2 small">
+                            Yapı kaydedildi. <code>structureId</code> otomatik oluşturuldu; saha ayarları bu yapı ile ilişkilendirilecektir.
+                            İlk aşamada deployment paketi manuel indirilebilir.
+                        </div>
+                        <ul class="nav nav-tabs mb-3">
+                            <li class="nav-item">
+                                <button class="nav-link @(_setupTab == "edge" ? "active" : "")" type="button" @onclick='() => _setupTab = "edge"'>Edge Config</button>
+                            </li>
+                            <li class="nav-item">
+                                <button class="nav-link @(_setupTab == "env" ? "active" : "")" type="button" @onclick='() => _setupTab = "env"'>Saha .env</button>
+                            </li>
+                        </ul>
+                        @if (_setupTab == "edge")
+                        {
+                            <div class="row g-2">
+                                <div class="col-md-6"><label class="form-label">Structure ID</label><input class="form-control" value="@_createdStructureId" readonly /></div>
+                                <div class="col-md-6"><label class="form-label">Yapı Adı</label><input class="form-control" @bind="_setupName" /></div>
+                                <div class="col-md-6"><label class="form-label">Yapı Tipi</label><input class="form-control" @bind="_setupStructureType" /></div>
+                                <div class="col-md-6"><label class="form-label">Saha Edge API URL</label><input class="form-control" @bind="_newEdgeApiUrl" placeholder="http://saha-ip:5080" /></div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="row g-2">
+                                <div class="col-md-6"><label class="form-label">Sensör provisioning</label><select class="form-select" @bind="_setupProvisioningEnabled"><option value="true">true - keşif açık</option><option value="false">false - normal çalışma</option></select><div class="form-text">Sensörler keşfedilip merkeze aktarıldıktan sonra false yapılır.</div></div>
+                                <div class="col-md-6"><label class="form-label">Sensör Host</label><input class="form-control" @bind="_setupSensorHost" /></div>
+                                <div class="col-md-6"><label class="form-label">Kaynak MQTT Host</label><input class="form-control" @bind="_setupSourceMqttHost" /></div>
+                                <div class="col-md-6"><label class="form-label">UDP Sources</label><textarea class="form-control font-monospace" rows="2" @bind="_setupUdpSources"></textarea></div>
+                            </div>
+                        }
+                        <div class="mt-3 d-flex gap-2">
+                            <button class="btn btn-primary" @onclick="SaveFieldSetupAsync" disabled="@_setupSaving">Saha ayarlarını kaydet</button>
+                            <button class="btn btn-outline-secondary" @onclick="DownloadDeploymentPackage" disabled="@(_createdStructureId == Guid.Empty)">Deployment paketini indir</button>
+                        </div>
                     </div>
                 </div>
                 <div class="alert alert-info d-flex align-items-center gap-2 py-2 small mb-2">
@@ -1005,6 +1034,15 @@
     private string        _newEdgeApiUrl  = "";
     private string        _newEdgeConfigJson = "";
     private string        _newSiteEnvironmentJson = "";
+    private Guid            _createdStructureId;
+    private string          _setupTab = "edge";
+    private string          _setupName = "";
+    private string          _setupStructureType = "Dam";
+    private string          _setupProvisioningEnabled = "true";
+    private string          _setupSensorHost = "";
+    private string          _setupSourceMqttHost = "";
+    private string          _setupUdpSources = "";
+    private bool            _setupSaving;
     private List<string>  _newDistricts   = new();
     private List<Sensor>  _newStructureSensors = new(); // wizard adım 3'te eklenenler
 
@@ -1596,6 +1634,14 @@
         _newLng                 = 40.0;
         _newDistricts           = new();
         _newStructureSensors    = new();
+        _createdStructureId     = Guid.Empty;
+        _setupTab               = "edge";
+        _setupName              = "";
+        _setupStructureType     = "Dam";
+        _setupProvisioningEnabled = "true";
+        _setupSensorHost        = "";
+        _setupSourceMqttHost    = "";
+        _setupUdpSources        = "";
         _newEdgeConfigJson      = EdgeConfigTemplate;
         _newSiteEnvironmentJson = SiteEnvironmentTemplate;
         _mapInitialized         = false;
@@ -1637,6 +1683,116 @@
         _wizardImageInitialized = false; // flag sıfırla
         _wizardStep = 3;
         _newStructureSensors = new();
+    }
+
+    private async Task SaveStructureAndOpenSetupAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newName) || string.IsNullOrWhiteSpace(_newProvince) || !_newType.HasValue)
+            return;
+
+        _isSaving = true;
+        _saveError = null;
+        try
+        {
+            var structure = new Structure
+            {
+                Name = _newName.Trim(),
+                Description = _newDescription.Trim(),
+                IsActive = _newIsActive,
+                Province = _newProvince,
+                District = _newDistrict,
+                Address = _newAddress.Trim(),
+                Latitude = _newLat,
+                Longitude = _newLng,
+                StructureType = _newType.Value,
+                ImageUrl = _structureTypes[_newType.Value].ImagePath,
+                NodeRedUrl = string.IsNullOrWhiteSpace(_newNodeRedUrl) ? null : _newNodeRedUrl.Trim(),
+                SensorCount = 0
+            };
+
+            var created = await StructureUC.CreateAsync(structure, []);
+            _createdStructureId = created.Id;
+            _setupName = created.Name;
+            _setupStructureType = created.StructureType.ToString();
+            _newEdgeConfigJson = ResolveStructurePlaceholders(EdgeConfigTemplate, created);
+            _newSiteEnvironmentJson = ResolveStructurePlaceholders(SiteEnvironmentTemplate, created);
+            _wizardStep = 3;
+            _wizardImageInitialized = false;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            _saveError = $"Yapı kaydı başarısız: {ex.Message}";
+        }
+        finally { _isSaving = false; }
+    }
+
+    private async Task SaveStructureOnlyAsync()
+    {
+        await SaveStructureAndOpenSetupAsync();
+        if (_createdStructureId != Guid.Empty)
+        {
+            _showCreateWizard = false;
+            _wizardStep = 2;
+            await LoadStructuresAsync();
+        }
+    }
+
+    private async Task SaveFieldSetupAsync()
+    {
+        if (_createdStructureId == Guid.Empty || _setupSaving) return;
+        _setupSaving = true;
+        try
+        {
+            var structure = await StructureUC.GetByIdAsync(_createdStructureId);
+            if (structure is null) return;
+
+            structure.Name = _setupName.Trim();
+            structure.EdgeApiUrl = string.IsNullOrWhiteSpace(_newEdgeApiUrl) ? null : _newEdgeApiUrl.Trim();
+            structure.EdgeConfigJson = BuildEdgeConfigJson(structure);
+            structure.SiteEnvironmentJson = BuildSiteEnvironmentJson();
+            await StructureUC.UpdateAsync(structure.Id, structure, structure.Sensors?.Select(sensor => sensor.SensorId).ToList() ?? []);
+            _simulationStatusMessage = "Saha kurulum ayarları merkeze kaydedildi.";
+            await LoadStructuresAsync();
+        }
+        catch (Exception ex) { _saveError = $"Saha ayarları kaydedilemedi: {ex.Message}"; }
+        finally { _setupSaving = false; }
+    }
+
+    private async Task DownloadDeploymentPackage()
+    {
+        if (_createdStructureId == Guid.Empty) return;
+
+        var structure = await StructureUC.GetByIdAsync(_createdStructureId);
+        if (structure is null) return;
+
+        structure.Name = _setupName.Trim();
+        structure.EdgeApiUrl = string.IsNullOrWhiteSpace(_newEdgeApiUrl) ? null : _newEdgeApiUrl.Trim();
+        var edgeConfig = BuildEdgeConfigJson(structure);
+        var environment = BuildSiteEnvironmentEnv();
+        await using var output = new MemoryStream();
+        using (var archive = new System.IO.Compression.ZipArchive(output, System.IO.Compression.ZipArchiveMode.Create, true))
+        {
+            AddPackageEntry(archive, "edge-config.json", edgeConfig);
+            AddPackageEntry(archive, ".env", environment);
+            AddPackageEntry(archive, "README.txt",
+                $"Saha kurulumu\n\nYapi: {_setupName}\nStructureId: {_createdStructureId}\n\n" +
+                "1. edge-config.json ve .env dosyalarini saha deployment klasorune kopyalayin.\n" +
+                "2. Bridge'i provisioning=true ile baslatin.\n" +
+                "3. Sensorler merkeze aktarilinca provisioning degerini false yapin.\n");
+        }
+
+        var base64 = Convert.ToBase64String(output.ToArray());
+        await JS.InvokeVoidAsync("panelDownloadBase64",
+            $"saha-deployment-{_createdStructureId:N}.zip", "application/zip", base64);
+        _simulationStatusMessage = "Saha deployment paketi indirildi. Manuel olarak saha makinesine kurabilirsiniz.";
+    }
+
+    private static void AddPackageEntry(System.IO.Compression.ZipArchive archive, string name, string content)
+    {
+        var entry = archive.CreateEntry(name, System.IO.Compression.CompressionLevel.Fastest);
+        using var writer = new StreamWriter(entry.Open());
+        writer.Write(content);
     }
 
     private void BackFromStep2()
@@ -1703,9 +1859,47 @@
     private async Task ConfirmedSaveAsync()
     {
         _saveError = null;
-        await SaveNewStructureAsync();
+        await SaveSensorsAndFinishAsync();
         if (string.IsNullOrEmpty(_saveError))
             _showSaveConfirm = false;
+    }
+
+    private async Task SaveSensorsAndFinishAsync()
+    {
+        if (_createdStructureId == Guid.Empty || _isSaving) return;
+        _isSaving = true;
+        try
+        {
+            var structure = await StructureUC.GetByIdAsync(_createdStructureId);
+            if (structure is null) { _saveError = "Yapı bulunamadı."; return; }
+
+            var createdIds = new List<Guid>();
+            foreach (var sensor in _newStructureSensors)
+            {
+                if (sensor.Topic.Contains("{structureId}"))
+                    sensor.Topic = sensor.Topic.Replace("{structureId}", _createdStructureId.ToString().ToLowerInvariant());
+
+                var createdSensor = await StructureUC.CreateSensorAsync(sensor);
+                createdIds.Add(createdSensor.Id);
+            }
+
+            _setupProvisioningEnabled = "false";
+            _setupUdpSources = System.Text.Json.JsonSerializer.Serialize(
+                _newStructureSensors
+                    .Where(sensor => !string.IsNullOrWhiteSpace(sensor.IpAddress) && sensor.Port.HasValue)
+                    .Select(sensor => new { host = sensor.IpAddress, port = sensor.Port })
+                    .ToList());
+            structure.EdgeConfigJson = BuildEdgeConfigJson(structure);
+            structure.SiteEnvironmentJson = BuildSiteEnvironmentJson();
+            await StructureUC.UpdateAsync(structure.Id, structure, createdIds);
+
+            _showCreateWizard = false;
+            _showSaveConfirm = false;
+            _newStructureSensors = new();
+            await LoadStructuresAsync();
+        }
+        catch (Exception ex) { _saveError = $"Sensör/provisioning kaydı başarısız: {ex.Message}"; }
+        finally { _isSaving = false; }
     }
 
     private async Task OnNewProvinceChanged(ChangeEventArgs e)
@@ -1745,8 +1939,8 @@
                 ImageUrl      = _structureTypes[_newType.Value].ImagePath,
                 NodeRedUrl    = string.IsNullOrWhiteSpace(_newNodeRedUrl) ? null : _newNodeRedUrl.Trim(),
                 EdgeApiUrl    = string.IsNullOrWhiteSpace(_newEdgeApiUrl) ? null : _newEdgeApiUrl.Trim(),
-                EdgeConfigJson = NormalizeJson(_newEdgeConfigJson),
-                SiteEnvironmentJson = NormalizeJson(_newSiteEnvironmentJson),
+                EdgeConfigJson = null,
+                SiteEnvironmentJson = null,
                 SensorCount   = _newStructureSensors.Count,
             };
             var created = await StructureUC.CreateAsync(s, new List<Guid>());
@@ -1760,10 +1954,11 @@
                 await StructureUC.UpdateAsync(created.Id, created, new List<Guid>());
             }
 
+            var createdIds = new List<Guid>();
+
             // Wizard'da eklenen sensörleri önce DB'ye oluştur, sonra yapıya bağla
             if (_newStructureSensors.Any())
             {
-                var createdIds = new List<Guid>();
                 foreach (var sensor in _newStructureSensors)
                 {
                     // Wizard'da topic'e {structureId} placeholder yazıldıysa
@@ -1779,6 +1974,17 @@
                 }
                 await StructureUC.UpdateAsync(created.Id, created, createdIds);
             }
+
+            // Sensör bilgileri tamamlandıktan sonra saha env'ini son kez üret.
+            // Provisioning tek seferlik keşif modunda başlar ve işlem sonunda kapanır.
+            _setupProvisioningEnabled = "false";
+            _setupUdpSources = System.Text.Json.JsonSerializer.Serialize(
+                _newStructureSensors
+                    .Where(sensor => !string.IsNullOrWhiteSpace(sensor.IpAddress) && sensor.Port.HasValue)
+                    .Select(sensor => new { host = sensor.IpAddress, port = sensor.Port })
+                    .ToList());
+            created.SiteEnvironmentJson = BuildSiteEnvironmentJson();
+            await StructureUC.UpdateAsync(created.Id, created, createdIds);
 
             _showCreateWizard       = false;
             _wizardImageInitialized = false;
@@ -2166,6 +2372,51 @@
                          .Replace("{province}", structure.Province, StringComparison.OrdinalIgnoreCase)
                          .Replace("{district}", structure.District ?? string.Empty, StringComparison.OrdinalIgnoreCase);
 
+                private string BuildEdgeConfigJson(Structure structure) =>
+                    System.Text.Json.JsonSerializer.Serialize(new
+                    {
+                        id = structure.Id,
+                        name = structure.Name,
+                        description = structure.Description ?? string.Empty,
+                        structureType = structure.StructureType.ToString(),
+                        province = structure.Province,
+                        district = structure.District,
+                        latitude = structure.Latitude,
+                        longitude = structure.Longitude,
+                        address = structure.Address,
+                        edgeApiUrl = structure.EdgeApiUrl,
+                        autoRegister = false,
+                        isActive = structure.IsActive
+                    }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+
+                private string BuildSiteEnvironmentJson() =>
+                    System.Text.Json.JsonSerializer.Serialize(new Dictionary<string, string?>
+                    {
+                        ["DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED"] = _setupProvisioningEnabled,
+                        ["DEYAS_BRIDGE_SENSOR_HOST"] = _setupSensorHost,
+                        ["DEYAS_BRIDGE_SOURCE_MQTT_HOST"] = _setupSourceMqttHost,
+                        ["DEYAS_BRIDGE_UDP_SOURCES"] = _setupUdpSources,
+                        ["STRUCTURE_ID"] = _createdStructureId == Guid.Empty ? null : _createdStructureId.ToString(),
+                        ["STRUCTURE_TYPE"] = _setupStructureType,
+                        ["TIMESERIES_API_BASE_URL"] = "http://timeseries-service:5000"
+                    }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+
+                private string BuildSiteEnvironmentEnv() => string.Join(Environment.NewLine, new[]
+                {
+                    $"DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED={_setupProvisioningEnabled}",
+                    $"DEYAS_BRIDGE_SENSOR_HOST={_setupSensorHost}",
+                    $"DEYAS_BRIDGE_SOURCE_MQTT_HOST={_setupSourceMqttHost}",
+                    $"DEYAS_BRIDGE_UDP_SOURCES={_setupUdpSources}",
+                    $"STRUCTURE_ID={_createdStructureId}",
+                    $"STRUCTURE_TYPE={_setupStructureType}",
+                    "EDGE_CONFIG_PATH=/app/edge-config.json",
+                    "TIMESERIES_API_BASE_URL=http://timeseries-service:5000",
+                    "EDGE_WORKER_ENABLED=false",
+                    "MQTT_BROKER=emqx",
+                    "MQTT_PORT=1883",
+                    "KAFKA_BROKERS=kafka:29092"
+                }) + Environment.NewLine;
+
         private const string EdgeConfigTemplate = """
 {
     "id": "{structureId}",
@@ -2197,7 +2448,11 @@
     "KAFKA_BROKERS": "kafka:29092",
     "NODE_RED_URL": "http://nodered:1880",
     "STRUCTURE_ID": "{structureId}",
-    "STRUCTURE_TYPE": "{structureType}"
+    "STRUCTURE_TYPE": "{structureType}",
+    "DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED": "true",
+    "DEYAS_BRIDGE_SENSOR_HOST": "",
+    "DEYAS_BRIDGE_SOURCE_MQTT_HOST": "",
+    "DEYAS_BRIDGE_UDP_SOURCES": "[]"
 }
 """;
 

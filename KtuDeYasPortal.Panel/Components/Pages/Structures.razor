@@ -241,12 +241,16 @@
         </div>
 
         <div class="create-steps">
-            <div class="create-step @(_wizardStep >= 2 ? (_wizardStep > 2 ? "done" : "active") : "")">
+            <div class="create-step @(_wizardStep > 2 ? "done" : "active")">
                 <div class="create-step-num">@(_wizardStep > 2 ? "✓" : "1")</div>
                 <div>Bilgiler &amp; Konum</div>
             </div>
-            <div class="create-step @(_wizardStep >= 3 ? "active" : "")">
-                <div class="create-step-num">2</div>
+            <div class="create-step @(_wizardStep == 3 ? "active" : (_wizardStep > 3 ? "done" : ""))">
+                <div class="create-step-num">@(_wizardStep > 3 ? "✓" : "2")</div>
+                <div>Baraj-Saha Kurulumu</div>
+            </div>
+            <div class="create-step @(_wizardStep >= 4 ? "active" : "")">
+                <div class="create-step-num">3</div>
                 <div>Sensör Ekle</div>
             </div>
         </div>
@@ -394,7 +398,7 @@
             }
 
             @* ADIM 3 — Yapı resmi üzerinde sensör ekleme *@
-            @if (_wizardStep == 3)
+            @if (_wizardStep >= 3)
             {
                 <div class="mb-3 d-flex align-items-center gap-3">
                     <div>
@@ -470,9 +474,51 @@
                         <div class="mt-3 d-flex gap-2">
                             <button class="btn btn-primary" @onclick="SaveFieldSetupAsync" disabled="@_setupSaving">Saha ayarlarını kaydet</button>
                             <button class="btn btn-outline-secondary" @onclick="DownloadDeploymentPackage" disabled="@(_createdStructureId == Guid.Empty)">Deployment paketini indir</button>
+                            @if (_wizardStep == 3)
+                            {
+                                <button class="btn btn-success ms-auto" @onclick="GoToSensorStep" disabled="@_setupSaving">
+                                    Sensör Ekle adımına geç <span class="bi bi-arrow-right ms-1"></span>
+                                </button>
+                            }
                         </div>
+                        @if (_discoveredSensors.Count > 0)
+                        {
+                            <div class="mt-4">
+                                <div class="d-flex align-items-center mb-2">
+                                    <strong><span class="bi bi-broadcast-pin me-1"></span>Sahadan gelen sensörler</strong>
+                                    <span class="badge bg-info text-dark ms-2">@_discoveredSensors.Count</span>
+                                    <button class="btn btn-sm btn-success ms-auto" @onclick="ConfirmDiscoveredSensorsAsync" disabled="@_setupSaving">
+                                        <span class="bi bi-cloud-upload me-1"></span>Gelen sensörleri merkeze kaydet
+                                    </button>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-bordered mb-0">
+                                        <thead class="table-secondary">
+                                            <tr><th>Stream ID</th><th>Sistem ID</th><th>Host</th><th>Port</th><th>Sensör tipi</th><th>Metrikler</th></tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var sensor in _discoveredSensors)
+                                            {
+                                                var discovery = ParseDiscoveryDescription(sensor.Description);
+                                                <tr>
+                                                    <td><code>@(discovery.StreamId ?? sensor.DeviceId)</code></td>
+                                                    <td><code>@(discovery.SystemId ?? "-")</code></td>
+                                                    <td>@(sensor.IpAddress ?? "-")</td>
+                                                    <td>@(sensor.Port?.ToString() ?? "-")</td>
+                                                    <td>@sensor.SensorType</td>
+                                                    <td>@(string.IsNullOrWhiteSpace(sensor.Metrics) ? "-" : sensor.Metrics)</td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div class="form-text">Provisioning ilk keşifte true kalır. Kayıt tamamlandıktan sonra saha ayarlarında false yapabilirsiniz.</div>
+                            </div>
+                        }
                     </div>
                 </div>
+                @if (_wizardStep >= 4)
+                {
                 <div class="alert alert-info d-flex align-items-center gap-2 py-2 small mb-2">
                     <span class="bi bi-cursor-fill text-primary"></span>
                     Resme tıklayarak sensör konumlandırın. İstediğiniz kadar sensör ekleyebilirsiniz, daha sonra da eklenebilir.
@@ -522,6 +568,7 @@
                             </table>
                         </div>
                     </div>
+                }
                 }
             }
         </div>
@@ -1107,6 +1154,9 @@
     ];
     private List<string>  _newDistricts   = new();
     private List<Sensor>  _newStructureSensors = new(); // wizard adım 3'te eklenenler
+    private List<StructureSensor> _discoveredSensors = new();
+
+    private sealed record DiscoveryMetadata(string? SystemId, string? StreamId);
 
     // ── Sensör popup ─────────────────────────────────────────────────────────
     private string _addSensorTab            = "tcp";
@@ -1696,6 +1746,7 @@
         _newLng                 = 40.0;
         _newDistricts           = new();
         _newStructureSensors    = new();
+        _discoveredSensors      = new();
         _createdStructureId     = Guid.Empty;
         _setupTab               = "edge";
         _setupName              = "";
@@ -1746,7 +1797,7 @@
     private void GoToSensorStep()
     {
         _wizardImageInitialized = false; // flag sıfırla
-        _wizardStep = 3;
+        _wizardStep = 4;
         _newStructureSensors = new();
     }
 
@@ -1822,9 +1873,49 @@
             }
             _simulationStatusMessage = "Saha kurulum ayarları merkeze kaydedildi.";
             await LoadStructuresAsync();
+            await RefreshDiscoveredSensorsAsync();
         }
         catch (Exception ex) { _saveError = $"Saha ayarları kaydedilemedi: {ex.Message}"; }
         finally { _setupSaving = false; }
+    }
+
+    private async Task RefreshDiscoveredSensorsAsync()
+    {
+        if (_createdStructureId == Guid.Empty) return;
+        var structure = await StructureUC.GetByIdAsync(_createdStructureId);
+        _discoveredSensors = structure?.Sensors
+            .Where(sensor => sensor.IsActive && sensor.Description.StartsWith("Saha bridge keşfi:", StringComparison.OrdinalIgnoreCase))
+            .ToList() ?? new();
+    }
+
+    private async Task ConfirmDiscoveredSensorsAsync()
+    {
+        if (_createdStructureId == Guid.Empty || _setupSaving || _discoveredSensors.Count == 0) return;
+        _setupSaving = true;
+        try
+        {
+            var structure = await StructureUC.GetByIdAsync(_createdStructureId);
+            if (structure is null) return;
+
+            var sensorIds = structure.Sensors.Where(sensor => sensor.IsActive).Select(sensor => sensor.SensorId).ToList();
+            await StructureUC.UpdateAsync(structure.Id, structure, sensorIds);
+            await RefreshDiscoveredSensorsAsync();
+            _simulationStatusMessage = $"{sensorIds.Count} sensör merkeze kaydedildi.";
+        }
+        catch (Exception ex) { _saveError = $"Sensörler merkeze kaydedilemedi: {ex.Message}"; }
+        finally { _setupSaving = false; }
+    }
+
+    private static DiscoveryMetadata ParseDiscoveryDescription(string? description)
+    {
+        if (string.IsNullOrWhiteSpace(description)) return new(null, null);
+        var values = description.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Select(part => part.Split('=', 2, StringSplitOptions.TrimEntries))
+            .Where(parts => parts.Length == 2)
+            .ToDictionary(parts => parts[0], parts => parts[1], StringComparer.OrdinalIgnoreCase);
+        values.TryGetValue("system", out var systemId);
+        values.TryGetValue("stream", out var streamId);
+        return new(systemId?.TrimEnd(','), streamId?.TrimEnd(','));
     }
 
     private async Task DownloadDeploymentPackage()

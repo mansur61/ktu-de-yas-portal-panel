@@ -250,8 +250,12 @@
                 <div>Baraj-Saha Kurulumu</div>
             </div>
             <div class="create-step @(_wizardStep >= 4 ? "active" : "")">
-                <div class="create-step-num">3</div>
+                <div class="create-step-num">@(_wizardStep > 4 ? "✓" : "3")</div>
                 <div>Sensör Ekle</div>
+            </div>
+            <div class="create-step @(_wizardStep == 5 ? "active" : "")">
+                <div class="create-step-num">4</div>
+                <div>Saha Deployment</div>
             </div>
         </div>
 
@@ -433,9 +437,6 @@
                             <li class="nav-item">
                                 <button class="nav-link @(_setupTab == "env" ? "active" : "")" type="button" @onclick='() => _setupTab = "env"'>Saha .env</button>
                             </li>
-                            <li class="nav-item">
-                                <button class="nav-link @(_setupTab == "files" ? "active" : "")" type="button" @onclick='() => _setupTab = "files"'>Saha Dosyaları</button>
-                            </li>
                         </ul>
                         @if (_setupTab == "edge")
                         {
@@ -446,18 +447,44 @@
                                 <div class="col-md-6"><label class="form-label">Saha Edge API URL</label><input class="form-control" @bind="_newEdgeApiUrl" placeholder="http://saha-ip:5080" /></div>
                             </div>
                         }
-                        else
+                        else if (_setupTab == "env")
                         {
                             <div class="row g-3">
                                 @foreach (var field in SiteEnvironmentFields)
                                 {
+                                    if (field.Key is "CAMERA_NORTH_RTSP_URL" or "CAMERA_ENTRY_RTSP_URL" && !IsCameraPipelineSelected)
+                                        continue;
                                     <div class="col-md-6">
                                         <label class="form-label fw-semibold">@field.Label</label>
-                                        @if (field.Key == "DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED")
+                                        @if (field.Key is "CAMERA_NORTH_RTSP_URL" or "CAMERA_ENTRY_RTSP_URL")
+                                        {
+                                            if (IsCameraPipelineSelected)
+                                            {
+                                                <input class="form-control" value="@GetEnv(field.Key)" @onchange="e => SetEnv(field.Key, e.Value?.ToString())" placeholder="@field.Placeholder" />
+                                            }
+                                        }
+                                        else if (field.Key == "DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED")
+                                        {
+                                            <input class="form-control bg-light" value="true - yalnız ilk saha keşfi için" readonly />
+                                            SetEnv(field.Key, "true");
+                                        }
+                                        else if (field.Key == "SAHA_ENABLED_PIPELINES")
+                                        {
+                                            <div class="d-flex flex-wrap gap-2">
+                                                <button type="button" class="btn btn-sm @(IsPipelineSelected("ivmeolcer") ? "btn-success" : "btn-outline-secondary")" @onclick='() => TogglePipeline("ivmeolcer")'>İvmeölçer</button>
+                                                <button type="button" class="btn btn-sm @(IsPipelineSelected("kamera") ? "btn-success" : "btn-outline-secondary")" @onclick='() => TogglePipeline("kamera")'>Kamera</button>
+                                                <button type="button" class="btn btn-sm @(IsPipelineSelected("lidar") ? "btn-success" : "btn-outline-secondary")" @onclick='() => TogglePipeline("lidar")'>Lidar</button>
+                                            </div>
+                                            <input class="form-control mt-2" value="@GetEnv(field.Key)" readonly aria-label="Seçilen aktif pipeline'lar" />
+                                        }
+                                        else if (field.Key == "DEYAS_BRIDGE_SOURCE_MODE")
                                         {
                                             <select class="form-select" value="@GetEnv(field.Key)" @onchange="e => SetEnv(field.Key, e.Value?.ToString())">
-                                                <option value="true">true - keşif/provisioning açık</option>
-                                                <option value="false">false - normal çalışma</option>
+                                                <option value="udp">udp</option>
+                                                <option value="mqtt">mqtt</option>
+                                                <option value="tcp">tcp</option>
+                                                <option value="both">both — yalnız UDP + MQTT</option>
+                                                <option value="all">all — UDP + MQTT + TCP</option>
                                             </select>
                                         }
                                         else if (field.Key == "DEYAS_BRIDGE_UDP_SOURCES")
@@ -486,18 +513,9 @@
                                 }
                             </div>
                         }
-                        else
-                        {
-                            <div class="alert alert-secondary mb-3">
-                                <strong>Saha deployment dosyaları</strong>
-                                <div class="small mt-1">Paket; <code>docker-compose.yml</code>, oluşturulan <code>.env</code>, <code>edge-config.json</code>, <code>media-config.json</code>, veritabanı başlangıç dosyaları ve saha rehberlerini içerir. Image sürümleri saha paketinin sabit sürümüyle korunur.</div>
-                            </div>
-                            <button class="btn btn-primary" @onclick="DownloadDeploymentPackage" disabled="@(_createdStructureId == Guid.Empty)">
-                                <span class="bi bi-file-earmark-zip me-1"></span>Saha deployment ZIP indir
-                            </button>
-                        }
-                        <div class="mt-3 d-flex gap-2">
-                            <button class="btn btn-primary" @onclick="SaveFieldSetupAsync" disabled="@_setupSaving">Saha ayarlarını kaydet</button>
+                        <div class="mt-3 d-flex flex-wrap gap-2 align-items-center">
+                            <button class="btn btn-primary" @onclick="SaveFieldSetupAsync" disabled="@_setupSaving">Saha ayarlarını merkez DB'ye kaydet</button>
+                            <span class="small text-muted">Edge yapılandırması ve saha <code>.env</code> değerleri bu yapının merkez kaydına saklanır; sahaya komut göndermez.</span>
                             @if (_wizardStep == 3)
                             {
                                 <button class="btn btn-success ms-auto" @onclick="GoToSensorStep" disabled="@_setupSaving">
@@ -508,49 +526,14 @@
                                 </button>
                             }
                         </div>
-                        @* Bridge provisioning kayıtları sahada doğrudan merkez envanterine yazar;
-                           burada ikinci bir aktarım yapılmaz. *@
-                        @if (false && _discoveredSensors.Count > 0)
-                        {
-                            <div class="mt-4">
-                                <div class="d-flex align-items-center mb-2">
-                                    <strong><span class="bi bi-broadcast-pin me-1"></span>Sahadan gelen sensörler</strong>
-                                    <span class="badge bg-info text-dark ms-2">@_discoveredSensors.Count</span>
-                                    <button class="btn btn-sm btn-success ms-auto" @onclick="ConfirmDiscoveredSensorsAsync" disabled="@_setupSaving">
-                                        <span class="bi bi-cloud-upload me-1"></span>Gelen sensörleri merkeze kaydet
-                                    </button>
-                                </div>
-                                <div class="table-responsive">
-                                    <table class="table table-sm table-bordered mb-0">
-                                        <thead class="table-secondary">
-                                            <tr><th>Stream ID</th><th>Sistem ID</th><th>Host</th><th>Port</th><th>Sensör tipi</th><th>Metrikler</th></tr>
-                                        </thead>
-                                        <tbody>
-                                            @foreach (var sensor in _discoveredSensors)
-                                            {
-                                                var discovery = ParseDiscoveryDescription(sensor.Description);
-                                                <tr>
-                                                    <td><code>@(discovery.StreamId ?? sensor.DeviceId)</code></td>
-                                                    <td><code>@(discovery.SystemId ?? "-")</code></td>
-                                                    <td>@(sensor.IpAddress ?? "-")</td>
-                                                    <td>@(sensor.Port?.ToString() ?? "-")</td>
-                                                    <td>@sensor.SensorType</td>
-                                                    <td>@(string.IsNullOrWhiteSpace(sensor.Metrics) ? "-" : sensor.Metrics)</td>
-                                                </tr>
-                                            }
-                                        </tbody>
-                                    </table>
-                                </div>
-                                <div class="form-text">Provisioning ilk keşifte true kalır. Kayıt tamamlandıktan sonra saha ayarlarında false yapabilirsiniz.</div>
-                            </div>
-                        }
                     </div>
                 </div>
+            }
                 @if (_wizardStep == 4)
                 {
                 <div class="alert alert-info d-flex align-items-center gap-2 py-2 small mb-2">
                     <span class="bi bi-cursor-fill text-primary"></span>
-                    Resme tıklayarak sensör konumlandırın. İstediğiniz kadar sensör ekleyebilirsiniz, daha sonra da eklenebilir.
+                    Bu adım yalnız TCP/IP sensörleri içindir. Resme tıklayın, bağlantıyı test edin; bulunan metrikleri doğrulayın ve sensörü kaydedin. UDP/MQTT kaynakları önceki adımda tanımlanır.
                 </div>
                 @* Yapı resmi — JS tarafından doldurulur (initStructureImage), burada sadece container *@
                 <div class="wizard-image-wrapper" id="wizard-image">
@@ -598,6 +581,23 @@
                         </div>
                     </div>
                 }
+                <div class="mt-4 d-flex justify-content-between">
+                    <button class="btn btn-outline-secondary" @onclick="OpenSetupStep">Geri: Saha Kurulumu</button>
+                    <button class="btn btn-success" @onclick="GoToDeploymentStep">İleri: Saha Deployment <span class="bi bi-arrow-right ms-1"></span></button>
+                </div>
+                }
+                @if (_wizardStep == 5)
+                {
+                    <div class="card border-success">
+                        <div class="card-header bg-success text-white"><strong>Saha Deployment Paketi</strong></div>
+                        <div class="card-body">
+                            <p>TCP sensörleri, UDP/MQTT ayarları, kamera ayarları ve tüm saha dosyaları tek ZIP içinde hazırlanır.</p>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-outline-secondary" @onclick="GoBackToSensorStep"><span class="bi bi-arrow-left me-1"></span>Geri: Sensör Ekle</button>
+                                <button class="btn btn-success" @onclick="DownloadDeploymentPackage"><span class="bi bi-file-earmark-zip me-1"></span>Saha deployment ZIP indir</button>
+                            </div>
+                        </div>
+                    </div>
                 }
             }
         </div>
@@ -757,8 +757,8 @@
             @if (_addSensorTab == "tcp")
             {
                 <div class="alert alert-info border small mb-3 py-3">
-                    <div class="fw-semibold mb-1">Burada ilgili sensöre ait bilgileri girilmektedir.</div>
-                    Sensör dashboard ekranında ilgili sensörün yönetimini, bağlantı testini ve metrik önizlemesini sisteme ekleyebilirsiniz.
+                    <div class="fw-semibold mb-1">TCP/IP bağlantısını önce test edin, sonra kaydedin.</div>
+                    Test, TCP erişimini ve cihazın döndürdüğü metrikleri gösterir. Kaydetme işlemi sensörü, TCP yapılandırmasını ve yapı-sensör ilişkisini merkez DB'ye yazar; ZIP üretilirken <code>DEYAS_BRIDGE_TCP_SOURCES</code> otomatik doldurulur.
                 </div>
 
                 <div class="alert alert-light border small d-flex align-items-center gap-2 mb-3 py-2">
@@ -858,6 +858,12 @@
                         <div>@string.Join(", ", _tcpDiscoveryResult)</div>
                     </div>
                 }
+                else if (_tcpConnectionTestSucceeded)
+                {
+                    <div class="alert alert-success mt-3 py-2 small">
+                        TCP bağlantısı başarılı. Bu yanıtta metrik bulunmadı; cihaz veri göndermiyorsa mapping'i daha sonra ekleyebilirsiniz.
+                    </div>
+                }
 
                 @if (!string.IsNullOrEmpty(_saveError))
                 {
@@ -865,7 +871,11 @@
                 }
 
                 <div class="mt-3 d-flex gap-2">
-                    <button class="btn btn-success" disabled="@(string.IsNullOrWhiteSpace(_tcpSensorName) || string.IsNullOrWhiteSpace(_tcpSensorType) || string.IsNullOrWhiteSpace(_tcpIpAddress) || !_tcpPort.HasValue || _isSaving)"
+                    <button class="btn btn-outline-primary" disabled="@(string.IsNullOrWhiteSpace(_tcpIpAddress) || !_tcpPort.HasValue || _isSaving)"
+                            @onclick="TestTcpConnectionAsync">
+                        <span class="bi bi-plug me-1"></span>Bağlantı ve metrik testi
+                    </button>
+                    <button class="btn btn-success" disabled="@(string.IsNullOrWhiteSpace(_tcpSensorName) || string.IsNullOrWhiteSpace(_tcpSensorType) || string.IsNullOrWhiteSpace(_tcpIpAddress) || !_tcpPort.HasValue || !HasCurrentTcpConnectionTest || _isSaving)"
                             @onclick="SaveTcpSensorAsync">
                         @if (_isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
                         <span class="bi bi-check-lg me-1"></span>TCP/IP Sensörünü Ekle
@@ -1149,27 +1159,27 @@
     private sealed record SiteEnvironmentField(string Key, string Label, string Description, string Placeholder = "");
     private static readonly SiteEnvironmentField[] SiteEnvironmentFields =
     [
-        new("DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED", "Sensör provisioning", "İlk keşifte true yapın; sensörler merkeze aktarıldıktan sonra false yapın."),
+        new("DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED", "Sensör provisioning", "İlk keşifte true yapın; sensörler merkeze aktarılır."),
         new("DEYAS_BRIDGE_SENSOR_HOST", "Kaynak Sensör Host", "UDP/GCF kaynağının IP veya DNS adresi. Tek UDP kaynak kullanılıyorsa gereklidir.", "100.118.6.94"),
         new("DEYAS_BRIDGE_SENSOR_PORT", "Sensör Port", "Tek UDP kaynağının hedef portu.", "1572"),
         new("DEYAS_BRIDGE_UDP_LOCAL_PORT", "UDP Local Port", "Bridge'in sabit kaynak portu; cihaz tarafı port hafızalıysa değiştirmeyin.", "58431"),
         new("DEYAS_BRIDGE_UDP_SOURCES", "UDP Sources", "Birden çok kaynak için JSON liste. Örn: [{host,port}].", "[{\"host\":\"192.168.1.51\",\"port\":1567}]"),
         new("DEYAS_BRIDGE_TCP_SOURCES", "TCP Sources", "3. adımda eklenen TCP/IP sensörlerinden otomatik üretilir; UDP kaynaklarıyla karıştırmayın.", "[]"),
-        new("DEYAS_BRIDGE_SOURCE_MODE", "Kaynak Modu", "udp, mqtt veya both. Aynı cihaz iki kaynaktan aynı deviceId ile gelirse çift telemetry oluşur.", "both"),
+        new("DEYAS_BRIDGE_SOURCE_MODE", "Kaynak Modu", "udp | mqtt | tcp | both (yalnız UDP+MQTT) | all (UDP+MQTT+TCP). Aynı cihaz iki kaynaktan aynı deviceId ile gelirse çift telemetry oluşur.", "both"),
         new("DEYAS_BRIDGE_SOURCE_MQTT_HOST", "Kaynak MQTT Broker Host", "Ham sensör verisini yayımlayan MQTT broker adresi; Node-RED editör adresi değildir.", "100.118.6.94"),
         new("DEYAS_BRIDGE_SOURCE_MQTT_PORT", "Kaynak MQTT Port", "Sensör kaynağı MQTT portu.", "1883"),
         new("DEYAS_BRIDGE_SOURCE_MQTT_TOPIC", "Kaynak MQTT Topic", "Kaynak broker'dan okunacak topic.", "shm/gumushane-baca/temperature"),
         new("DEYAS_BRIDGE_SOURCE_MQTT_USERNAME", "Kaynak MQTT Kullanıcı", "Kaynak broker kullanıcı adı; sırları güvenli saklayın."),
         new("DEYAS_BRIDGE_SOURCE_MQTT_PASSWORD", "Kaynak MQTT Şifre", "Kaynak broker şifresi; merkez DB'ye yazılmaz."),
-        new("DEYAS_BRIDGE_SOURCE_MQTT_PAYLOAD_MODE", "MQTT Veri Biçimi", "waveform: samples ve sampling rate JSON'u; scalar: sayısal metrikleri tek örnek olarak iletir.", "scalar"),
-        new("DEYAS_BRIDGE_SOURCE_MQTT_SCALAR_SAMPLING_RATE", "Scalar Örnekleme Hızı", "scalar modunda oluşturulan örneğin sampling_rate değeri.", "1"),
+        new("DEYAS_BRIDGE_SOURCE_MQTT_PAYLOAD_MODE", "MQTT Veri Biçimi", "waveform: samples + sampling rate içeren JSON bekler. scalar: MQTT JSON'undaki sayısal metrikleri samples:[değer], sampling_rate:1 olarak iletir.", "scalar"),
+        new("DEYAS_BRIDGE_SOURCE_MQTT_SCALAR_SAMPLING_RATE", "Scalar Örnekleme Hızı", "scalar modunda oluşturulan örneğin sampling_rate değeri. Varsayılan: 1.", "1"),
         new("DEYAS_BRIDGE_SOURCE_MQTT_SCALAR_METRIC", "Tek Scalar Metrik", "SCALAR_METRICS boşken okunacak tek JSON metriği.", "temperature"),
-        new("DEYAS_BRIDGE_SOURCE_MQTT_SCALAR_METRICS", "Çoklu Scalar Metrikler", "Virgülle metrik listesi. Her metrik ayrı logical device/sensör olur; boşsa tek metrik kullanılır."),
+        new("DEYAS_BRIDGE_SOURCE_MQTT_SCALAR_METRICS", "Çoklu Scalar Metrikler", "scalar modunda MQTT JSON içinden alınacak sayısal alanları virgülle yazın (örn. temperature,humidity). Her değer samples:[değer] ve sampling_rate bu ekrandaki varsayılanla iletilir; boşsa Tek Scalar Metrik kullanılır.", "temperature,humidity"),
         new("DEYAS_BRIDGE_KEEPALIVE_SECONDS", "UDP Keepalive (sn)", "UDP bağlantı keepalive aralığı.", "5"),
         new("DEYAS_BRIDGE_LOCATION_ID", "Bridge Konum Kimliği", "Hedef MQTT topic'indeki location_id bölümü.", "default"),
         new("DEYAS_BRIDGE_DEVICE_ID_PREFIX", "Device ID Öneki", "Eşleme yoksa üretilecek otomatik deviceId öneki.", "stream-"),
         new("DEYAS_BRIDGE_DEVICE_MAP", "Stream → Device ID Eşlemesi", "JSON nesnesi. Örn: {\"mqtt/temperature\":\"gumushane-baca-temperature\"}.", "{}"),
-        new("DEYAS_BRIDGE_SENSOR_ID_MAP", "Stream → Sensor UUID Eşlemesi", "İsteğe bağlı JSON nesnesi; boş bırakılabilir.", "{}"),
+        new("DEYAS_BRIDGE_SENSOR_ID_MAP", "Stream → Sensor UUID Eşlemesi", "İsteğe bağlı JSON nesnesi; boş bırakılabilir. Örn: {\"mqtt/temperature\":\"11111111-1111-1111-1111-111111111111\"}.", "{}"),
         new("DEYAS_BRIDGE_MQTT_TOPIC_TEMPLATE", "Yerel Hedef MQTT Topic Şablonu", "Bridge'in yerel emqx'e yazdığı sözleşme topic'i; edge-layer uyumluluğu için varsayılanı değiştirmeyin.", "edge/sensors/{location_id}/{device_id}/data"),
         new("DEYAS_BRIDGE_MQTT_QOS", "Yerel Hedef MQTT QoS", "Bridge → yerel EMQX yayın QoS seviyesi.", "1"),
         new("DEYAS_BRIDGE_MQTT_CLIENT_ID", "Bridge MQTT Client ID", "Yerel MQTT bağlantısının istemci kimliği.", "deyas-saha-bridge"),
@@ -1227,6 +1237,8 @@
     private string _tcpDescription = string.Empty;
     private string _tcpEncoding = "utf-8";
     private bool _tcpReconnectEnabled = true;
+    private bool _tcpConnectionTestSucceeded;
+    private string? _tcpTestEndpoint;
     private List<string> _tcpDiscoveryResult = new();
     private string _tcpMappingsJson = string.Empty;
     private readonly Dictionary<Guid, List<DeYas.Contracts.Integration.SensorMapping>> _tempSensorMappings = new();
@@ -1836,7 +1848,22 @@
     {
         _wizardImageInitialized = false; // flag sıfırla
         _wizardStep = 4;
-        _newStructureSensors = new();
+    }
+
+    private void GoToDeploymentStep() => _wizardStep = 5;
+    private void GoBackToSensorStep() => _wizardStep = 4;
+
+    private bool IsPipelineSelected(string pipeline) => GetEnv("SAHA_ENABLED_PIPELINES")
+        .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+        .Contains(pipeline, StringComparer.OrdinalIgnoreCase);
+
+    private void TogglePipeline(string pipeline)
+    {
+        var selected = GetEnv("SAHA_ENABLED_PIPELINES")
+            .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (!selected.Add(pipeline)) selected.Remove(pipeline);
+        SetEnv("SAHA_ENABLED_PIPELINES", string.Join(',', selected.OrderBy(value => value, StringComparer.OrdinalIgnoreCase)));
     }
 
     private async Task FinishWithoutSensorsAsync()
@@ -1844,7 +1871,7 @@
         if (_createdStructureId == Guid.Empty || _setupSaving) return;
         await SaveFieldSetupAsync();
         if (string.IsNullOrEmpty(_saveError))
-            CancelCreate();
+            GoToDeploymentStep();
     }
 
     private async Task SaveStructureAndOpenSetupAsync()
@@ -1988,7 +2015,7 @@
                 $"Saha kurulumu\n\nYapi: {_setupName}\nStructureId: {_createdStructureId}\n\n" +
                 "1. ZIP'i saha bilgisayarında bir klasöre açın.\n" +
                 "2. docker compose pull && docker compose up -d komutunu çalıştırın.\n" +
-                "3. Provisioning, yalnız UDP/MQTT/TCP bridge keşfi için ilk kurulumda açıktır; kayıt sonrası false yapın.\n");
+                "3. Provisioning ilk saha keşfi için true bırakılır; bridge sensörleri merkeze aktarır.\n");
         }
 
         var base64 = Convert.ToBase64String(output.ToArray());
@@ -2195,9 +2222,8 @@
                 await StructureUC.UpdateAsync(created.Id, created, createdIds);
             }
 
-            // Sensör bilgileri tamamlandıktan sonra saha env'ini son kez üret.
-            // Provisioning tek seferlik keşif modunda başlar ve işlem sonunda kapanır.
-            SetEnv("DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED", "false");
+            // Provisioning ilk saha keşfi için true bırakılır; bridge sensörleri merkeze aktarır.
+            SetEnv("DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED", "true");
             SetEnv("DEYAS_BRIDGE_UDP_SOURCES", BuildUdpSourcesJson());
             created.SiteEnvironmentJson = BuildSiteEnvironmentJson();
             await StructureUC.UpdateAsync(created.Id, created, createdIds);
@@ -2780,12 +2806,21 @@
                 Mappings = mappings
             };
 
-            var result = await StructureUC.TestTcpConnectionAsync(request);
-            _tcpDiscoveryResult = new List<string>();
+            var result = System.Text.Json.JsonSerializer.SerializeToElement(await StructureUC.TestTcpConnectionAsync(request));
+            _tcpConnectionTestSucceeded = result.TryGetProperty("succeeded", out var succeeded) && succeeded.GetBoolean();
+            _tcpDiscoveryResult = result.TryGetProperty("discoveredMetricKeys", out var metrics) && metrics.ValueKind == System.Text.Json.JsonValueKind.Array
+                ? metrics.EnumerateArray().Select(metric => metric.GetString()).Where(metric => !string.IsNullOrWhiteSpace(metric)).Select(metric => metric!).ToList()
+                : new();
+            _tcpTestEndpoint = _tcpConnectionTestSucceeded ? CurrentTcpEndpoint : null;
+            if (!_tcpConnectionTestSucceeded)
+                _saveError = result.TryGetProperty("error", out var error) && !string.IsNullOrWhiteSpace(error.GetString())
+                    ? $"Bağlantı testi başarısız: {error.GetString()}"
+                    : "Bağlantı testi başarısız oldu.";
         }
         catch (Exception ex)
         {
             _saveError = $"Bağlantı testi başarısız: {ex.Message}";
+            _tcpConnectionTestSucceeded = false;
             _tcpDiscoveryResult = new();
         }
         finally
@@ -2806,6 +2841,11 @@
         }
 
         if (_pendingPos == null) return;
+        if (!HasCurrentTcpConnectionTest)
+        {
+            _saveError = "Bu IP/port/profil için önce bağlantı ve metrik testi yapın.";
+            return;
+        }
 
         try
         {
@@ -2931,9 +2971,14 @@
         _tcpDescription = string.Empty;
         _tcpEncoding = "utf-8";
         _tcpReconnectEnabled = true;
+        _tcpConnectionTestSucceeded = false;
+        _tcpTestEndpoint = null;
         _tcpDiscoveryResult = new();
         _tcpMappingsJson = string.Empty;
     }
+
+    private string CurrentTcpEndpoint => $"{_tcpIpAddress.Trim()}:{_tcpPort}:{_tcpProfile}:{_tcpEncoding}";
+    private bool HasCurrentTcpConnectionTest => _tcpConnectionTestSucceeded && _tcpTestEndpoint == CurrentTcpEndpoint;
 
     private bool TryParseTcpMappings(out List<SensorMapping>? mappings)
     {

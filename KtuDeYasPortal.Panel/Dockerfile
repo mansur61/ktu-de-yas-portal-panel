@@ -6,6 +6,8 @@ WORKDIR /projects
 COPY ktu-de-yas-shared/ ktu-de-yas-shared/
 COPY ktu-de-yas-portal-panel/KtuDeYasPortal.Panel/ \
      ktu-de-yas-portal-panel/KtuDeYasPortal.Panel/
+COPY ktu-de-yas/infra/compose/saha-deployment/ \
+     ktu-de-yas/infra/compose/saha-deployment/
 
 RUN dotnet publish ktu-de-yas-portal-panel/KtuDeYasPortal.Panel/KtuDeYasPortal.Panel.csproj \
     -c Release -o /app/publish --disable-parallel

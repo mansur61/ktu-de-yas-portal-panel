@@ -5,7 +5,7 @@
 
 <PageTitle>Sensör Kurulum Durumu</PageTitle>
 
-<h3>Sensör Kurulum Durumu <small class="text-muted fs-6">— Bağlantı, parser ve metrik doğrulaması</small></h3>
+<h3>Sensör Kaynakları <small class="text-muted fs-6">— Merkez envanterindeki UDP, MQTT ve TCP kaynakları</small></h3>
 
 @if (_loading)
 {
@@ -72,39 +72,15 @@ else
         }
         <div class="table-responsive border rounded">
             <table class="table table-sm table-hover mb-0">
-                <thead class="table-light"><tr><th>Sensör</th><th>Tip</th><th class="text-center">Bağlantı</th><th class="text-center">Parser</th><th class="text-center">Metrikler</th><th>Durum</th><th>Adımlar</th><th>Eksikler</th></tr></thead>
+                <thead class="table-light"><tr><th>Sensör</th><th>Kaynak</th><th>Bağlantı</th><th>Durum</th></tr></thead>
                 <tbody>
                 @foreach (var sensor in VisibleSensors)
                 {
-                    var status = _readiness.GetValueOrDefault(sensor.SensorId);
-                    var running = _activeSensorId == sensor.SensorId;
                     <tr>
                         <td><div class="fw-semibold">@sensor.Name</div><code class="small">@sensor.DeviceId</code></td>
-                        <td>@sensor.SensorType</td>
-                        <td class="text-center">@StatusMark(status?.ConnectionValid)</td>
-                        <td class="text-center">@StatusMark(status?.ParserValid)</td>
-                        <td class="text-center">@(status?.MetricPreviewValid == true ? $"✓ {status.MetricCount}" : "—")</td>
-                        <td>@(status?.ParsedLifecycleStatus.ToTurkish() ?? "Bilinmiyor")</td>
-                        <td>
-                            <div class="d-flex gap-1 flex-wrap">
-                                <button class="btn btn-sm @(status?.ConnectionValid == true ? "btn-outline-success" : "btn-outline-primary")"
-                                        disabled="@running" @onclick="() => RunConnectionTestAsync(sensor)" title="TCP bağlantısını test et ve sonucu kaydet">
-                                    @if (running && _activeStep == "conn") { <span class="spinner-border spinner-border-sm"></span> }
-                                    🔌 Bağlantı
-                                </button>
-                                <button class="btn btn-sm @(status?.ParserValid == true ? "btn-outline-success" : "btn-outline-secondary")"
-                                        disabled="@(running || status?.ConnectionValid != true)" @onclick="() => RunParserValidationAsync(sensor)" title="Önce bağlantı testi tamamlanmalıdır">
-                                    @if (running && _activeStep == "parser") { <span class="spinner-border spinner-border-sm"></span> }
-                                    ⚙️ Parser
-                                </button>
-                                <button class="btn btn-sm @(status?.MetricPreviewValid == true ? "btn-outline-success" : "btn-outline-secondary")"
-                                        disabled="@(running || status?.ParserValid != true)" @onclick="() => GenerateMetricPreviewAsync(sensor)" title="Önce parser doğrulaması tamamlanmalıdır">
-                                    @if (running && _activeStep == "metric") { <span class="spinner-border spinner-border-sm"></span> }
-                                    📊 Metrikler
-                                </button>
-                            </div>
-                        </td>
-                        <td class="small text-danger">@(status?.MissingRequirements?.Count > 0 ? string.Join(", ", status.MissingRequirements) : "—")</td>
+                        <td><span class="badge bg-secondary">@GetSourceType(sensor)</span></td>
+                        <td>@GetEndpoint(sensor)</td>
+                        <td><span class="badge @(sensor.IsActive ? "bg-success" : "bg-secondary")">@(sensor.IsActive ? "Aktif" : "Pasif")</span></td>
                     </tr>
                 }
                 </tbody>
@@ -178,6 +154,11 @@ else
     private void OnSensorChanged(ChangeEventArgs args) => SelectSensor(Guid.TryParse(args.Value?.ToString(), out var id) ? id : null);
     private void SelectSensor(Guid? id) => _selectedSensorId = id;
     private static string StatusMark(bool? success) => success == true ? "✓" : success == false ? "✗" : "?";
+    private static string GetSourceType(StructureSensor sensor) =>
+        sensor.ProtocolType.Contains("tcp", StringComparison.OrdinalIgnoreCase) || sensor.ProtocolType.Contains("modbus", StringComparison.OrdinalIgnoreCase) ? "TCP" :
+        sensor.ProtocolType.Equals("UDP", StringComparison.OrdinalIgnoreCase) ? "UDP" : "MQTT";
+    private static string GetEndpoint(StructureSensor sensor) => !string.IsNullOrWhiteSpace(sensor.IpAddress) && sensor.Port.HasValue
+        ? $"{sensor.IpAddress}:{sensor.Port}" : (string.IsNullOrWhiteSpace(sensor.Topic) ? "—" : sensor.Topic);
 
     private async Task RunConnectionTestAsync(StructureSensor sensor)
     {

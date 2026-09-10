@@ -232,9 +232,7 @@
 @* ══════════════════════════════════════════════════════════════════
    YENİ YAPI OLUŞTURMA — 3 ADIM
    ══════════════════════════════════════════════════════════════════ *@
-@if (_showCreateWizard)
-{
-    <div class="create-structure-panel mb-4">
+<div class="create-structure-panel mb-4" hidden="@(!_showCreateWizard)">
         <div class="create-panel-header">
             <strong><span class="me-2">🏔️</span>Yeni Baraj Oluştur</strong>
             <button class="btn btn-sm btn-outline-light" @onclick="CancelCreate">İptal</button>
@@ -260,9 +258,9 @@
         </div>
 
         <div class="p-4">
-            @* ADIM 2 — Temel bilgiler *@
-            @if (_wizardStep == 2)
-            {
+            @* ADIM 2 — Temel bilgiler. Bu alan görünürlükle yönetilir; Razor blok
+               kapanışının sayfaya düz metin olarak düşmesini önler. *@
+            <div hidden="@(_wizardStep != 2)">
                 <div class="row g-3">
                     <div class="col-md-6">
                         <label class="form-label fw-semibold">Yapı Adı <span class="text-danger">*</span></label>
@@ -301,7 +299,9 @@
                         <select class="form-select" value="@_newProvince" @onchange="OnNewProvinceChanged">
                             <option value="">-- İl Seçin --</option>
                             @foreach (var p in _provinces)
-                            { <option value="@p">@p</option> }
+                            {
+                                <option value="@p">@p</option>
+                            }
                         </select>
                     </div>
                     <div class="col-md-4">
@@ -310,7 +310,9 @@
                                 disabled="@(string.IsNullOrEmpty(_newProvince))">
                             <option value="">-- İlçe Seçin --</option>
                             @foreach (var d in _newDistricts)
-                            { <option value="@d">@d</option> }
+                            {
+                                <option value="@d">@d</option>
+                            }
                         </select>
                     </div>
                     <div class="col-md-4">
@@ -383,7 +385,10 @@
                     {
                         <button class="btn btn-success" disabled="@(string.IsNullOrWhiteSpace(_newName) || string.IsNullOrEmpty(_newProvince) || _isSaving)"
                                 @onclick="SaveStructureAndOpenSetupAsync">
-                            @if (_isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                            @if (_isSaving)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
                             <span class="bi bi-check-lg me-1"></span> Barajı Kaydet
                         </button>
                     }
@@ -399,24 +404,28 @@
                         İleri: Baraj-Saha Kurulumu <span class="bi bi-arrow-right ms-1"></span>
                     </button>
                 </div>
-            }
+            </div>
 
             @* ADIM 3 — Yapı resmi üzerinde sensör ekleme *@
-            @if (_wizardStep == 3)
-            {
+            <div hidden="@(_wizardStep != 3)">
                 <div class="mb-3 d-flex align-items-center gap-3">
                     <div>
                         <strong>@_newName</strong>
                         <span class="badge ms-2" style="background:#6f42c1">@(_newType.HasValue ? GetStructureLabel(_newType.Value) : "")</span>
                         @if (!string.IsNullOrEmpty(_newProvince))
-                        { <span class="badge bg-info ms-1">@_newProvince@(string.IsNullOrEmpty(_newDistrict) ? "" : " / " + _newDistrict)</span> }
+                        {
+                            <span class="badge bg-info ms-1">@_newProvince@(string.IsNullOrEmpty(_newDistrict) ? "" : " / " + _newDistrict)</span>
+                        }
                     </div>
                     <div class="ms-auto d-flex gap-2">
                         <button class="btn btn-sm btn-outline-secondary" @onclick="BackFromStep3">
                             <span class="bi bi-arrow-left me-1"></span> Geri
                         </button>
                         <button class="btn btn-success" @onclick="() => _showSaveConfirm = true" disabled="@_isSaving">
-                            @if (_isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                            @if (_isSaving)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
                             <span class="bi bi-check-lg me-1"></span> Tamamla &amp; Kaydet
                         </button>
                     </div>
@@ -528,9 +537,8 @@
                         </div>
                     </div>
                 </div>
-            }
-                @if (_wizardStep == 4)
-                {
+            </div>
+            <div hidden="@(_wizardStep != 4)">
                 <div class="alert alert-info d-flex align-items-center gap-2 py-2 small mb-2">
                     <span class="bi bi-cursor-fill text-primary"></span>
                     Bu adım yalnız TCP/IP sensörleri içindir. Resme tıklayın, bağlantıyı test edin; bulunan metrikleri doğrulayın ve sensörü kaydedin. UDP/MQTT kaynakları önceki adımda tanımlanır.
@@ -585,9 +593,8 @@
                     <button class="btn btn-outline-secondary" @onclick="OpenSetupStep">Geri: Saha Kurulumu</button>
                     <button class="btn btn-success" @onclick="GoToDeploymentStep">İleri: Saha Deployment <span class="bi bi-arrow-right ms-1"></span></button>
                 </div>
-                }
-                @if (_wizardStep == 5)
-                {
+            </div>
+            <div hidden="@(_wizardStep != 5)">
                     <div class="card border-success">
                         <div class="card-header bg-success text-white"><strong>Saha Deployment Paketi</strong></div>
                         <div class="card-body">
@@ -598,11 +605,9 @@
                             </div>
                         </div>
                     </div>
-                }
-            }
+            </div>
         </div>
     </div>
-}
 
 @* ══════════════════════════════════════════════════════════════════
    YAPI DETAY — Görsel + Sensör Overlay

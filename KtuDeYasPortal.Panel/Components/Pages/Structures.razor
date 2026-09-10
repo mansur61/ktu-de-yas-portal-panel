@@ -398,7 +398,7 @@
             }
 
             @* ADIM 3 — Yapı resmi üzerinde sensör ekleme *@
-            @if (_wizardStep >= 3)
+            @if (_wizardStep == 3)
             {
                 <div class="mb-3 d-flex align-items-center gap-3">
                     <div>
@@ -469,6 +469,11 @@
                                         <div class="form-text">@field.Description</div>
                                     </div>
                                 }
+                                <div class="col-12">
+                                    <label class="form-label fw-semibold">Kamera medya tanımı (<code>media-config.json</code>)</label>
+                                    <textarea class="form-control font-monospace" rows="10" @bind="_mediaConfigJson"></textarea>
+                                    <div class="form-text">Kamera yalnız <code>SAHA_ENABLED_PIPELINES</code> içinde <code>kamera</code> seçiliyken çalışır. RTSP URL/parolalarını buraya değil, ilgili <code>CAMERA_*</code> ortam değişkenlerine yazın.</div>
+                                </div>
                             </div>
                         }
                         <div class="mt-3 d-flex gap-2">
@@ -517,7 +522,7 @@
                         }
                     </div>
                 </div>
-                @if (_wizardStep >= 4)
+                @if (_wizardStep == 4)
                 {
                 <div class="alert alert-info d-flex align-items-center gap-2 py-2 small mb-2">
                     <span class="bi bi-cursor-fill text-primary"></span>
@@ -1109,15 +1114,11 @@
     private string        _newNodeRedUrl  = "";
     private string        _newEdgeApiUrl  = "";
     private string        _newEdgeConfigJson = "";
-    private string        _newSiteEnvironmentJson = "";
     private Guid            _createdStructureId;
     private string          _setupTab = "edge";
     private string          _setupName = "";
     private string          _setupStructureType = "Dam";
-    private string          _setupProvisioningEnabled = "true";
-    private string          _setupSensorHost = "";
-    private string          _setupSourceMqttHost = "";
-    private string          _setupUdpSources = "";
+    private string          _mediaConfigJson = DefaultMediaConfigJson;
     private bool            _setupSaving;
     private readonly Dictionary<string, string?> _siteEnvironment = new(StringComparer.OrdinalIgnoreCase);
 
@@ -1125,32 +1126,44 @@
     private static readonly SiteEnvironmentField[] SiteEnvironmentFields =
     [
         new("DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED", "Sensör provisioning", "İlk keşifte true yapın; sensörler merkeze aktarıldıktan sonra false yapın."),
-        new("DEYAS_BRIDGE_SENSOR_HOST", "Sensör Host", "UDP sensör/GCF kaynağının IP veya DNS adresi.", "100.118.6.94"),
+        new("DEYAS_BRIDGE_SENSOR_HOST", "Kaynak Sensör Host", "UDP/GCF kaynağının IP veya DNS adresi. Tek UDP kaynak kullanılıyorsa gereklidir.", "100.118.6.94"),
         new("DEYAS_BRIDGE_SENSOR_PORT", "Sensör Port", "Tek UDP kaynağının hedef portu.", "1572"),
         new("DEYAS_BRIDGE_UDP_LOCAL_PORT", "UDP Local Port", "Bridge'in sabit kaynak portu; cihaz tarafı port hafızalıysa değiştirmeyin.", "58431"),
         new("DEYAS_BRIDGE_UDP_SOURCES", "UDP Sources", "Birden çok kaynak için JSON liste. Örn: [{host,port}].", "[{\"host\":\"192.168.1.51\",\"port\":1567}]"),
-        new("DEYAS_BRIDGE_SOURCE_MODE", "Source Mode", "UDP, MQTT veya both kaynak dinleme modu.", "both"),
-        new("DEYAS_BRIDGE_SOURCE_MQTT_HOST", "Kaynak MQTT Host", "Sensör kaynağının MQTT broker adresi.", "100.118.6.94"),
+        new("DEYAS_BRIDGE_SOURCE_MODE", "Kaynak Modu", "udp, mqtt veya both. Aynı cihaz iki kaynaktan aynı deviceId ile gelirse çift telemetry oluşur.", "both"),
+        new("DEYAS_BRIDGE_SOURCE_MQTT_HOST", "Kaynak MQTT Broker Host", "Ham sensör verisini yayımlayan MQTT broker adresi; Node-RED editör adresi değildir.", "100.118.6.94"),
         new("DEYAS_BRIDGE_SOURCE_MQTT_PORT", "Kaynak MQTT Port", "Sensör kaynağı MQTT portu.", "1883"),
         new("DEYAS_BRIDGE_SOURCE_MQTT_TOPIC", "Kaynak MQTT Topic", "Kaynak broker'dan okunacak topic.", "shm/gumushane-baca/temperature"),
         new("DEYAS_BRIDGE_SOURCE_MQTT_USERNAME", "Kaynak MQTT Kullanıcı", "Kaynak broker kullanıcı adı; sırları güvenli saklayın."),
         new("DEYAS_BRIDGE_SOURCE_MQTT_PASSWORD", "Kaynak MQTT Şifre", "Kaynak broker şifresi; merkez DB'ye yazılmaz."),
+        new("DEYAS_BRIDGE_SOURCE_MQTT_PAYLOAD_MODE", "MQTT Veri Biçimi", "waveform: samples ve sampling rate JSON'u; scalar: sayısal metrikleri tek örnek olarak iletir.", "scalar"),
+        new("DEYAS_BRIDGE_SOURCE_MQTT_SCALAR_SAMPLING_RATE", "Scalar Örnekleme Hızı", "scalar modunda oluşturulan örneğin sampling_rate değeri.", "1"),
+        new("DEYAS_BRIDGE_SOURCE_MQTT_SCALAR_METRIC", "Tek Scalar Metrik", "SCALAR_METRICS boşken okunacak tek JSON metriği.", "temperature"),
+        new("DEYAS_BRIDGE_SOURCE_MQTT_SCALAR_METRICS", "Çoklu Scalar Metrikler", "Virgülle metrik listesi. Her metrik ayrı logical device/sensör olur; boşsa tek metrik kullanılır."),
         new("DEYAS_BRIDGE_KEEPALIVE_SECONDS", "UDP Keepalive (sn)", "UDP bağlantı keepalive aralığı.", "5"),
+        new("DEYAS_BRIDGE_LOCATION_ID", "Bridge Konum Kimliği", "Hedef MQTT topic'indeki location_id bölümü.", "default"),
+        new("DEYAS_BRIDGE_DEVICE_ID_PREFIX", "Device ID Öneki", "Eşleme yoksa üretilecek otomatik deviceId öneki.", "stream-"),
+        new("DEYAS_BRIDGE_DEVICE_MAP", "Stream → Device ID Eşlemesi", "JSON nesnesi. Örn: {\"mqtt/temperature\":\"gumushane-baca-temperature\"}.", "{}"),
+        new("DEYAS_BRIDGE_SENSOR_ID_MAP", "Stream → Sensor UUID Eşlemesi", "İsteğe bağlı JSON nesnesi; boş bırakılabilir.", "{}"),
+        new("DEYAS_BRIDGE_MQTT_TOPIC_TEMPLATE", "Yerel Hedef MQTT Topic Şablonu", "Bridge'in yerel emqx'e yazdığı sözleşme topic'i; edge-layer uyumluluğu için varsayılanı değiştirmeyin.", "edge/sensors/{location_id}/{device_id}/data"),
+        new("DEYAS_BRIDGE_MQTT_QOS", "Yerel Hedef MQTT QoS", "Bridge → yerel EMQX yayın QoS seviyesi.", "1"),
+        new("DEYAS_BRIDGE_MQTT_CLIENT_ID", "Bridge MQTT Client ID", "Yerel MQTT bağlantısının istemci kimliği.", "deyas-saha-bridge"),
         new("DEVICE_CONNECTION_WATCHDOG_ENABLED", "Device Watchdog", "Telemetry gelmeyen cihazları pasif göstermek için true.", "false"),
         new("DEVICE_OFFLINE_TIMEOUT_MS", "Offline Timeout (ms)", "Watchdog etkinse cihazın offline sayılacağı süre.", "30000"),
         new("EDGE_FORWARDING_ENABLED", "Merkeze İletim", "Edge telemetry'nin merkeze aktarılması.", "true"),
         new("EDGE_LOCAL_TIMESERIES_PRODUCER", "Yerel Timeseries Producer", "Saha DB telemetry yazımı.", "true"),
-        new("SAHA_ENABLED_PIPELINES", "Aktif Pipeline'lar", "Virgülle pipeline listesi; örn. ivmeolcer,kamera.", "ivmeolcer"),
+        new("SAHA_ENABLED_PIPELINES", "Aktif Pipeline'lar", "Virgülle ivmeolcer,kamera,lidar veya all. Kamera için media-config.json tanımını da doldurun.", "ivmeolcer"),
         new("SAHA_PIPELINE_RUNTIME_ENABLED", "Pipeline Runtime", "Saha pipeline başlangıç çalışma durumu.", "true"),
         new("SAHA_MEDIA_ENABLED", "Media Pipeline", "Kamera/video pipeline etkinliği.", "true"),
-        new("LOCAL_TIMESERIES_API_BASE_URL", "Local Timeseries API", "Saha içi timeseries servis adresi.", "http://timeseries-service:5000"),
-        new("CENTRAL_TIMESERIES_API_BASE_URL", "Central Timeseries API", "Commissioning ve merkezi envanter API adresi.", "http://100.116.23.112:5000"),
-        new("CENTRAL_MQTT_HOST", "Central MQTT Host", "Merkez EMQX adresi.", "100.116.23.112"),
+        new("LOCAL_TIMESERIES_API_BASE_URL", "Yerel Timeseries API", "Saha içi servis; Docker servis adı kullanılmalıdır.", "http://timeseries-service:5000"),
+        new("CENTRAL_TIMESERIES_API_BASE_URL", "Merkez Timeseries API", "Commissioning ve merkezi envanter adresi. Tailscale yokken edge-layer retry eder; yerel veri akışı etkilenmez.", "http://100.116.23.112:5000"),
+        new("CENTRAL_MQTT_HOST", "Merkez MQTT Host", "Yalnız merkezi Node-RED izleme/iletim için kullanılan EMQX adresi; paket merkezi sensor_data tablosuna ikinci kayıt yazmaz.", "100.116.23.112"),
         new("CENTRAL_MQTT_PORT", "Central MQTT Port", "Merkez EMQX portu.", "1883"),
         new("CENTRAL_MQTT_USE_TLS", "Central MQTT TLS", "Merkez MQTT TLS kullanımı.", "false"),
         new("CENTRAL_MQTT_USERNAME", "Central MQTT Kullanıcı", "Merkez MQTT kullanıcı adı."),
-        new("CENTRAL_MQTT_PASSWORD", "Central MQTT Şifre", "Merkez MQTT şifresi."),
-        new("NODE_RED_BASEURL", "Node-RED URL", "Saha Node-RED editör/runtime adresi.", "http://nodered:1880")
+        new("CENTRAL_MQTT_PASSWORD", "Merkez MQTT Şifre", "Merkez MQTT şifresi."),
+        new("CAMERA_NORTH_RTSP_URL", "Kuzey Kamera RTSP URL", "Kamera pipeline'ı kullanılıyorsa media-config.json içindeki CAMERA_NORTH_RTSP_URL değişkeninin değeri."),
+        new("CAMERA_ENTRY_RTSP_URL", "Giriş Kamera RTSP URL", "Kamera pipeline'ı kullanılıyorsa media-config.json içindeki CAMERA_ENTRY_RTSP_URL değişkeninin değeri.")
     ];
     private List<string>  _newDistricts   = new();
     private List<Sensor>  _newStructureSensors = new(); // wizard adım 3'te eklenenler
@@ -1345,8 +1358,8 @@
             _mapInitialized = false;
         }
 
-        // Wizard adım 3 — yapı resmi DOM'a gelince init et
-        if (_showCreateWizard && _wizardStep == 3 && !_wizardImageInitialized && _newType.HasValue)
+        // Wizard adım 4 (arayüzde 3. adım) — yapı resmi DOM'a gelince init et.
+        if (_showCreateWizard && _wizardStep == 4 && !_wizardImageInitialized && _newType.HasValue)
         {
             _wizardImageInitialized = true;
             try
@@ -1365,7 +1378,7 @@
             }
             catch { }
         }
-        else if (!(_showCreateWizard && _wizardStep == 3))
+        else if (!(_showCreateWizard && _wizardStep == 4))
         {
             _wizardImageInitialized = false;
         }
@@ -1402,7 +1415,7 @@
             if (_editingStructure != null && !_showSensorPopup)
                 await InvokeAsync(CheckPendingClickAsync);
             // Wizard adım 3'te sensör ekle
-            else if (_showCreateWizard && _wizardStep == 3 && !_showSensorPopup)
+            else if (_showCreateWizard && _wizardStep == 4 && !_showSensorPopup)
                 await InvokeAsync(CheckWizardPendingClickAsync);
         }
     }
@@ -1751,15 +1764,11 @@
         _setupTab               = "edge";
         _setupName              = "";
         _setupStructureType     = "Dam";
-        _setupProvisioningEnabled = "true";
-        _setupSensorHost        = "";
-        _setupSourceMqttHost    = "";
-        _setupUdpSources        = "";
+        _mediaConfigJson        = DefaultMediaConfigJson;
         _siteEnvironment.Clear();
         foreach (var field in SiteEnvironmentFields)
-            _siteEnvironment[field.Key] = field.Key == "DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED" ? "true" : field.Key == "SAHA_ENABLED_PIPELINES" ? "ivmeolcer" : field.Key == "EDGE_FORWARDING_ENABLED" || field.Key == "EDGE_LOCAL_TIMESERIES_PRODUCER" || field.Key == "SAHA_PIPELINE_RUNTIME_ENABLED" || field.Key == "SAHA_MEDIA_ENABLED" ? "true" : field.Key == "DEYAS_BRIDGE_SOURCE_MODE" ? "both" : string.Empty;
+            _siteEnvironment[field.Key] = field.Key == "DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED" ? "true" : field.Placeholder;
         _newEdgeConfigJson      = EdgeConfigTemplate;
-        _newSiteEnvironmentJson = SiteEnvironmentTemplate;
         _mapInitialized         = false;
         _wizardImageInitialized = false;
         _editingStructure       = null;
@@ -1831,7 +1840,6 @@
             _setupName = created.Name;
             _setupStructureType = created.StructureType.ToString();
             _newEdgeConfigJson = ResolveStructurePlaceholders(EdgeConfigTemplate, created);
-            _newSiteEnvironmentJson = ResolveStructurePlaceholders(SiteEnvironmentTemplate, created);
             _simulationStatusMessage = "Baraj kaydedildi. Saha kurulumu adımına geçebilirsiniz.";
             StateHasChanged();
         }
@@ -1934,9 +1942,10 @@
         {
             AddPackageEntry(archive, "edge-config.json", edgeConfig);
             AddPackageEntry(archive, ".env", environment);
+            AddPackageEntry(archive, "media-config.json", NormalizeMediaConfigJson());
             AddPackageEntry(archive, "README.txt",
                 $"Saha kurulumu\n\nYapi: {_setupName}\nStructureId: {_createdStructureId}\n\n" +
-                "1. edge-config.json ve .env dosyalarini saha deployment klasorune kopyalayin.\n" +
+                "1. edge-config.json, .env ve media-config.json dosyalarini saha-deployment klasorune kopyalayin.\n" +
                 "2. Bridge'i provisioning=true ile baslatin.\n" +
                 "3. Sensorler merkeze aktarilinca provisioning degerini false yapin.\n");
         }
@@ -2042,12 +2051,8 @@
                 createdIds.Add(createdSensor.Id);
             }
 
-            _setupProvisioningEnabled = "false";
-            _setupUdpSources = System.Text.Json.JsonSerializer.Serialize(
-                _newStructureSensors
-                    .Where(sensor => !string.IsNullOrWhiteSpace(sensor.IpAddress) && sensor.Port.HasValue)
-                    .Select(sensor => new { host = sensor.IpAddress, port = sensor.Port })
-                    .ToList());
+            SetEnv("DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED", "false");
+            SetEnv("DEYAS_BRIDGE_UDP_SOURCES", BuildUdpSourcesJson());
             structure.EdgeConfigJson = BuildEdgeConfigJson(structure);
             structure.SiteEnvironmentJson = BuildSiteEnvironmentJson();
             await StructureUC.UpdateAsync(structure.Id, structure, createdIds);
@@ -2105,11 +2110,10 @@
             var created = await StructureUC.CreateAsync(s, new List<Guid>());
 
             var resolvedEdgeConfig = ResolveStructurePlaceholders(_newEdgeConfigJson, created);
-            var resolvedEnvironment = ResolveStructurePlaceholders(_newSiteEnvironmentJson, created);
-            if (resolvedEdgeConfig != _newEdgeConfigJson || resolvedEnvironment != _newSiteEnvironmentJson)
+            if (resolvedEdgeConfig != _newEdgeConfigJson)
             {
                 created.EdgeConfigJson = resolvedEdgeConfig;
-                created.SiteEnvironmentJson = resolvedEnvironment;
+                created.SiteEnvironmentJson = BuildSiteEnvironmentJson();
                 await StructureUC.UpdateAsync(created.Id, created, new List<Guid>());
             }
 
@@ -2136,12 +2140,8 @@
 
             // Sensör bilgileri tamamlandıktan sonra saha env'ini son kez üret.
             // Provisioning tek seferlik keşif modunda başlar ve işlem sonunda kapanır.
-            _setupProvisioningEnabled = "false";
-            _setupUdpSources = System.Text.Json.JsonSerializer.Serialize(
-                _newStructureSensors
-                    .Where(sensor => !string.IsNullOrWhiteSpace(sensor.IpAddress) && sensor.Port.HasValue)
-                    .Select(sensor => new { host = sensor.IpAddress, port = sensor.Port })
-                    .ToList());
+            SetEnv("DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED", "false");
+            SetEnv("DEYAS_BRIDGE_UDP_SOURCES", BuildUdpSourcesJson());
             created.SiteEnvironmentJson = BuildSiteEnvironmentJson();
             await StructureUC.UpdateAsync(created.Id, created, createdIds);
 
@@ -2551,31 +2551,67 @@
                 private string BuildSiteEnvironmentJson() =>
                     System.Text.Json.JsonSerializer.Serialize(new Dictionary<string, string?>(_siteEnvironment)
                     {
-                        ["DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED"] = GetEnv("DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED"),
-                        ["DEYAS_BRIDGE_UDP_SOURCES"] = GetEnv("DEYAS_BRIDGE_UDP_SOURCES"),
                         ["STRUCTURE_ID"] = _createdStructureId == Guid.Empty ? null : _createdStructureId.ToString(),
                         ["STRUCTURE_TYPE"] = _setupStructureType,
-                        ["TIMESERIES_API_BASE_URL"] = "http://timeseries-service:5000"
+                        ["STRUCTURE_NAME"] = _setupName.Trim(),
+                        ["STRUCTURE_SLUG"] = ToStructureSlug(_setupName),
+                        ["DEYAS_BRIDGE_STRUCTURE_ID"] = _createdStructureId == Guid.Empty ? null : _createdStructureId.ToString()
                     }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
 
                 private string GetEnv(string key) => _siteEnvironment.TryGetValue(key, out var value) ? value ?? string.Empty : string.Empty;
                 private void SetEnv(string key, string? value) => _siteEnvironment[key] = value ?? string.Empty;
 
-                private string BuildSiteEnvironmentEnv() => string.Join(Environment.NewLine, new[]
+                private string BuildSiteEnvironmentEnv()
                 {
-                    $"DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED={_setupProvisioningEnabled}",
-                    $"DEYAS_BRIDGE_SENSOR_HOST={_setupSensorHost}",
-                    $"DEYAS_BRIDGE_SOURCE_MQTT_HOST={_setupSourceMqttHost}",
-                    $"DEYAS_BRIDGE_UDP_SOURCES={_setupUdpSources}",
-                    $"STRUCTURE_ID={_createdStructureId}",
-                    $"STRUCTURE_TYPE={_setupStructureType}",
-                    "EDGE_CONFIG_PATH=/app/edge-config.json",
-                    "TIMESERIES_API_BASE_URL=http://timeseries-service:5000",
-                    "EDGE_WORKER_ENABLED=false",
-                    "MQTT_BROKER=emqx",
-                    "MQTT_PORT=1883",
-                    "KAFKA_BROKERS=kafka:29092"
-                }) + Environment.NewLine;
+                    var lines = new List<string>
+                    {
+                        "# Panel tarafından oluşturulan saha yapılandırması.",
+                        "# Compose içindeki EDGE_CONFIG_PATH, MQTT_BROKER ve KAFKA_BROKERS sabittir; burada tanımlanmaz.",
+                        $"STRUCTURE_ID={_createdStructureId}",
+                        $"STRUCTURE_TYPE={_setupStructureType.ToLowerInvariant()}",
+                        $"STRUCTURE_SLUG={ToStructureSlug(_setupName)}",
+                        $"STRUCTURE_NAME={_setupName.Trim()}",
+                        $"DEYAS_BRIDGE_STRUCTURE_ID={_createdStructureId}",
+                        string.Empty,
+                        "# Saha bridge, pipeline ve merkez bağlantısı"
+                    };
+
+                    foreach (var field in SiteEnvironmentFields)
+                        lines.Add($"{field.Key}={GetEnv(field.Key)}");
+
+                    return string.Join(Environment.NewLine, lines) + Environment.NewLine;
+                }
+
+                private static string ToStructureSlug(string name)
+                {
+                    var normalized = System.Text.RegularExpressions.Regex.Replace(name.Trim().ToLowerInvariant(), "[^a-z0-9]+", "-").Trim('-');
+                    return string.IsNullOrWhiteSpace(normalized) ? "saha-yapisi" : normalized;
+                }
+
+                private string NormalizeMediaConfigJson()
+                {
+                    try { return NormalizeJson(_mediaConfigJson) ?? DefaultMediaConfigJson; }
+                    catch { return DefaultMediaConfigJson; }
+                }
+
+                private string BuildUdpSourcesJson() => System.Text.Json.JsonSerializer.Serialize(
+                    _newStructureSensors
+                        .Where(sensor => !string.IsNullOrWhiteSpace(sensor.IpAddress) && sensor.Port.HasValue)
+                        .Select(sensor => new { host = sensor.IpAddress, port = sensor.Port })
+                        .ToList());
+
+        private const string DefaultMediaConfigJson = """
+{
+  "cameras": {
+    "kuzey-kapi": {
+      "rtspUrlEnv": "CAMERA_NORTH_RTSP_URL",
+      "eventTopic": "alarm/saha/kuzey-kapi",
+      "snapshotEnabled": true,
+      "clipSeconds": 20
+    }
+  }
+}
+""";
 
         private const string EdgeConfigTemplate = """
 {
@@ -2596,25 +2632,6 @@
 }
 """;
 
-        private const string SiteEnvironmentTemplate = """
-{
-    "EDGE_CONFIG_PATH": "/app/edge-config.json",
-    "EDGE_WORKER_ENABLED": "false",
-    "EDGE_API_URL": "http://edge-layer:5080",
-    "TIMESERIES_API_BASE_URL": "http://timeseries-service:5000",
-    "MQTT_BROKER": "emqx",
-    "MQTT_PORT": "1883",
-    "MQTT_INPUT_TOPIC": "edge/sensors/+/data",
-    "KAFKA_BROKERS": "kafka:29092",
-    "NODE_RED_URL": "http://nodered:1880",
-    "STRUCTURE_ID": "{structureId}",
-    "STRUCTURE_TYPE": "{structureType}",
-    "DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED": "true",
-    "DEYAS_BRIDGE_SENSOR_HOST": "",
-    "DEYAS_BRIDGE_SOURCE_MQTT_HOST": "",
-    "DEYAS_BRIDGE_UDP_SOURCES": "[]"
-}
-""";
 
     // ── Silme ─────────────────────────────────────────────────────────────────
     private void ConfirmDelete(Guid id) => _deletingId = id;

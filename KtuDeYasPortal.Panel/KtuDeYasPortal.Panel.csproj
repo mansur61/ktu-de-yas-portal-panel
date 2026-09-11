@@ -14,6 +14,8 @@
 
   <ItemGroup>
     <Content Include="..\..\ktu-de-yas\infra\compose\saha-deployment\docker-compose.yml" Link="DeploymentTemplates\saha-deployment\docker-compose.yml" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\ktu-de-yas\infra\compose\saha-deployment\docker-compose.shared-services.yml" Link="DeploymentTemplates\saha-deployment\docker-compose.shared-services.yml" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\ktu-de-yas\infra\compose\saha-deployment\docker-compose.structure.yml" Link="DeploymentTemplates\saha-deployment\docker-compose.structure.yml" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\..\ktu-de-yas\infra\compose\saha-deployment\init-databases.sql" Link="DeploymentTemplates\saha-deployment\init-databases.sql" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\..\ktu-de-yas\infra\compose\saha-deployment\README.md" Link="DeploymentTemplates\saha-deployment\README.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\..\ktu-de-yas\infra\compose\saha-deployment\AKIS_VE_ENV_REHBERI.md" Link="DeploymentTemplates\saha-deployment\AKIS_VE_ENV_REHBERI.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />

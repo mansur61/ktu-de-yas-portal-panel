@@ -470,6 +470,11 @@
                                     <div class="form-check mb-2">
                                         <input class="form-check-input" type="checkbox" @bind="_newAutoRegister" id="chkAutoRegister" />
                                         <label class="form-check-label" for="chkAutoRegister">Saha açılışında otomatik kayıt</label>
+                                        <div class="form-text">
+                                            <strong>Ne yapar:</strong> edge-layer her yeniden başladığında bu yapının adını, tipini ve Edge/Node-RED URL'lerini merkez API'ye bildirir — böylece merkez panelde saha durumu güncel kalır.<br />
+                                            <strong>Ne yapmaz:</strong> sensör, pipeline veya veri akışı başlatmaz; yalnız kimlik/adres senkronizasyonudur.<br />
+                                            <strong>Ne zaman açık tutulmalı:</strong> Saha makinesi arada sırada yeniden başlıyorsa veya Tailscale IP'si değişebiliyorsa açık bırakın. Sabit IP'li kalıcı kurulumda kapalı da bırakabilirsiniz.
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -619,21 +624,18 @@
                             <p>TCP sensörleri, UDP/MQTT ayarları, kamera ayarları ve tüm saha dosyaları tek ZIP içinde hazırlanır.</p>
                             <div class="form-check form-switch mb-3">
                                 <input class="form-check-input" type="checkbox" @bind="_samePcDeployment" id="samePcDeployment" />
-                                <label class="form-check-label fw-semibold" for="samePcDeployment">Aynı bilgisayarda başka yapıyla birlikte çalışacak</label>
+                                <label class="form-check-label fw-semibold" for="samePcDeployment">Aynı bilgisayarda başka yapıyla birlikte çalışacak (önerilen ortak altyapı)</label>
                             </div>
                             @if (_samePcDeployment)
                             {
                                 <div class="border rounded p-3 mb-3 bg-light">
-                                    <div class="small text-muted mb-2">İkinci yapının ZIP'inde farklı project adı ve host portları kullanın.</div>
+                                    <div class="small text-success fw-semibold mb-2">Bu seçim ortak EMQX, Kafka, TimescaleDB ve Timeseries API paketi ile yalnız bu yapının Edge + Node-RED paketini üretir. Ortak altyapı portları bir kez açılır; her ek yapı için yalnız Edge ve Node-RED host portları farklı olmalıdır.</div>
                                     <div class="row g-2">
-                                        <div class="col-md-4"><label class="form-label small">Compose project adı</label><input class="form-control form-control-sm" @bind="_samePcProjectName" placeholder="saha-a" /></div>
-                                        <div class="col-md-4"><label class="form-label small">Edge API host portu</label><input class="form-control form-control-sm" type="number" @bind="_samePcEdgePort" min="1024" max="65535" /></div>
-                                        <div class="col-md-4"><label class="form-label small">Node-RED host portu</label><input class="form-control form-control-sm" type="number" @bind="_samePcNodeRedPort" min="1024" max="65535" /></div>
-                                        <div class="col-md-4"><label class="form-label small">EMQX MQTT host portu</label><input class="form-control form-control-sm" type="number" @bind="_samePcMqttPort" min="1024" max="65535" /></div>
-                                        <div class="col-md-4"><label class="form-label small">EMQX dashboard host portu</label><input class="form-control form-control-sm" type="number" @bind="_samePcEmqxDashboardPort" min="1024" max="65535" /></div>
-                                        <div class="col-md-4"><label class="form-label small">Timeseries API host portu</label><input class="form-control form-control-sm" type="number" @bind="_samePcTimeseriesPort" min="1024" max="65535" /></div>
+                                        <div class="col-md-4"><label class="form-label small">Compose project adı</label><input class="form-control form-control-sm" @bind="_samePcProjectName" placeholder="saha-a" /><div class="form-text">İkinci ZIP'te farklı olmalı: <code>saha-b</code>.</div></div>
+                                        <div class="col-md-4"><label class="form-label small">Edge API host portu</label><input class="form-control form-control-sm" type="number" @bind="_samePcEdgePort" min="1024" max="65535" /><div class="form-text">Mevcut: <code>5080</code>. İkinci örnek: <code>5081</code>.</div></div>
+                                        <div class="col-md-4"><label class="form-label small">Node-RED host portu</label><input class="form-control form-control-sm" type="number" @bind="_samePcNodeRedPort" min="1024" max="65535" /><div class="form-text">Mevcut: <code>1880</code>. İkinci örnek: <code>1881</code>.</div></div>
                                     </div>
-                                    <div class="form-text mt-2">Örnek ikinci yapı: <code>saha-b</code>, Edge <code>5081</code>, Node-RED <code>1881</code>.</div>
+                                    <div class="form-text mt-2">İlk ZIP'te ortak altyapıyı bir kez başlatın. Sonraki yapı ZIP'lerinde aynı ortak altyapı portlarını kullanın; yalnız <code>saha-b</code>, Edge <code>5081</code> ve Node-RED <code>1881</code> farklı olsun. Edge/Node-RED URL'si ZIP'te seçilen portla güncellenir.</div>
                                 </div>
                             }
                             <div class="d-flex gap-2">
@@ -1202,6 +1204,7 @@
     private int              _samePcNodeRedPort = 1880;
     private int              _samePcMqttPort = 1883;
     private int              _samePcEmqxDashboardPort = 18083;
+    private int              _samePcTimescaleDbPort = 5432;
     private int              _samePcTimeseriesPort = 5000;
     private bool            _setupSaving;
     private readonly Dictionary<string, string?> _siteEnvironment = new(StringComparer.OrdinalIgnoreCase);
@@ -1932,6 +1935,7 @@
         _samePcNodeRedPort      = 1880;
         _samePcMqttPort         = 1883;
         _samePcEmqxDashboardPort = 18083;
+        _samePcTimescaleDbPort   = 5432;
         _samePcTimeseriesPort   = 5000;
         _siteEnvironment.Clear();
         foreach (var field in SiteEnvironmentFields)
@@ -2127,13 +2131,16 @@
         if (structure is null) return;
 
         structure.Name = _setupName.Trim();
-        structure.EdgeApiUrl = string.IsNullOrWhiteSpace(_newEdgeApiUrl) ? null : _newEdgeApiUrl.Trim();
+        structure.NodeRedUrl = BuildDeploymentPublicUrl(_newNodeRedUrl, _samePcDeployment ? _samePcNodeRedPort : null);
+        structure.EdgeApiUrl = BuildDeploymentPublicUrl(_newEdgeApiUrl, _samePcDeployment ? _samePcEdgePort : null);
         var edgeConfig = BuildEdgeConfigJson(structure);
         var environment = BuildSiteEnvironmentEnv();
         await using var output = new MemoryStream();
         using (var archive = new System.IO.Compression.ZipArchive(output, System.IO.Compression.ZipArchiveMode.Create, true))
         {
-            AddDeploymentTemplateEntry(archive, "docker-compose.yml");
+            AddDeploymentTemplateEntry(archive, _samePcDeployment ? "docker-compose.structure.yml" : "docker-compose.yml");
+            if (_samePcDeployment)
+                AddDeploymentTemplateEntry(archive, "docker-compose.shared-services.yml");
             AddDeploymentTemplateEntry(archive, "init-databases.sql");
             AddDeploymentTemplateEntry(archive, "README.md");
             AddDeploymentTemplateEntry(archive, "AKIS_VE_ENV_REHBERI.md");
@@ -2142,14 +2149,13 @@
             AddPackageEntry(archive, "media-config.json", NormalizeMediaConfigJson());
             if (_samePcDeployment)
             {
-                AddPackageEntry(archive, "docker-compose.same-pc.yml", BuildSamePcComposeOverride());
                 AddPackageEntry(archive, "AYNI_PC_KURULUM.md", BuildSamePcDeploymentGuide());
             }
             AddPackageEntry(archive, "README.txt",
                 $"Saha kurulumu\n\nYapi: {_setupName}\nStructureId: {_createdStructureId}\n\n" +
                 "1. ZIP'i saha bilgisayarında bir klasöre açın.\n" +
                 (_samePcDeployment
-                    ? $"2. docker compose -p {_samePcProjectName} -f docker-compose.yml -f docker-compose.same-pc.yml pull && docker compose -p {_samePcProjectName} -f docker-compose.yml -f docker-compose.same-pc.yml up -d komutunu çalıştırın.\n"
+                    ? $"2. İlk yapıysa docker compose -f docker-compose.shared-services.yml up -d; sonra docker compose -p {_samePcProjectName} -f docker-compose.structure.yml up -d komutunu çalıştırın.\n"
                     : "2. docker compose pull && docker compose up -d komutunu çalıştırın.\n") +
                 "3. Provisioning ilk saha keşfi için true bırakılır; bridge sensörleri merkeze aktarır.\n");
         }
@@ -2173,30 +2179,11 @@
         if (File.Exists(path)) AddPackageEntry(archive, name, File.ReadAllText(path));
     }
 
-    private string BuildSamePcComposeOverride() => string.Join(Environment.NewLine,
-    [
-        "services:",
-        "  emqx:",
-        "    ports:",
-        $"      - \"{_samePcMqttPort}:1883\"",
-        $"      - \"{_samePcEmqxDashboardPort}:18083\"",
-        "  timeseries-service:",
-        "    ports:",
-        $"      - \"{_samePcTimeseriesPort}:5000\"",
-        "  nodered-edge:",
-        "    ports:",
-        $"      - \"{_samePcNodeRedPort}:1880\"",
-        "  edge-layer:",
-        "    ports:",
-        $"      - \"{_samePcEdgePort}:5080\"",
-        string.Empty
-    ]);
-
     private string BuildSamePcDeploymentGuide() => string.Join(Environment.NewLine,
     [
         "# Aynı PC Çoklu Yapı Kurulumu",
         string.Empty,
-        "Bu paket mevcut tek yapı deployment'ını bozmaz. Aynı bilgisayarda başka bir yapı ile birlikte çalıştırmak için Compose project adı ve host portları ayrıdır.",
+        "Bu paket ortak altyapıya bağlanan tek yapı paketidir. EMQX, Kafka, TimescaleDB ve Timeseries API yalnız bir kez çalışır; her yapı kendi Edge ve Node-RED container'larına sahiptir.",
         string.Empty,
         "## Bu paket",
         string.Empty,
@@ -2208,8 +2195,10 @@
         "## Başlatma",
         string.Empty,
         "```bash",
-        $"docker compose -p {_samePcProjectName} -f docker-compose.yml -f docker-compose.same-pc.yml pull",
-        $"docker compose -p {_samePcProjectName} -f docker-compose.yml -f docker-compose.same-pc.yml up -d",
+        "# Yalnız ilk yapı ZIP'inden, ortak altyapıyı bir kez başlatın",
+        "docker compose -f docker-compose.shared-services.yml up -d",
+        "# Bu yapıyı başlatın",
+        $"docker compose -p {_samePcProjectName} -f docker-compose.structure.yml up -d",
         $"docker compose -p {_samePcProjectName} ps",
         "```",
         string.Empty,
@@ -2219,13 +2208,19 @@
         "Compose project: saha-b",
         "Edge API portu: 5081",
         "Node-RED portu: 1881",
-        "EMQX MQTT portu: 1884",
-        "EMQX dashboard portu: 18084",
-        "Timeseries portu: 5001",
+        "Ortak EMQX/Kafka/DB/API: aynı altyapı, tekrar başlatılmaz",
         "```",
         string.Empty,
-        $"Panelde bu yapının `EdgeApiUrl` değeri `http://PC-IP:{_samePcEdgePort}` olmalıdır. Aynı image kullanılır; yapı kimliği, config, project, volume/network ve host portları ayrıdır."
+        $"Panelde bu yapının `EdgeApiUrl` değeri `http://PC-IP:{_samePcEdgePort}` olmalıdır. Aynı image kullanılır; yapı kimliği, config, project, volume/network ayrıdır. Ortak altyapı portları yalnız bir kez kullanılır."
     ]);
+
+    private static string? BuildDeploymentPublicUrl(string? value, int? port)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        if (port is null || !Uri.TryCreate(value.Trim(), UriKind.Absolute, out var uri)) return value.Trim();
+        var builder = new UriBuilder(uri) { Port = port.Value };
+        return builder.Uri.GetLeftPart(UriPartial.Authority);
+    }
 
     private void BackFromStep2()
     {
@@ -2851,6 +2846,16 @@
 
                     foreach (var field in SiteEnvironmentFields)
                         values[field.Key] = field.Key == "DEYAS_BRIDGE_TCP_SOURCES" ? BuildTcpSourcesJson() : GetEnv(field.Key);
+
+                    if (_samePcDeployment)
+                    {
+                        values["EMQX_MQTT_HOST_PORT"] = _samePcMqttPort.ToString();
+                        values["EMQX_DASHBOARD_HOST_PORT"] = _samePcEmqxDashboardPort.ToString();
+                        values["TIMESCALEDB_HOST_PORT"] = _samePcTimescaleDbPort.ToString();
+                        values["TIMESERIES_HOST_PORT"] = _samePcTimeseriesPort.ToString();
+                        values["NODERED_HOST_PORT"] = _samePcNodeRedPort.ToString();
+                        values["EDGE_API_HOST_PORT"] = _samePcEdgePort.ToString();
+                    }
 
                     var templatePath = Path.Combine(AppContext.BaseDirectory, "DeploymentTemplates", "saha-deployment", ".env.template");
                     var lines = File.Exists(templatePath) ? File.ReadAllLines(templatePath).ToList() : [];

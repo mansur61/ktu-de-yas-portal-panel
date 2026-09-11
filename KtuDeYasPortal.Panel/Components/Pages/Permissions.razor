@@ -87,13 +87,13 @@
         <div class="card shadow-sm">
             <div class="card-header bg-white d-flex justify-content-between align-items-center">
                 <strong><span class="bi bi-people me-2 text-success"></span>Tanımlı Baraj Yetkileri</strong>
-                <span class="badge bg-secondary">@_permissions.Count kayıt</span>
+                <span class="badge bg-secondary">@SelectedUserPermissions.Count kayıt</span>
             </div>
             @if (_loading)
             {
                 <div class="card-body text-center"><span class="spinner-border spinner-border-sm"></span></div>
             }
-            else if (_permissions.Count == 0)
+            else if (SelectedUserPermissions.Count == 0)
             {
                 <div class="card-body text-muted">Henüz baraj yetkisi tanımlanmadı.</div>
             }
@@ -105,7 +105,7 @@
                             <tr><th>Kullanıcı</th><th>Baraj</th><th>İzin</th><th></th></tr>
                         </thead>
                         <tbody>
-                            @foreach (var permission in _permissions)
+                            @foreach (var permission in SelectedUserPermissions)
                             {
                                 <tr>
                                     <td>
@@ -166,6 +166,13 @@
     private bool CanGrant => Guid.TryParse(_structureId, out _) &&
                               !string.IsNullOrWhiteSpace(_selectedUserId) &&
                               _selectedPermissions.Count > 0;
+
+    private List<StructurePermissionDto> SelectedUserPermissions =>
+        string.IsNullOrWhiteSpace(_selectedUserId)
+            ? []
+            : _permissions
+                .Where(permission => string.Equals(permission.UserId, _selectedUserId, StringComparison.OrdinalIgnoreCase))
+                .ToList();
 
     protected override Task OnInitializedAsync() => LoadAsync();
 

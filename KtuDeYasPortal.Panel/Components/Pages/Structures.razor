@@ -2173,54 +2173,59 @@
         if (File.Exists(path)) AddPackageEntry(archive, name, File.ReadAllText(path));
     }
 
-        private string BuildSamePcComposeOverride() => $"""services:
-    emqx:
-        ports:
-            - \"{_samePcMqttPort}:1883\"
-            - \"{_samePcEmqxDashboardPort}:18083\"
-    timeseries-service:
-        ports:
-            - \"{_samePcTimeseriesPort}:5000\"
-    nodered-edge:
-        ports:
-            - \"{_samePcNodeRedPort}:1880\"
-    edge-layer:
-        ports:
-            - \"{_samePcEdgePort}:5080\"
-""";
+    private string BuildSamePcComposeOverride() => string.Join(Environment.NewLine,
+    [
+        "services:",
+        "  emqx:",
+        "    ports:",
+        $"      - \"{_samePcMqttPort}:1883\"",
+        $"      - \"{_samePcEmqxDashboardPort}:18083\"",
+        "  timeseries-service:",
+        "    ports:",
+        $"      - \"{_samePcTimeseriesPort}:5000\"",
+        "  nodered-edge:",
+        "    ports:",
+        $"      - \"{_samePcNodeRedPort}:1880\"",
+        "  edge-layer:",
+        "    ports:",
+        $"      - \"{_samePcEdgePort}:5080\"",
+        string.Empty
+    ]);
 
-        private string BuildSamePcDeploymentGuide() => $"""# Aynı PC Çoklu Yapı Kurulumu
-
-Bu paket mevcut tek yapı deployment'ını bozmaz. Aynı bilgisayarda başka bir yapı ile birlikte çalıştırmak için Compose project adı ve host portları ayrıdır.
-
-## Bu paket
-
-- Structure ID: `{_createdStructureId}`
-- Compose project: `{_samePcProjectName}`
-- Edge API: `http://PC-IP:{_samePcEdgePort}`
-- Node-RED: `http://PC-IP:{_samePcNodeRedPort}`
-
-## Başlatma
-
-```bash
-docker compose -p {_samePcProjectName} -f docker-compose.yml -f docker-compose.same-pc.yml pull
-docker compose -p {_samePcProjectName} -f docker-compose.yml -f docker-compose.same-pc.yml up -d
-docker compose -p {_samePcProjectName} ps
-```
-
-İkinci yapı için panelden ayrı ZIP alın ve farklı değerler kullanın:
-
-```text
-Compose project: saha-b
-Edge API portu: 5081
-Node-RED portu: 1881
-EMQX MQTT portu: 1884
-EMQX dashboard portu: 18084
-Timeseries portu: 5001
-```
-
-Panelde bu yapının `EdgeApiUrl` değeri `http://PC-IP:{_samePcEdgePort}` olmalıdır. Aynı image kullanılır; yapı kimliği, config, project, volume/network ve host portları ayrıdır.
-""";
+    private string BuildSamePcDeploymentGuide() => string.Join(Environment.NewLine,
+    [
+        "# Aynı PC Çoklu Yapı Kurulumu",
+        string.Empty,
+        "Bu paket mevcut tek yapı deployment'ını bozmaz. Aynı bilgisayarda başka bir yapı ile birlikte çalıştırmak için Compose project adı ve host portları ayrıdır.",
+        string.Empty,
+        "## Bu paket",
+        string.Empty,
+        $"- Structure ID: `{_createdStructureId}`",
+        $"- Compose project: `{_samePcProjectName}`",
+        $"- Edge API: `http://PC-IP:{_samePcEdgePort}`",
+        $"- Node-RED: `http://PC-IP:{_samePcNodeRedPort}`",
+        string.Empty,
+        "## Başlatma",
+        string.Empty,
+        "```bash",
+        $"docker compose -p {_samePcProjectName} -f docker-compose.yml -f docker-compose.same-pc.yml pull",
+        $"docker compose -p {_samePcProjectName} -f docker-compose.yml -f docker-compose.same-pc.yml up -d",
+        $"docker compose -p {_samePcProjectName} ps",
+        "```",
+        string.Empty,
+        "İkinci yapı için panelden ayrı ZIP alın ve farklı değerler kullanın:",
+        string.Empty,
+        "```text",
+        "Compose project: saha-b",
+        "Edge API portu: 5081",
+        "Node-RED portu: 1881",
+        "EMQX MQTT portu: 1884",
+        "EMQX dashboard portu: 18084",
+        "Timeseries portu: 5001",
+        "```",
+        string.Empty,
+        $"Panelde bu yapının `EdgeApiUrl` değeri `http://PC-IP:{_samePcEdgePort}` olmalıdır. Aynı image kullanılır; yapı kimliği, config, project, volume/network ve host portları ayrıdır."
+    ]);
 
     private void BackFromStep2()
     {

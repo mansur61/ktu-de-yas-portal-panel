@@ -617,6 +617,25 @@
                         <div class="card-header bg-success text-white"><strong>Saha Deployment Paketi</strong></div>
                         <div class="card-body">
                             <p>TCP sensörleri, UDP/MQTT ayarları, kamera ayarları ve tüm saha dosyaları tek ZIP içinde hazırlanır.</p>
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" @bind="_samePcDeployment" id="samePcDeployment" />
+                                <label class="form-check-label fw-semibold" for="samePcDeployment">Aynı bilgisayarda başka yapıyla birlikte çalışacak</label>
+                            </div>
+                            @if (_samePcDeployment)
+                            {
+                                <div class="border rounded p-3 mb-3 bg-light">
+                                    <div class="small text-muted mb-2">İkinci yapının ZIP'inde farklı project adı ve host portları kullanın.</div>
+                                    <div class="row g-2">
+                                        <div class="col-md-4"><label class="form-label small">Compose project adı</label><input class="form-control form-control-sm" @bind="_samePcProjectName" placeholder="saha-a" /></div>
+                                        <div class="col-md-4"><label class="form-label small">Edge API host portu</label><input class="form-control form-control-sm" type="number" @bind="_samePcEdgePort" min="1024" max="65535" /></div>
+                                        <div class="col-md-4"><label class="form-label small">Node-RED host portu</label><input class="form-control form-control-sm" type="number" @bind="_samePcNodeRedPort" min="1024" max="65535" /></div>
+                                        <div class="col-md-4"><label class="form-label small">EMQX MQTT host portu</label><input class="form-control form-control-sm" type="number" @bind="_samePcMqttPort" min="1024" max="65535" /></div>
+                                        <div class="col-md-4"><label class="form-label small">EMQX dashboard host portu</label><input class="form-control form-control-sm" type="number" @bind="_samePcEmqxDashboardPort" min="1024" max="65535" /></div>
+                                        <div class="col-md-4"><label class="form-label small">Timeseries API host portu</label><input class="form-control form-control-sm" type="number" @bind="_samePcTimeseriesPort" min="1024" max="65535" /></div>
+                                    </div>
+                                    <div class="form-text mt-2">Örnek ikinci yapı: <code>saha-b</code>, Edge <code>5081</code>, Node-RED <code>1881</code>.</div>
+                                </div>
+                            }
                             <div class="d-flex gap-2">
                                 <button class="btn btn-outline-secondary" @onclick="GoBackToSensorStep"><span class="bi bi-arrow-left me-1"></span>Geri: Sensör Ekle</button>
                                 <button class="btn btn-success" @onclick="DownloadDeploymentPackage"><span class="bi bi-file-earmark-zip me-1"></span>Saha deployment ZIP indir</button>
@@ -1177,6 +1196,13 @@
     private string          _setupName = "";
     private string          _setupStructureType = "Dam";
     private string          _mediaConfigJson = DefaultMediaConfigJson;
+    private bool             _samePcDeployment;
+    private string           _samePcProjectName = "saha-a";
+    private int              _samePcEdgePort = 5080;
+    private int              _samePcNodeRedPort = 1880;
+    private int              _samePcMqttPort = 1883;
+    private int              _samePcEmqxDashboardPort = 18083;
+    private int              _samePcTimeseriesPort = 5000;
     private bool            _setupSaving;
     private readonly Dictionary<string, string?> _siteEnvironment = new(StringComparer.OrdinalIgnoreCase);
 
@@ -1900,6 +1926,13 @@
         _setupName              = "";
         _setupStructureType     = "Dam";
         _mediaConfigJson        = DefaultMediaConfigJson;
+        _samePcDeployment       = false;
+        _samePcProjectName      = "saha-a";
+        _samePcEdgePort         = 5080;
+        _samePcNodeRedPort      = 1880;
+        _samePcMqttPort         = 1883;
+        _samePcEmqxDashboardPort = 18083;
+        _samePcTimeseriesPort   = 5000;
         _siteEnvironment.Clear();
         foreach (var field in SiteEnvironmentFields)
             _siteEnvironment[field.Key] = field.Key == "DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED" ? "true" : field.Placeholder;
@@ -2107,10 +2140,17 @@
             AddPackageEntry(archive, "edge-config.json", edgeConfig);
             AddPackageEntry(archive, ".env", environment);
             AddPackageEntry(archive, "media-config.json", NormalizeMediaConfigJson());
+            if (_samePcDeployment)
+            {
+                AddPackageEntry(archive, "docker-compose.same-pc.yml", BuildSamePcComposeOverride());
+                AddPackageEntry(archive, "AYNI_PC_KURULUM.md", BuildSamePcDeploymentGuide());
+            }
             AddPackageEntry(archive, "README.txt",
                 $"Saha kurulumu\n\nYapi: {_setupName}\nStructureId: {_createdStructureId}\n\n" +
                 "1. ZIP'i saha bilgisayarında bir klasöre açın.\n" +
-                "2. docker compose pull && docker compose up -d komutunu çalıştırın.\n" +
+                (_samePcDeployment
+                    ? $"2. docker compose -p {_samePcProjectName} -f docker-compose.yml -f docker-compose.same-pc.yml pull && docker compose -p {_samePcProjectName} -f docker-compose.yml -f docker-compose.same-pc.yml up -d komutunu çalıştırın.\n"
+                    : "2. docker compose pull && docker compose up -d komutunu çalıştırın.\n") +
                 "3. Provisioning ilk saha keşfi için true bırakılır; bridge sensörleri merkeze aktarır.\n");
         }
 
@@ -2132,6 +2172,55 @@
         var path = Path.Combine(AppContext.BaseDirectory, "DeploymentTemplates", "saha-deployment", name);
         if (File.Exists(path)) AddPackageEntry(archive, name, File.ReadAllText(path));
     }
+
+        private string BuildSamePcComposeOverride() => $"""services:
+    emqx:
+        ports:
+            - \"{_samePcMqttPort}:1883\"
+            - \"{_samePcEmqxDashboardPort}:18083\"
+    timeseries-service:
+        ports:
+            - \"{_samePcTimeseriesPort}:5000\"
+    nodered-edge:
+        ports:
+            - \"{_samePcNodeRedPort}:1880\"
+    edge-layer:
+        ports:
+            - \"{_samePcEdgePort}:5080\"
+""";
+
+        private string BuildSamePcDeploymentGuide() => $"""# Aynı PC Çoklu Yapı Kurulumu
+
+Bu paket mevcut tek yapı deployment'ını bozmaz. Aynı bilgisayarda başka bir yapı ile birlikte çalıştırmak için Compose project adı ve host portları ayrıdır.
+
+## Bu paket
+
+- Structure ID: `{_createdStructureId}`
+- Compose project: `{_samePcProjectName}`
+- Edge API: `http://PC-IP:{_samePcEdgePort}`
+- Node-RED: `http://PC-IP:{_samePcNodeRedPort}`
+
+## Başlatma
+
+```bash
+docker compose -p {_samePcProjectName} -f docker-compose.yml -f docker-compose.same-pc.yml pull
+docker compose -p {_samePcProjectName} -f docker-compose.yml -f docker-compose.same-pc.yml up -d
+docker compose -p {_samePcProjectName} ps
+```
+
+İkinci yapı için panelden ayrı ZIP alın ve farklı değerler kullanın:
+
+```text
+Compose project: saha-b
+Edge API portu: 5081
+Node-RED portu: 1881
+EMQX MQTT portu: 1884
+EMQX dashboard portu: 18084
+Timeseries portu: 5001
+```
+
+Panelde bu yapının `EdgeApiUrl` değeri `http://PC-IP:{_samePcEdgePort}` olmalıdır. Aynı image kullanılır; yapı kimliği, config, project, volume/network ve host portları ayrıdır.
+""";
 
     private void BackFromStep2()
     {

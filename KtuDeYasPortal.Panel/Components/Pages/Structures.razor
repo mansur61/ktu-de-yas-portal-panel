@@ -453,7 +453,25 @@
                                 <div class="col-md-6"><label class="form-label">Structure ID</label><input class="form-control" value="@_createdStructureId" readonly /></div>
                                 <div class="col-md-6"><label class="form-label">Yapı Adı</label><input class="form-control" @bind="_setupName" /></div>
                                 <div class="col-md-6"><label class="form-label">Yapı Tipi</label><input class="form-control" @bind="_setupStructureType" /></div>
-                                <div class="col-md-6"><label class="form-label">Saha Edge API URL</label><input class="form-control" @bind="_newEdgeApiUrl" placeholder="http://saha-ip:5080" /></div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Merkez Timeseries API URL</label>
+                                    <input class="form-control bg-light" value="@GetEnv("CENTRAL_TIMESERIES_API_BASE_URL")" readonly />
+                                    <div class="form-text">Bu değer Saha .env sekmesindeki <code>CENTRAL_TIMESERIES_API_BASE_URL</code> alanından alınır ve Edge Config'e otomatik yazılır.</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Node-RED URL</label>
+                                    <input class="form-control" @bind="_newNodeRedUrl" placeholder="http://100.116.167.67:1880" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Saha Edge API URL</label>
+                                    <input class="form-control" @bind="_newEdgeApiUrl" placeholder="http://100.116.167.67:5080" />
+                                </div>
+                                <div class="col-md-6 d-flex align-items-end">
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" @bind="_newAutoRegister" id="chkAutoRegister" />
+                                        <label class="form-check-label" for="chkAutoRegister">Saha açılışında otomatik kayıt</label>
+                                    </div>
+                                </div>
                             </div>
                         }
                         else if (_setupTab == "env")
@@ -1152,6 +1170,7 @@
     private double        _newLng         = 40.0;
     private string        _newNodeRedUrl  = "";
     private string        _newEdgeApiUrl  = "";
+    private bool          _newAutoRegister;
     private string        _newEdgeConfigJson = "";
     private Guid            _createdStructureId;
     private string          _setupTab = "edge";
@@ -1885,6 +1904,7 @@
         foreach (var field in SiteEnvironmentFields)
             _siteEnvironment[field.Key] = field.Key == "DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED" ? "true" : field.Placeholder;
         _newEdgeConfigJson      = EdgeConfigTemplate;
+        _newAutoRegister        = false;
         _mapInitialized         = false;
         _wizardImageInitialized = false;
         _editingStructure       = null;
@@ -2006,6 +2026,7 @@
             if (structure is null) return;
 
             structure.Name = _setupName.Trim();
+            structure.NodeRedUrl = string.IsNullOrWhiteSpace(_newNodeRedUrl) ? null : _newNodeRedUrl.Trim();
             structure.EdgeApiUrl = string.IsNullOrWhiteSpace(_newEdgeApiUrl) ? null : _newEdgeApiUrl.Trim();
             structure.EdgeConfigJson = BuildEdgeConfigJson(structure);
             structure.SiteEnvironmentJson = BuildSiteEnvironmentJson();
@@ -2016,7 +2037,7 @@
                     structure.Id, structure.Name, structure.Description, structure.Province, structure.District,
                     structure.Latitude, structure.Longitude, structure.Address, structure.StructureType.ToString(),
                     structure.NodeRedUrl, structure.EdgeApiUrl, structure.IsActive,
-                    "http://timeseries-service:5000", true));
+                    GetEnv("CENTRAL_TIMESERIES_API_BASE_URL").Trim(), _newAutoRegister));
             }
             _simulationStatusMessage = "Saha kurulum ayarları merkeze kaydedildi.";
             await LoadStructuresAsync();
@@ -2701,8 +2722,10 @@
                         latitude = structure.Latitude,
                         longitude = structure.Longitude,
                         address = structure.Address,
+                        apiBaseUrl = GetEnv("CENTRAL_TIMESERIES_API_BASE_URL").Trim(),
+                        nodeRedUrl = structure.NodeRedUrl,
                         edgeApiUrl = structure.EdgeApiUrl,
-                        autoRegister = false,
+                        autoRegister = _newAutoRegister,
                         isActive = structure.IsActive
                     }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
 
@@ -2813,9 +2836,9 @@
     "latitude": null,
     "longitude": null,
     "address": "",
+    "apiBaseUrl": "http://100.116.23.112:5000/",
     "nodeRedUrl": "",
     "edgeApiUrl": "",
-    "apiBaseUrl": "http://timeseries-service:5000",
     "autoRegister": false,
     "isActive": true
 }

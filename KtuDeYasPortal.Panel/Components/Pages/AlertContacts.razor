@@ -53,8 +53,8 @@ else
                         <th>Ad Soyad</th>
                         <th>Telefon</th>
                         <th>E-Posta</th>
-                        <th class="text-center">Yönetici<br/>Bilgilendir</th>
-                        <th class="text-center">Operasyon<br/>Bilgilendir</th>
+                        <th class="text-center">Yönetici</th>
+                        <th class="text-center">Operasyon Ekibi</th>
                         <th class="text-center">Durum</th>
                         <th></th>
                     </tr>
@@ -136,20 +136,46 @@ else
                     </div>
 
                     <div class="card border-0 bg-light p-3 mb-3">
-                        <div class="fw-semibold mb-2 small text-muted text-uppercase">Bildirim Grupları</div>
-                        <div class="form-check mb-2">
-                            <input class="form-check-input" type="checkbox" id="chkAdmin" @bind="_form.NotifyAdmin" />
-                            <label class="form-check-label" for="chkAdmin">
-                                <strong>Yönetici Bilgilendir</strong>
-                                <small class="d-block text-muted">Kritik ve yönetimsel alertlerde bu kişiye bildirim gider.</small>
-                            </label>
-                        </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="chkOps" @bind="_form.NotifyOperations" />
-                            <label class="form-check-label" for="chkOps">
-                                <strong>Operasyon Ekibi Bilgilendir</strong>
-                                <small class="d-block text-muted">Saha müdahalesi gerektiren alertlerde bu kişiye bildirim gider.</small>
-                            </label>
+                        <div class="fw-semibold mb-2 small text-muted text-uppercase">Kişi Rolü</div>
+                        <div class="row g-3">
+                            <div class="col-6">
+                                <label class="form-label small fw-semibold">Yönetici mi?</label>
+                                <div class="d-flex gap-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="notifyAdmin"
+                                               id="adminEvet" value="true"
+                                               checked="@_form.NotifyAdmin"
+                                               @onchange="() => _form.NotifyAdmin = true" />
+                                        <label class="form-check-label" for="adminEvet">Evet</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="notifyAdmin"
+                                               id="adminHayir" value="false"
+                                               checked="@(!_form.NotifyAdmin)"
+                                               @onchange="() => _form.NotifyAdmin = false" />
+                                        <label class="form-check-label" for="adminHayir">Hayır</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small fw-semibold">Operasyon Ekibi mi?</label>
+                                <div class="d-flex gap-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="notifyOps"
+                                               id="opsEvet" value="true"
+                                               checked="@_form.NotifyOperations"
+                                               @onchange="() => _form.NotifyOperations = true" />
+                                        <label class="form-check-label" for="opsEvet">Evet</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="notifyOps"
+                                               id="opsHayir" value="false"
+                                               checked="@(!_form.NotifyOperations)"
+                                               @onchange="() => _form.NotifyOperations = false" />
+                                        <label class="form-check-label" for="opsHayir">Hayır</label>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -261,7 +287,7 @@ else
         }
         if (!_form.NotifyAdmin && !_form.NotifyOperations)
         {
-            _formError = "En az bir bildirim grubu seçilmelidir.";
+            _formError = "Kişi en az bir rol için seçilmelidir (Yönetici veya Operasyon Ekibi).";
             return;
         }
 

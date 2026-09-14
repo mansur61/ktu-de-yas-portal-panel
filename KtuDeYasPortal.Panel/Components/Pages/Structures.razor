@@ -456,15 +456,21 @@
                                 <div class="col-md-6">
                                     <label class="form-label">Merkez Timeseries API URL</label>
                                     <input class="form-control bg-light" value="@GetEnv("CENTRAL_TIMESERIES_API_BASE_URL")" readonly />
-                                    <div class="form-text">Bu değer Saha .env sekmesindeki <code>CENTRAL_TIMESERIES_API_BASE_URL</code> alanından alınır ve Edge Config'e otomatik yazılır.</div>
+                                    <div class="form-text">Merkez Timeseries API adresinden otomatik alınır ve Edge Config'e yazılır.</div>
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label">Node-RED URL</label>
                                     <input class="form-control" @bind="_newNodeRedUrl" placeholder="http://100.116.167.67:1880" />
+                                    <div class="form-text">
+                                        Saha Node-RED adresi. <strong>Aynı bilgisayarda başka yapıyla birlikte çalışacak</strong> seçilecekse bu port diğer yapıdan farklı olmalıdır (ör. ikinci yapı için <code>1881</code>).
+                                    </div>
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label">Saha Edge API URL</label>
                                     <input class="form-control" @bind="_newEdgeApiUrl" placeholder="http://100.116.167.67:5080" />
+                                    <div class="form-text">
+                                        Saha Edge API adresi. <strong>Aynı bilgisayarda başka yapıyla birlikte çalışacak</strong> seçilecekse bu port diğer yapıdan farklı olmalıdır (ör. ikinci yapı için <code>5081</code>).
+                                    </div>
                                 </div>
                                 <div class="col-md-6 d-flex align-items-end">
                                     <div class="form-check mb-2">
@@ -547,7 +553,7 @@
                         }
                         <div class="mt-3 d-flex flex-wrap gap-2 align-items-center">
                             <button class="btn btn-primary" @onclick="SaveFieldSetupAsync" disabled="@_setupSaving">Saha ayarlarını merkez DB'ye kaydet</button>
-                            <span class="small text-muted">Edge yapılandırması ve saha <code>.env</code> değerleri bu yapının merkez kaydına saklanır; sahaya komut göndermez.</span>
+                            <span class="small text-muted">Edge yapılandırması ve saha <code>.env</code> değerleri bu yapının merkez kaydına saklanır; sahaya komut göndermez. <strong>Kaydedilmezse</strong> deployment ZIP bu ayarları içermez ve saha sunucusuna gönderilecek yapılandırma eksik kalır.</span>
                             @if (_wizardStep == 3)
                             {
                                 <button class="btn btn-success ms-auto" @onclick="GoToSensorStep" disabled="@_setupSaving">

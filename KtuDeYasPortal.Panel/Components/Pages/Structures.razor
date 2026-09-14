@@ -190,7 +190,7 @@
                                     {
                                         <span>Sensör yok</span>
                                     }
-                                    else if (_isProdMode && !s.CanStart && s.TotalSensorCount > 0)
+                                    else if (_isProdMode && !s.CanStart && s.TotalSensorCount > 0 && string.IsNullOrWhiteSpace(s.EdgeApiUrl))
                                     {
                                         <span>Hazır değil</span>
                                     }
@@ -3211,13 +3211,16 @@
     /// <summary>
     /// Çalıştır butonunun disabled durumunu hesaplar.
     /// Dev modunda: sensör yoksa pasif.
-    /// Prod modunda: CanStart = false ise pasif.
+    /// Prod modunda: EdgeApiUrl varsa (UDP sensörler) VEYA TCP ready sensör varsa aktif.
     /// </summary>
     private bool GetStartDisabled(Structure s)
     {
         if (s.SensorCount == 0) return true;
-        if (_isProdMode) return !s.CanStart;
-        return false;
+        if (!_isProdMode) return false;
+        // EdgeApiUrl tanımlıysa UDP/MQTT sensörler çalışabilir — TCP lifecycle şartı aranmaz
+        if (!string.IsNullOrWhiteSpace(s.EdgeApiUrl)) return false;
+        // EdgeApiUrl yoksa TCP kayıtlı hazır sensör gerekir
+        return !s.CanStart;
     }
 
     /// <summary>
@@ -3231,6 +3234,9 @@
         if (!_isProdMode)
             return "Yapıyı çalıştır (Dev modu — simülasyon)";
 
+        if (!string.IsNullOrWhiteSpace(s.EdgeApiUrl))
+            return $"Saha Edge üzerinden çalıştır: {s.EdgeApiUrl}";
+
         if (!s.CanStart)
         {
             var reasons = new List<string>();
@@ -3241,8 +3247,8 @@
             if (s.MetricPreviewPendingCount > 0)
                 reasons.Add($"{s.MetricPreviewPendingCount} metrik önizleme eksik");
             return reasons.Count > 0
-                ? "Çalıştırılmaya hazır sensör yok: " + string.Join(", ", reasons)
-                : "Çalıştırılmaya hazır sensör bulunmuyor.";
+                ? "TCP sensör hazır değil: " + string.Join(", ", reasons)
+                : "Çalıştırılmaya hazır TCP sensör bulunmuyor.";
         }
 
         return $"{s.StartableSensorCount} hazır sensör çalıştırılacak." +

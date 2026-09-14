@@ -16,10 +16,8 @@
     </div>
     <div class="d-flex gap-2 align-items-center flex-wrap">
         @if (_escalations.Count > 0)
-        {
-            <span class="badge bg-danger fs-6">@_escalations.Count kayıt</span>
-        }
-        <button class="btn btn-outline-secondary btn-sm" @onclick="LoadHistoricalAsync" disabled="@_loadingHistory">
+        { <span class="badge bg-danger fs-6">@_escalations.Count kayıt</span> }
+        <button class="btn btn-outline-secondary btn-sm" @onclick="LoadAsync" disabled="@_loadingHistory">
             <span class="bi bi-arrow-clockwise me-1"></span>Yenile
         </button>
     </div>
@@ -28,6 +26,30 @@
 @if (!string.IsNullOrWhiteSpace(_error))
 {
     <div class="alert alert-danger py-2">@_error</div>
+}
+
+@* ─── Bildirim listesi özeti ───────────────────────────────────────── *@
+@if (_contacts.Count > 0)
+{
+    <div class="card border-0 bg-light mb-3 p-3">
+        <div class="fw-semibold mb-2 small text-muted text-uppercase">
+            <span class="bi bi-people me-1"></span>Bildirim Listesi
+        </div>
+        <div class="d-flex flex-wrap gap-3">
+            @foreach (var c in _contacts)
+            {
+                <div class="small">
+                    <span class="fw-semibold">@c.FullName</span>
+                    @if (c.NotifyAdmin)
+                    { <span class="badge bg-primary ms-1" style="font-size:0.7em">Yönetici</span> }
+                    @if (c.NotifyOperations)
+                    { <span class="badge bg-info text-dark ms-1" style="font-size:0.7em">Operasyon</span> }
+                    @if (!string.IsNullOrWhiteSpace(c.Phone))
+                    { <span class="text-muted ms-1"><span class="bi bi-telephone"></span> @c.Phone</span> }
+                </div>
+            }
+        </div>
+    </div>
 }
 
 @* ─── Yeni gelen (realtime) ────────────────────────────────────────── *@
@@ -56,37 +78,21 @@ else
     <div class="d-flex flex-column gap-2">
         @foreach (var e in _escalations)
         {
-            var borderCls = e.Severity.ToLower() switch
-            {
-                "critical" => "border-danger",
-                "warning"  => "border-warning",
-                _          => "border-info"
-            };
-            var badgeCls = e.Severity.ToLower() switch
-            {
-                "critical" => "bg-danger",
-                "warning"  => "bg-warning text-dark",
-                _          => "bg-info text-dark"
-            };
+            var borderCls = e.Severity.ToLower() switch { "critical" => "border-danger", "warning" => "border-warning", _ => "border-info" };
+            var badgeCls  = e.Severity.ToLower() switch { "critical" => "bg-danger", "warning" => "bg-warning text-dark", _ => "bg-info text-dark" };
             <div class="card @borderCls border-start border-4 shadow-sm">
                 <div class="card-body py-2 px-3">
                     <div class="d-flex align-items-start gap-3 flex-wrap">
-                        <span class="badge @badgeCls mt-1" style="min-width:72px">
-                            @e.Severity.ToUpper()
-                        </span>
+                        <span class="badge @badgeCls mt-1" style="min-width:72px">@e.Severity.ToUpper()</span>
                         <div class="flex-grow-1">
                             <div class="fw-semibold">@e.Message</div>
                             <div class="small text-muted mt-1 d-flex gap-3 flex-wrap">
                                 <span><span class="bi bi-cpu me-1"></span>@e.DeviceId</span>
                                 @if (!string.IsNullOrWhiteSpace(e.LocationId))
-                                {
-                                    <span><span class="bi bi-geo-alt me-1"></span>@e.LocationId</span>
-                                }
+                                { <span><span class="bi bi-geo-alt me-1"></span>@e.LocationId</span> }
                                 <span><span class="bi bi-person me-1"></span>@e.EscalatedBy</span>
                                 @if (!string.IsNullOrWhiteSpace(e.Note))
-                                {
-                                    <span class="fst-italic text-secondary">Not: @e.Note</span>
-                                }
+                                { <span class="fst-italic text-secondary">Not: @e.Note</span> }
                             </div>
                         </div>
                         <div class="text-end small text-muted" style="min-width:90px">
@@ -101,8 +107,9 @@ else
 }
 
 @code {
-    private readonly List<AlertEscalationDto> _escalations = [];
+    private readonly List<AlertEscalationDto>  _escalations = [];
     private readonly Queue<AlertEscalationDto> _pendingNew  = new();
+    private readonly List<ContactSummaryDto>   _contacts    = [];
     private int  _newCount;
     private bool _loadingHistory;
     private string? _error;
@@ -112,8 +119,11 @@ else
     protected override async Task OnInitializedAsync()
     {
         AlertState.OnEscalationReceived += OnEscalationReceived;
-        await LoadHistoricalAsync();
+        await Task.WhenAll(LoadHistoricalAsync(), LoadContactsAsync());
     }
+
+    private async Task LoadAsync() =>
+        await Task.WhenAll(LoadHistoricalAsync(), LoadContactsAsync());
 
     private async Task LoadHistoricalAsync()
     {
@@ -121,8 +131,7 @@ else
         _error = null;
         try
         {
-            var list = await Api.GetFromJsonAsync<List<AlertEscalationDto>>(
-                "api/alert-escalations?limit=200") ?? [];
+            var list = await Api.GetFromJsonAsync<List<AlertEscalationDto>>("api/alert-escalations?limit=200") ?? [];
             _escalations.Clear();
             _escalations.AddRange(list);
         }
@@ -130,15 +139,23 @@ else
         finally { _loadingHistory = false; }
     }
 
-    // Realtime: Kafka → Redis → PanelRealtimeForwarder → AlertState.PushEscalation
+    private async Task LoadContactsAsync()
+    {
+        try
+        {
+            var list = await Api.GetFromJsonAsync<List<ContactSummaryDto>>("api/alert-escalations/contacts") ?? [];
+            _contacts.Clear();
+            _contacts.AddRange(list);
+        }
+        catch { /* sessiz */ }
+    }
+
     private void OnEscalationReceived(PortalEscalation esc)
     {
-        // PortalEscalation → AlertEscalationDto dönüşümü
         var dto = new AlertEscalationDto(
             esc.Id, esc.AlarmId, esc.DeviceId, esc.LocationId,
             esc.Severity, esc.Message, esc.EscalatedBy,
             esc.StructureId, esc.Note, esc.EscalatedAt);
-
         _pendingNew.Enqueue(dto);
         _newCount = _pendingNew.Count;
         InvokeAsync(StateHasChanged);
@@ -156,14 +173,11 @@ else
     public void Dispose() => AlertState.OnEscalationReceived -= OnEscalationReceived;
 
     private sealed record AlertEscalationDto(
-        Guid     Id,
-        string   AlarmId,
-        string   DeviceId,
-        string?  LocationId,
-        string   Severity,
-        string   Message,
-        string   EscalatedBy,
-        Guid?    StructureId,
-        string?  Note,
-        DateTime EscalatedAt);
+        Guid Id, string AlarmId, string DeviceId, string? LocationId,
+        string Severity, string Message, string EscalatedBy,
+        Guid? StructureId, string? Note, DateTime EscalatedAt);
+
+    private sealed record ContactSummaryDto(
+        string FullName, string? Phone, string? Email,
+        bool NotifyAdmin, bool NotifyOperations);
 }

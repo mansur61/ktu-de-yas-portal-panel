@@ -54,7 +54,7 @@ else
                         <th>Telefon</th>
                         <th>E-Posta</th>
                         <th class="text-center">Yönetici<br/>Bilgilendir</th>
-                        <th class="text-center">Operasyon Ekibi<br/>Bilgilendir</th>
+                        <th class="text-center">Operasyon<br/>Bilgilendir</th>
                         <th class="text-center">Durum</th>
                         <th></th>
                     </tr>
@@ -77,29 +77,22 @@ else
                             <td class="text-center">
                                 @if (c.NotifyAdmin)
                                 { <span class="badge bg-success"><span class="bi bi-check-lg me-1"></span>Evet</span> }
-                                else
-                                { <span class="badge bg-secondary">Hayır</span> }
+                                else { <span class="badge bg-secondary">Hayır</span> }
                             </td>
                             <td class="text-center">
                                 @if (c.NotifyOperations)
                                 { <span class="badge bg-info text-dark"><span class="bi bi-check-lg me-1"></span>Evet</span> }
-                                else
-                                { <span class="badge bg-secondary">Hayır</span> }
+                                else { <span class="badge bg-secondary">Hayır</span> }
                             </td>
                             <td class="text-center">
                                 @if (c.IsActive)
                                 { <span class="badge bg-success">Aktif</span> }
-                                else
-                                { <span class="badge bg-secondary">Pasif</span> }
+                                else { <span class="badge bg-secondary">Pasif</span> }
                             </td>
                             <td class="text-end">
                                 <div class="d-flex gap-1 justify-content-end">
-                                    <button class="btn btn-sm btn-outline-primary" @onclick="() => OpenEdit(c)" title="Düzenle">
-                                        <span class="bi bi-pencil"></span>
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmDelete(c)" title="Sil">
-                                        <span class="bi bi-trash"></span>
-                                    </button>
+                                    <button class="btn btn-sm btn-outline-primary" @onclick="() => OpenEdit(c)"><span class="bi bi-pencil"></span></button>
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmDelete(c)"><span class="bi bi-trash"></span></button>
                                 </div>
                             </td>
                         </tr>
@@ -110,7 +103,7 @@ else
     </div>
 }
 
-@* ─── Ekle / Düzenle Modal ────────────────────────────────────────────── *@
+@* ─── Ekle / Düzenle Modal ───────────────────────────────────────────── *@
 @if (_showForm)
 {
     <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
@@ -180,7 +173,7 @@ else
     </div>
 }
 
-@* ─── Silme onayı ─────────────────────────────────────────────────────── *@
+@* ─── Silme onayı ────────────────────────────────────────────────────── *@
 @if (_deleteTarget is not null)
 {
     <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
@@ -190,9 +183,7 @@ else
                     <h5 class="modal-title text-danger"><span class="bi bi-exclamation-triangle me-2"></span>Sil</h5>
                     <button class="btn-close" @onclick="CancelDelete"></button>
                 </div>
-                <div class="modal-body">
-                    <strong>@_deleteTarget.FullName</strong> kişisi silinecek. Emin misiniz?
-                </div>
+                <div class="modal-body"><strong>@_deleteTarget.FullName</strong> kişisi silinecek. Emin misiniz?</div>
                 <div class="modal-footer">
                     <button class="btn btn-outline-secondary" @onclick="CancelDelete">İptal</button>
                     <button class="btn btn-danger" @onclick="DeleteConfirmedAsync" disabled="@_saving">
@@ -268,12 +259,16 @@ else
             _formError = "Ad soyad boş olamaz.";
             return;
         }
+        if (!_form.NotifyAdmin && !_form.NotifyOperations)
+        {
+            _formError = "En az bir bildirim grubu seçilmelidir.";
+            return;
+        }
 
         _saving = true;
         _formError = null;
         try
         {
-            HttpResponseMessage response;
             var body = new
             {
                 fullName         = _form.FullName.Trim(),
@@ -284,6 +279,7 @@ else
                 isActive         = _form.IsActive
             };
 
+            HttpResponseMessage response;
             if (_editId.HasValue)
                 response = await Api.PutAsJsonAsync($"api/alert-contacts/{_editId}", body);
             else
@@ -313,11 +309,7 @@ else
         try
         {
             var response = await Api.DeleteAsync($"api/alert-contacts/{_deleteTarget.Id}");
-            if (!response.IsSuccessStatusCode)
-            {
-                _error = await response.Content.ReadAsStringAsync();
-                return;
-            }
+            if (!response.IsSuccessStatusCode) { _error = await response.Content.ReadAsStringAsync(); return; }
             _message = $"{_deleteTarget.FullName} silindi.";
             _deleteTarget = null;
             await LoadAsync();
@@ -326,7 +318,6 @@ else
         finally { _saving = false; }
     }
 
-    // DTO eşleştirmesi
     private sealed record AlertContactDto(
         Guid Id, string FullName, string? Phone, string? Email,
         bool NotifyAdmin, bool NotifyOperations, bool IsActive,

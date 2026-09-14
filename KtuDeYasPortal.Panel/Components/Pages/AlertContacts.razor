@@ -1,0 +1,344 @@
+@page "/alert-contacts"
+@rendermode InteractiveServer
+@using System.Net.Http.Json
+@inject IHttpClientFactory HttpFactory
+
+<PageTitle>Bildirim Kişileri</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-0 fw-bold"><span class="bi bi-person-lines-fill text-primary me-2"></span>Bildirim Kişileri</h4>
+        <small class="text-muted">Alert bildirimlerinin iletileceği yönetici ve operasyon ekibi kişilerini yönetin.</small>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-secondary" @onclick="LoadAsync" disabled="@_loading">
+            <span class="bi bi-arrow-clockwise me-1"></span>Yenile
+        </button>
+        <button class="btn btn-primary" @onclick="OpenCreate">
+            <span class="bi bi-person-plus me-1"></span>Kişi Ekle
+        </button>
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(_message))
+{
+    <div class="alert alert-success alert-dismissible py-2">
+        @_message
+        <button type="button" class="btn-close" @onclick="() => _message = null"></button>
+    </div>
+}
+@if (!string.IsNullOrWhiteSpace(_error))
+{
+    <div class="alert alert-danger py-2">@_error</div>
+}
+
+@if (_loading)
+{
+    <div class="text-center py-5"><span class="spinner-border text-primary"></span></div>
+}
+else if (_contacts.Count == 0)
+{
+    <div class="alert alert-info">
+        <span class="bi bi-info-circle me-2"></span>
+        Henüz bildirim kişisi tanımlanmamış. <button class="btn btn-link p-0 ms-1" @onclick="OpenCreate">İlk kişiyi ekle</button>
+    </div>
+}
+else
+{
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Ad Soyad</th>
+                        <th>Telefon</th>
+                        <th>E-Posta</th>
+                        <th class="text-center">Yönetici<br/>Bilgilendir</th>
+                        <th class="text-center">Operasyon Ekibi<br/>Bilgilendir</th>
+                        <th class="text-center">Durum</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var c in _contacts)
+                    {
+                        <tr class="@(c.IsActive ? "" : "table-secondary text-muted")">
+                            <td><strong>@c.FullName</strong></td>
+                            <td>
+                                @if (!string.IsNullOrWhiteSpace(c.Phone))
+                                { <a href="tel:@c.Phone" class="text-decoration-none"><span class="bi bi-telephone me-1"></span>@c.Phone</a> }
+                                else { <span class="text-muted">—</span> }
+                            </td>
+                            <td>
+                                @if (!string.IsNullOrWhiteSpace(c.Email))
+                                { <a href="mailto:@c.Email" class="text-decoration-none"><span class="bi bi-envelope me-1"></span>@c.Email</a> }
+                                else { <span class="text-muted">—</span> }
+                            </td>
+                            <td class="text-center">
+                                @if (c.NotifyAdmin)
+                                { <span class="badge bg-success"><span class="bi bi-check-lg me-1"></span>Evet</span> }
+                                else
+                                { <span class="badge bg-secondary">Hayır</span> }
+                            </td>
+                            <td class="text-center">
+                                @if (c.NotifyOperations)
+                                { <span class="badge bg-info text-dark"><span class="bi bi-check-lg me-1"></span>Evet</span> }
+                                else
+                                { <span class="badge bg-secondary">Hayır</span> }
+                            </td>
+                            <td class="text-center">
+                                @if (c.IsActive)
+                                { <span class="badge bg-success">Aktif</span> }
+                                else
+                                { <span class="badge bg-secondary">Pasif</span> }
+                            </td>
+                            <td class="text-end">
+                                <div class="d-flex gap-1 justify-content-end">
+                                    <button class="btn btn-sm btn-outline-primary" @onclick="() => OpenEdit(c)" title="Düzenle">
+                                        <span class="bi bi-pencil"></span>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmDelete(c)" title="Sil">
+                                        <span class="bi bi-trash"></span>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@* ─── Ekle / Düzenle Modal ────────────────────────────────────────────── *@
+@if (_showForm)
+{
+    <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <span class="bi bi-person-plus me-2"></span>
+                        @(_editId.HasValue ? "Kişiyi Düzenle" : "Yeni Bildirim Kişisi")
+                    </h5>
+                    <button class="btn-close" @onclick="CloseForm"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!string.IsNullOrWhiteSpace(_formError))
+                    {
+                        <div class="alert alert-danger py-2 small">@_formError</div>
+                    }
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Ad Soyad <span class="text-danger">*</span></label>
+                        <input class="form-control" @bind="_form.FullName" placeholder="Ahmet Yılmaz" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Telefon</label>
+                        <input class="form-control" @bind="_form.Phone" placeholder="+90 5XX XXX XX XX" type="tel" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">E-Posta</label>
+                        <input class="form-control" @bind="_form.Email" placeholder="ornek@dsi.gov.tr" type="email" />
+                    </div>
+
+                    <div class="card border-0 bg-light p-3 mb-3">
+                        <div class="fw-semibold mb-2 small text-muted text-uppercase">Bildirim Grupları</div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="chkAdmin" @bind="_form.NotifyAdmin" />
+                            <label class="form-check-label" for="chkAdmin">
+                                <strong>Yönetici Bilgilendir</strong>
+                                <small class="d-block text-muted">Kritik ve yönetimsel alertlerde bu kişiye bildirim gider.</small>
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="chkOps" @bind="_form.NotifyOperations" />
+                            <label class="form-check-label" for="chkOps">
+                                <strong>Operasyon Ekibi Bilgilendir</strong>
+                                <small class="d-block text-muted">Saha müdahalesi gerektiren alertlerde bu kişiye bildirim gider.</small>
+                            </label>
+                        </div>
+                    </div>
+
+                    @if (_editId.HasValue)
+                    {
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="chkActive" @bind="_form.IsActive" />
+                            <label class="form-check-label" for="chkActive">Aktif</label>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline-secondary" @onclick="CloseForm">İptal</button>
+                    <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        <span class="bi bi-floppy me-1"></span>Kaydet
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* ─── Silme onayı ─────────────────────────────────────────────────────── *@
+@if (_deleteTarget is not null)
+{
+    <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content shadow">
+                <div class="modal-header">
+                    <h5 class="modal-title text-danger"><span class="bi bi-exclamation-triangle me-2"></span>Sil</h5>
+                    <button class="btn-close" @onclick="CancelDelete"></button>
+                </div>
+                <div class="modal-body">
+                    <strong>@_deleteTarget.FullName</strong> kişisi silinecek. Emin misiniz?
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline-secondary" @onclick="CancelDelete">İptal</button>
+                    <button class="btn btn-danger" @onclick="DeleteConfirmedAsync" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Sil
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private readonly List<AlertContactDto> _contacts = [];
+    private bool _loading;
+    private bool _saving;
+    private bool _showForm;
+    private Guid? _editId;
+    private string? _message;
+    private string? _error;
+    private string? _formError;
+    private AlertContactDto? _deleteTarget;
+    private FormModel _form = new();
+
+    private HttpClient Api => HttpFactory.CreateClient("timeseries-api");
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            var result = await Api.GetFromJsonAsync<List<AlertContactDto>>("api/alert-contacts?activeOnly=false") ?? [];
+            _contacts.Clear();
+            _contacts.AddRange(result);
+        }
+        catch (Exception ex) { _error = $"Kişiler yüklenemedi: {ex.Message}"; }
+        finally { _loading = false; }
+    }
+
+    private void OpenCreate()
+    {
+        _form = new FormModel { NotifyAdmin = true };
+        _editId = null;
+        _formError = null;
+        _showForm = true;
+    }
+
+    private void OpenEdit(AlertContactDto c)
+    {
+        _form = new FormModel
+        {
+            FullName         = c.FullName,
+            Phone            = c.Phone,
+            Email            = c.Email,
+            NotifyAdmin      = c.NotifyAdmin,
+            NotifyOperations = c.NotifyOperations,
+            IsActive         = c.IsActive
+        };
+        _editId = c.Id;
+        _formError = null;
+        _showForm = true;
+    }
+
+    private void CloseForm() { _showForm = false; _formError = null; }
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_form.FullName))
+        {
+            _formError = "Ad soyad boş olamaz.";
+            return;
+        }
+
+        _saving = true;
+        _formError = null;
+        try
+        {
+            HttpResponseMessage response;
+            var body = new
+            {
+                fullName         = _form.FullName.Trim(),
+                phone            = _form.Phone?.Trim(),
+                email            = _form.Email?.Trim(),
+                notifyAdmin      = _form.NotifyAdmin,
+                notifyOperations = _form.NotifyOperations,
+                isActive         = _form.IsActive
+            };
+
+            if (_editId.HasValue)
+                response = await Api.PutAsJsonAsync($"api/alert-contacts/{_editId}", body);
+            else
+                response = await Api.PostAsJsonAsync("api/alert-contacts", body);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _formError = await response.Content.ReadAsStringAsync();
+                return;
+            }
+
+            _message = _editId.HasValue ? "Kişi güncellendi." : "Kişi eklendi.";
+            _showForm = false;
+            await LoadAsync();
+        }
+        catch (Exception ex) { _formError = $"Kayıt hatası: {ex.Message}"; }
+        finally { _saving = false; }
+    }
+
+    private void ConfirmDelete(AlertContactDto c) => _deleteTarget = c;
+    private void CancelDelete() => _deleteTarget = null;
+
+    private async Task DeleteConfirmedAsync()
+    {
+        if (_deleteTarget is null) return;
+        _saving = true;
+        try
+        {
+            var response = await Api.DeleteAsync($"api/alert-contacts/{_deleteTarget.Id}");
+            if (!response.IsSuccessStatusCode)
+            {
+                _error = await response.Content.ReadAsStringAsync();
+                return;
+            }
+            _message = $"{_deleteTarget.FullName} silindi.";
+            _deleteTarget = null;
+            await LoadAsync();
+        }
+        catch (Exception ex) { _error = $"Silme hatası: {ex.Message}"; }
+        finally { _saving = false; }
+    }
+
+    // DTO eşleştirmesi
+    private sealed record AlertContactDto(
+        Guid Id, string FullName, string? Phone, string? Email,
+        bool NotifyAdmin, bool NotifyOperations, bool IsActive,
+        DateTime CreatedAt, DateTime UpdatedAt);
+
+    private sealed class FormModel
+    {
+        public string  FullName         { get; set; } = string.Empty;
+        public string? Phone            { get; set; }
+        public string? Email            { get; set; }
+        public bool    NotifyAdmin      { get; set; } = true;
+        public bool    NotifyOperations { get; set; } = false;
+        public bool    IsActive         { get; set; } = true;
+    }
+}

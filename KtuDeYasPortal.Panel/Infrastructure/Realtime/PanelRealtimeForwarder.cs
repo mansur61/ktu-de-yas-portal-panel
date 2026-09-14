@@ -46,6 +46,8 @@ public sealed class PanelRealtimeForwarder : IRealtimeMessageHandler
                 await HandleAlarmCreatedAsync(message);
             else if (channel == RealtimeChannels.TimeseriesUpdated || channel == RealtimeChannels.SensorUpdated)
                 await HandleTimeseriesAsync(message);
+            else if (channel == "alert.escalation")
+                HandleEscalationAsync(message);
         }
         catch (Exception ex)
         {
@@ -75,6 +77,47 @@ public sealed class PanelRealtimeForwarder : IRealtimeMessageHandler
         _alertState.Upsert(alert);
         _logger.LogInformation("[panel-forwarder] Alert received alarm={AlarmId} device={DeviceId}", alarmId, deviceId);
         return Task.CompletedTask;
+    }
+
+    private void HandleEscalationAsync(string json)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            var payload = root.TryGetPropertyIgnoreCase("payload", out var p) ? p : root;
+
+            var idStr = payload.TryGetString("id") ?? root.TryGetString("id") ?? Guid.NewGuid().ToString();
+            _ = Guid.TryParse(idStr, out var id);
+
+            var structureIdStr = payload.TryGetString("structureId") ?? root.TryGetString("structureId");
+            Guid? structureId = Guid.TryParse(structureIdStr, out var sid) ? sid : null;
+
+            DateTime escalatedAt = DateTime.UtcNow;
+            if (payload.TryGetPropertyIgnoreCase("escalatedAt", out var ts) && ts.TryGetDateTime(out var dt))
+                escalatedAt = dt;
+
+            var escalation = new PortalEscalation(
+                Id:          id,
+                AlarmId:     payload.TryGetString("alarmId")     ?? root.TryGetString("alarmId")     ?? string.Empty,
+                DeviceId:    payload.TryGetString("deviceId")    ?? root.TryGetString("deviceId")    ?? "unknown",
+                LocationId:  payload.TryGetString("locationId")  ?? root.TryGetString("locationId"),
+                Severity:    payload.TryGetString("severity")    ?? root.TryGetString("severity")    ?? "warning",
+                Message:     payload.TryGetString("message")     ?? root.TryGetString("message")     ?? string.Empty,
+                EscalatedBy: payload.TryGetString("escalatedBy") ?? root.TryGetString("escalatedBy") ?? string.Empty,
+                StructureId: structureId,
+                Note:        payload.TryGetString("note")        ?? root.TryGetString("note"),
+                EscalatedAt: escalatedAt);
+
+            _alertState.PushEscalation(escalation);
+            _logger.LogInformation(
+                "[panel-forwarder] Escalation received id={Id} device={DeviceId} by={By}",
+                escalation.Id, escalation.DeviceId, escalation.EscalatedBy);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[panel-forwarder] Escalation parse error");
+        }
     }
 
     private Task HandleTimeseriesAsync(string json)

@@ -1,0 +1,163 @@
+@page "/live-alerts"
+@rendermode InteractiveServer
+@implements IDisposable
+@using System.Net.Http.Json
+@inject IHttpClientFactory HttpFactory
+@inject AlertState AlertState
+
+<PageTitle>Canlı Alertler — Merkez</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>
+        <h4 class="mb-0 fw-bold">
+            <span class="bi bi-shield-exclamation text-danger me-2"></span>Canlı Alertler
+        </h4>
+        <small class="text-muted">Portal kullanıcılarının "Merkeze İlet" ile gönderdiği alert bildirimleri</small>
+    </div>
+    <div class="d-flex gap-2 align-items-center flex-wrap">
+        @if (_escalations.Count > 0)
+        {
+            <span class="badge bg-danger fs-6">@_escalations.Count kayıt</span>
+        }
+        <button class="btn btn-outline-secondary btn-sm" @onclick="LoadHistoricalAsync" disabled="@_loadingHistory">
+            <span class="bi bi-arrow-clockwise me-1"></span>Yenile
+        </button>
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(_error))
+{
+    <div class="alert alert-danger py-2">@_error</div>
+}
+
+@* ─── Yeni gelen (realtime) ────────────────────────────────────────── *@
+@if (_newCount > 0)
+{
+    <div class="alert alert-warning py-2 d-flex align-items-center gap-2 mb-3">
+        <span class="bi bi-bell-fill text-warning"></span>
+        <strong>@_newCount yeni alert</strong> portalardan iletildi.
+        <button class="btn btn-sm btn-warning ms-auto" @onclick="MergeNew">Göster</button>
+    </div>
+}
+
+@if (_loadingHistory)
+{
+    <div class="text-center py-5"><span class="spinner-border text-primary"></span></div>
+}
+else if (_escalations.Count == 0)
+{
+    <div class="alert alert-light border text-center py-5">
+        <span class="bi bi-inbox fs-2 text-muted d-block mb-2"></span>
+        <span class="text-muted">Henüz merkeze iletilen alert bulunmuyor.</span>
+    </div>
+}
+else
+{
+    <div class="d-flex flex-column gap-2">
+        @foreach (var e in _escalations)
+        {
+            var borderCls = e.Severity.ToLower() switch
+            {
+                "critical" => "border-danger",
+                "warning"  => "border-warning",
+                _          => "border-info"
+            };
+            var badgeCls = e.Severity.ToLower() switch
+            {
+                "critical" => "bg-danger",
+                "warning"  => "bg-warning text-dark",
+                _          => "bg-info text-dark"
+            };
+            <div class="card @borderCls border-start border-4 shadow-sm">
+                <div class="card-body py-2 px-3">
+                    <div class="d-flex align-items-start gap-3 flex-wrap">
+                        <span class="badge @badgeCls mt-1" style="min-width:72px">
+                            @e.Severity.ToUpper()
+                        </span>
+                        <div class="flex-grow-1">
+                            <div class="fw-semibold">@e.Message</div>
+                            <div class="small text-muted mt-1 d-flex gap-3 flex-wrap">
+                                <span><span class="bi bi-cpu me-1"></span>@e.DeviceId</span>
+                                @if (!string.IsNullOrWhiteSpace(e.LocationId))
+                                {
+                                    <span><span class="bi bi-geo-alt me-1"></span>@e.LocationId</span>
+                                }
+                                <span><span class="bi bi-person me-1"></span>@e.EscalatedBy</span>
+                                @if (!string.IsNullOrWhiteSpace(e.Note))
+                                {
+                                    <span class="fst-italic text-secondary">Not: @e.Note</span>
+                                }
+                            </div>
+                        </div>
+                        <div class="text-end small text-muted" style="min-width:90px">
+                            <div>@e.EscalatedAt.ToLocalTime().ToString("HH:mm:ss")</div>
+                            <div>@e.EscalatedAt.ToLocalTime().ToString("dd.MM.yy")</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private readonly List<AlertEscalationDto> _escalations = [];
+    private readonly Queue<AlertEscalationDto> _pendingNew  = new();
+    private int  _newCount;
+    private bool _loadingHistory;
+    private string? _error;
+
+    private HttpClient Api => HttpFactory.CreateClient("timeseries-api");
+
+    protected override async Task OnInitializedAsync()
+    {
+        AlertState.OnEscalationReceived += OnEscalationReceived;
+        await LoadHistoricalAsync();
+    }
+
+    private async Task LoadHistoricalAsync()
+    {
+        _loadingHistory = true;
+        _error = null;
+        try
+        {
+            var list = await Api.GetFromJsonAsync<List<AlertEscalationDto>>(
+                "api/alert-escalations?limit=200") ?? [];
+            _escalations.Clear();
+            _escalations.AddRange(list);
+        }
+        catch (Exception ex) { _error = $"Geçmiş yüklenemedi: {ex.Message}"; }
+        finally { _loadingHistory = false; }
+    }
+
+    // Realtime: Kafka → Redis → PanelRealtimeForwarder → AlertState.PushEscalation
+    private void OnEscalationReceived(AlertEscalationDto dto)
+    {
+        _pendingNew.Enqueue(dto);
+        _newCount = _pendingNew.Count;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void MergeNew()
+    {
+        while (_pendingNew.TryDequeue(out var dto))
+            _escalations.Insert(0, dto);
+        _newCount = 0;
+        if (_escalations.Count > 200)
+            _escalations.RemoveRange(200, _escalations.Count - 200);
+    }
+
+    public void Dispose() => AlertState.OnEscalationReceived -= OnEscalationReceived;
+
+    private sealed record AlertEscalationDto(
+        Guid     Id,
+        string   AlarmId,
+        string   DeviceId,
+        string?  LocationId,
+        string   Severity,
+        string   Message,
+        string   EscalatedBy,
+        Guid?    StructureId,
+        string?  Note,
+        DateTime EscalatedAt);
+}

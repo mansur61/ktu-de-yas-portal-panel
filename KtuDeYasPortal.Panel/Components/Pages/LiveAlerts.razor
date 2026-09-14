@@ -131,8 +131,14 @@ else
     }
 
     // Realtime: Kafka → Redis → PanelRealtimeForwarder → AlertState.PushEscalation
-    private void OnEscalationReceived(AlertEscalationDto dto)
+    private void OnEscalationReceived(PortalEscalation esc)
     {
+        // PortalEscalation → AlertEscalationDto dönüşümü
+        var dto = new AlertEscalationDto(
+            esc.Id, esc.AlarmId, esc.DeviceId, esc.LocationId,
+            esc.Severity, esc.Message, esc.EscalatedBy,
+            esc.StructureId, esc.Note, esc.EscalatedAt);
+
         _pendingNew.Enqueue(dto);
         _newCount = _pendingNew.Count;
         InvokeAsync(StateHasChanged);

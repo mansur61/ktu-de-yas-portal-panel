@@ -40,7 +40,8 @@ else if (_contacts.Count == 0)
 {
     <div class="alert alert-info">
         <span class="bi bi-info-circle me-2"></span>
-        Henüz bildirim kişisi tanımlanmamış. <button class="btn btn-link p-0 ms-1" @onclick="OpenCreate">İlk kişiyi ekle</button>
+        Henüz bildirim kişisi tanımlanmamış.
+        <button class="btn btn-link p-0 ms-1" @onclick="OpenCreate">İlk kişiyi ekle</button>
     </div>
 }
 else
@@ -53,8 +54,7 @@ else
                         <th>Ad Soyad</th>
                         <th>Telefon</th>
                         <th>E-Posta</th>
-                        <th class="text-center">Yönetici</th>
-                        <th class="text-center">Operasyon Ekibi</th>
+                        <th>Rol</th>
                         <th class="text-center">Durum</th>
                         <th></th>
                     </tr>
@@ -74,15 +74,11 @@ else
                                 { <a href="mailto:@c.Email" class="text-decoration-none"><span class="bi bi-envelope me-1"></span>@c.Email</a> }
                                 else { <span class="text-muted">—</span> }
                             </td>
-                            <td class="text-center">
+                            <td>
                                 @if (c.NotifyAdmin)
-                                { <span class="badge bg-success"><span class="bi bi-check-lg me-1"></span>Evet</span> }
-                                else { <span class="badge bg-secondary">Hayır</span> }
-                            </td>
-                            <td class="text-center">
+                                { <span class="badge bg-primary"><span class="bi bi-person-badge me-1"></span>Yönetici</span> }
                                 @if (c.NotifyOperations)
-                                { <span class="badge bg-info text-dark"><span class="bi bi-check-lg me-1"></span>Evet</span> }
-                                else { <span class="badge bg-secondary">Hayır</span> }
+                                { <span class="badge bg-warning text-dark"><span class="bi bi-tools me-1"></span>Operasyon Ekibi</span> }
                             </td>
                             <td class="text-center">
                                 @if (c.IsActive)
@@ -122,6 +118,23 @@ else
                         <div class="alert alert-danger py-2 small">@_formError</div>
                     }
 
+                    @* ── Rol seçimi — Tab *@
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">Rol <span class="text-danger">*</span></label>
+                        <div class="btn-group w-100" role="group">
+                            <button type="button"
+                                    class="btn @(_form.NotifyAdmin ? "btn-primary" : "btn-outline-primary")"
+                                    @onclick="() => { _form.NotifyAdmin = true; _form.NotifyOperations = false; }">
+                                <span class="bi bi-person-badge me-1"></span>Yönetici
+                            </button>
+                            <button type="button"
+                                    class="btn @(_form.NotifyOperations ? "btn-warning text-dark" : "btn-outline-warning")"
+                                    @onclick="() => { _form.NotifyAdmin = false; _form.NotifyOperations = true; }">
+                                <span class="bi bi-tools me-1"></span>Operasyon Ekibi
+                            </button>
+                        </div>
+                    </div>
+
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Ad Soyad <span class="text-danger">*</span></label>
                         <input class="form-control" @bind="_form.FullName" placeholder="Ahmet Yılmaz" />
@@ -135,50 +148,6 @@ else
                         <input class="form-control" @bind="_form.Email" placeholder="ornek@dsi.gov.tr" type="email" />
                     </div>
 
-                    <div class="card border-0 bg-light p-3 mb-3">
-                        <div class="fw-semibold mb-2 small text-muted text-uppercase">Kişi Rolü</div>
-                        <div class="row g-3">
-                            <div class="col-6">
-                                <label class="form-label small fw-semibold">Yönetici mi?</label>
-                                <div class="d-flex gap-3">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="radio" name="notifyAdmin"
-                                               id="adminEvet" value="true"
-                                               checked="@_form.NotifyAdmin"
-                                               @onchange="() => _form.NotifyAdmin = true" />
-                                        <label class="form-check-label" for="adminEvet">Evet</label>
-                                    </div>
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="radio" name="notifyAdmin"
-                                               id="adminHayir" value="false"
-                                               checked="@(!_form.NotifyAdmin)"
-                                               @onchange="() => _form.NotifyAdmin = false" />
-                                        <label class="form-check-label" for="adminHayir">Hayır</label>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-6">
-                                <label class="form-label small fw-semibold">Operasyon Ekibi mi?</label>
-                                <div class="d-flex gap-3">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="radio" name="notifyOps"
-                                               id="opsEvet" value="true"
-                                               checked="@_form.NotifyOperations"
-                                               @onchange="() => _form.NotifyOperations = true" />
-                                        <label class="form-check-label" for="opsEvet">Evet</label>
-                                    </div>
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="radio" name="notifyOps"
-                                               id="opsHayir" value="false"
-                                               checked="@(!_form.NotifyOperations)"
-                                               @onchange="() => _form.NotifyOperations = false" />
-                                        <label class="form-check-label" for="opsHayir">Hayır</label>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
                     @if (_editId.HasValue)
                     {
                         <div class="form-check">
@@ -189,7 +158,8 @@ else
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-outline-secondary" @onclick="CloseForm">İptal</button>
-                    <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
+                    <button class="btn @(_form.NotifyAdmin ? "btn-primary" : "btn-warning text-dark")"
+                            @onclick="SaveAsync" disabled="@_saving">
                         @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
                         <span class="bi bi-floppy me-1"></span>Kaydet
                     </button>
@@ -224,10 +194,10 @@ else
 
 @code {
     private readonly List<AlertContactDto> _contacts = [];
-    private bool _loading;
-    private bool _saving;
-    private bool _showForm;
-    private Guid? _editId;
+    private bool   _loading;
+    private bool   _saving;
+    private bool   _showForm;
+    private Guid?  _editId;
     private string? _message;
     private string? _error;
     private string? _formError;
@@ -246,7 +216,7 @@ else
         {
             var result = await Api.GetFromJsonAsync<List<AlertContactDto>>("api/alert-contacts?activeOnly=false") ?? [];
             _contacts.Clear();
-            _contacts.AddRange(result);
+            _contacts.AddRange(result.OrderBy(c => c.NotifyAdmin ? 0 : 1).ThenBy(c => c.FullName));
         }
         catch (Exception ex) { _error = $"Kişiler yüklenemedi: {ex.Message}"; }
         finally { _loading = false; }
@@ -254,7 +224,8 @@ else
 
     private void OpenCreate()
     {
-        _form = new FormModel { NotifyAdmin = true };
+        // Default: Yönetici seçili
+        _form = new FormModel { NotifyAdmin = true, NotifyOperations = false, IsActive = true };
         _editId = null;
         _formError = null;
         _showForm = true;
@@ -287,7 +258,7 @@ else
         }
         if (!_form.NotifyAdmin && !_form.NotifyOperations)
         {
-            _formError = "Kişi en az bir rol için seçilmelidir (Yönetici veya Operasyon Ekibi).";
+            _formError = "Rol seçilmelidir.";
             return;
         }
 

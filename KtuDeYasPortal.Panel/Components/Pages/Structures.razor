@@ -70,16 +70,12 @@
             {
                 <div class="col-sm-6 col-xl-4">
                     <div class="structure-card @(s.IsActive ? "" : "opacity-60")" @onclick="() => OpenStructureDetail(s.Id)">
-                        @if (!string.IsNullOrEmpty(s.ImageUrl))
-                        {
-                            <img src="@s.ImageUrl" class="structure-card-img" alt="@s.Name" />
-                        }
-                        else
-                        {
-                            <div class="structure-card-img-placeholder">
-                                <span>@GetStructureEmoji(s.StructureType)</span>
-                            </div>
-                        }
+                        <img src="@(!string.IsNullOrEmpty(s.ImageUrl) ? s.ImageUrl : GetStructureImagePath(s.StructureType))"
+                             class="structure-card-img" alt="@s.Name"
+                             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+                        <div class="structure-card-img-placeholder" style="display:none">
+                            <span>@GetStructureEmoji(s.StructureType)</span>
+                        </div>
                         <div class="structure-card-body">
                             <div class="structure-card-title">@s.Name</div>
                             <div class="small text-secondary font-monospace mb-1">@s.Id</div>
@@ -662,7 +658,10 @@
     <div class="structure-detail-panel mb-4">
         <div class="structure-detail-header">
             <div class="d-flex align-items-center gap-2 overflow-hidden">
-                <span style="font-size:1.4rem">@GetStructureEmoji(_editingStructure.StructureType)</span>
+                <img src="@(_editingStructure.ImageUrl ?? GetStructureImagePath(_editingStructure.StructureType))"
+                     style="width:2rem;height:2rem;object-fit:contain;border-radius:4px;flex-shrink:0"
+                     alt="@_editingStructure.Name"
+                     onerror="this.onerror=null;this.src=''" />
                 <div class="overflow-hidden">
                     <h5 class="mb-0 text-truncate">@_editingStructure.Name</h5>
                     <small class="text-white-50">
@@ -963,6 +962,12 @@
                             <option value="@st.Key">@st.Value.Label</option>
                         }
                     </select>
+                    <div class="mt-2 text-center">
+                        <img src="@GetStructureImagePath(_editType)"
+                             style="height:72px;max-width:100%;object-fit:contain;border-radius:6px;background:#f0f4f8;padding:4px"
+                             alt="@_structureTypes[_editType].Label"
+                             onerror="this.style.visibility='hidden'" />
+                    </div>
                 </div>
                 <div class="col-12">
                     <label class="form-label">Açıklama</label>
@@ -2970,6 +2975,9 @@
     // ── Yardımcılar ───────────────────────────────────────────────────────────
     private string GetStructureEmoji(StructureType t) =>
         _structureTypes.TryGetValue(t, out var v) ? v.Emoji : "📍";
+
+    private string GetStructureImagePath(StructureType t) =>
+        _structureTypes.TryGetValue(t, out var v) ? v.ImagePath : "/images/structures/other.svg";
 
     private string GetStructureLabel(StructureType t) =>
         _structureTypes.TryGetValue(t, out var v) ? v.Label : t.ToString();

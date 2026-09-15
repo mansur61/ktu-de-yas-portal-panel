@@ -114,7 +114,7 @@ else
     private bool _loadingHistory;
     private string? _error;
 
-    private HttpClient Api => HttpFactory.CreateClient("timeseries-api");
+    private HttpClient Api => HttpFactory.CreateClient("alert-config-api");
 
     protected override async Task OnInitializedAsync()
     {

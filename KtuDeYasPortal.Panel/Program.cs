@@ -49,6 +49,13 @@ builder.Services.AddHttpClient("video-api", c =>
     c.Timeout = TimeSpan.FromSeconds(30);
 });
 
+builder.Services.AddHttpClient("alert-config-api", c =>
+{
+    c.BaseAddress = new Uri(
+        builder.Configuration["Services:AlertConfigApi"] ?? "http://localhost:5020");
+    c.Timeout = TimeSpan.FromSeconds(30);
+});
+
 // ── Panel's own SignalR hub (structure group management for Structures page) ──
 builder.Services.AddSignalR(options =>
 {

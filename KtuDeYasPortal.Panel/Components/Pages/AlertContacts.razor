@@ -204,7 +204,7 @@ else
     private AlertContactDto? _deleteTarget;
     private FormModel _form = new();
 
-    private HttpClient Api => HttpFactory.CreateClient("timeseries-api");
+    private HttpClient Api => HttpFactory.CreateClient("alert-config-api");
 
     protected override Task OnInitializedAsync() => LoadAsync();
 

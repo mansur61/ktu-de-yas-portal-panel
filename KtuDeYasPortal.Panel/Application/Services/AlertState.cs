@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 
 namespace KtuDeYasPortal.Panel.Application.Services;
 
-public sealed record PortalAlert(
+public sealed record FieldAlert(
     string AlarmId,
     string DeviceId,
     string LocationId,
@@ -32,27 +32,27 @@ public sealed record PortalEscalation(
 /// </summary>
 public sealed class AlertState
 {
-    private readonly ConcurrentDictionary<string, PortalAlert> _alerts = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, FieldAlert> _alerts = new(StringComparer.OrdinalIgnoreCase);
 
-    public event Action<PortalAlert>?       OnAlertReceived;
+    public event Action<FieldAlert>?        OnFieldAlertReceived;
     public event Action<PortalEscalation>?  OnEscalationReceived;
 
     public int ActiveCount => _alerts.Count;
 
-    public IReadOnlyList<PortalAlert> Alerts => _alerts.Values
+    public IReadOnlyList<FieldAlert> FieldAlerts => _alerts.Values
         .OrderByDescending(alert => alert.Timestamp)
         .Take(100)
         .ToList();
 
-    public void Upsert(PortalAlert alert)
+    public void UpsertFieldAlert(FieldAlert alert)
     {
         _alerts[alert.AlarmId] = alert;
-        OnAlertReceived?.Invoke(alert);
+        OnFieldAlertReceived?.Invoke(alert);
     }
 
     /// <summary>
-    /// PanelRealtimeForwarder tarafından alert.escalation Kafka/Redis mesajı
-    /// geldiğinde çağrılır; LiveAlerts sayfasına iletir.
+    /// PanelRealtimeForwarder tarafından paydaş eskalasyon mesajı geldiğinde
+    /// çağrılır; Paydaş Alertleri sayfasına iletir.
     /// </summary>
     public void PushEscalation(PortalEscalation escalation) =>
         OnEscalationReceived?.Invoke(escalation);

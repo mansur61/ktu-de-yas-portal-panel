@@ -56,8 +56,13 @@
             </NavLink>
         </div>
         <div class="nav-item px-3">
-            <NavLink class="nav-link" href="alert-feed">
-                <span class="bi bi-bell-fill me-2 text-danger" aria-hidden="true"></span> Canlı Alertler
+            <NavLink class="nav-link" href="stakeholder-alerts">
+                <span class="bi bi-people-fill me-2 text-primary" aria-hidden="true"></span> Paydaş Alertleri
+            </NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="field-alerts">
+                <span class="bi bi-broadcast-pin me-2 text-danger" aria-hidden="true"></span> Saha Alertleri
                 @if (AlertState.ActiveCount > 0)
                 {
                     <span class="badge rounded-pill bg-danger ms-1">@AlertState.ActiveCount</span>
@@ -88,9 +93,9 @@
 </div>
 
 @code {
-    protected override void OnInitialized() => AlertState.OnAlertReceived += HandleAlert;
+    protected override void OnInitialized() => AlertState.OnFieldAlertReceived += HandleAlert;
 
-    private void HandleAlert(PortalAlert alert) => _ = InvokeAsync(StateHasChanged);
+    private void HandleAlert(FieldAlert alert) => _ = InvokeAsync(StateHasChanged);
 
-    public void Dispose() => AlertState.OnAlertReceived -= HandleAlert;
+    public void Dispose() => AlertState.OnFieldAlertReceived -= HandleAlert;
 }

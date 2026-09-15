@@ -42,11 +42,11 @@ public sealed class PanelRealtimeForwarder : IRealtimeMessageHandler
     {
         try
         {
-            if (channel == RealtimeChannels.AlarmCreated)
-                await HandleAlarmCreatedAsync(message);
+            if (channel == RealtimeChannels.FieldAlertCreated)
+                await HandleFieldAlertCreatedAsync(message);
             else if (channel == RealtimeChannels.TimeseriesUpdated || channel == RealtimeChannels.SensorUpdated)
                 await HandleTimeseriesAsync(message);
-            else if (channel == "alert.escalation")
+            else if (channel == RealtimeChannels.StakeholderAlertEscalated)
                 HandleEscalationAsync(message);
         }
         catch (Exception ex)
@@ -55,7 +55,7 @@ public sealed class PanelRealtimeForwarder : IRealtimeMessageHandler
         }
     }
 
-    private Task HandleAlarmCreatedAsync(string json)
+    private Task HandleFieldAlertCreatedAsync(string json)
     {
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
@@ -63,7 +63,7 @@ public sealed class PanelRealtimeForwarder : IRealtimeMessageHandler
         var alarmId = payload.TryGetString("alarmId") ?? root.TryGetString("alarmId") ?? Guid.NewGuid().ToString("N");
         var deviceId = payload.TryGetString("deviceId") ?? root.TryGetString("deviceId") ?? "unknown";
 
-        var alert = new PortalAlert(
+        var alert = new FieldAlert(
             AlarmId: alarmId,
             DeviceId: deviceId,
             LocationId: payload.TryGetString("locationId") ?? root.TryGetString("locationId") ?? "default",
@@ -74,8 +74,8 @@ public sealed class PanelRealtimeForwarder : IRealtimeMessageHandler
             Value: payload.TryGetNumber("value"),
             Threshold: payload.TryGetNumber("threshold"));
 
-        _alertState.Upsert(alert);
-        _logger.LogInformation("[panel-forwarder] Alert received alarm={AlarmId} device={DeviceId}", alarmId, deviceId);
+        _alertState.UpsertFieldAlert(alert);
+        _logger.LogInformation("[panel-forwarder] Field alert received alarm={AlarmId} device={DeviceId}", alarmId, deviceId);
         return Task.CompletedTask;
     }
 

@@ -96,6 +96,7 @@ builder.Services.AddScoped<SensorDashboardUseCases>();
 builder.Services.AddScoped<IEdgeWorkspaceClient, EdgeWorkspaceClient>();
 builder.Services.AddScoped<IWorkspaceClient, WorkspaceHttpClient>();
 builder.Services.AddScoped<WorkspaceUseCases>();
+builder.Services.AddScoped<KtuDeYasPortal.Panel.Infrastructure.Persistence.AlertRuleHttpRepository>();
 
 // ── App pipeline ───────────────────────────────────────────────────────────────
 var app = builder.Build();

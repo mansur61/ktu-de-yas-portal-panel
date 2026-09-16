@@ -1,0 +1,360 @@
+@page "/alert-rules"
+@rendermode InteractiveServer
+@inject KtuDeYasPortal.Panel.Infrastructure.Persistence.AlertRuleHttpRepository Repo
+
+<PageTitle>Alert Kuralları</PageTitle>
+
+<div class="d-flex align-items-center gap-2 mb-3">
+    <span class="bi bi-bell-fill fs-4 text-danger"></span>
+    <h3 class="mb-0">Alert Kuralları</h3>
+    <button class="btn btn-primary btn-sm ms-auto" @onclick="OpenCreate">
+        <span class="bi bi-plus-lg me-1"></span> Yeni Kural
+    </button>
+</div>
+
+@* ── Hata / bilgi mesajı ──────────────────────────────────────────────────── *@
+@if (!string.IsNullOrEmpty(_message))
+{
+    <div class="alert alert-@_messageClass alert-dismissible fade show" role="alert">
+        @_message
+        <button type="button" class="btn-close" @onclick="() => _message = null"></button>
+    </div>
+}
+
+@* ── Kural listesi ────────────────────────────────────────────────────────── *@
+@if (_loading)
+{
+    <div class="d-flex align-items-center gap-2 text-muted py-4">
+        <div class="spinner-border spinner-border-sm"></div>
+        <span>Kurallar yükleniyor…</span>
+    </div>
+}
+else if (_rules.Count == 0)
+{
+    <div class="alert alert-info">
+        Henüz alert kuralı tanımlanmamış.
+        <button class="btn btn-link p-0 ms-1" @onclick="OpenCreate">İlk kuralı ekle</button>
+    </div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-dark">
+                <tr>
+                    <th>Cihaz</th>
+                    <th>Kaynak</th>
+                    <th>Metrik</th>
+                    <th>Koşul</th>
+                    <th>Eşik</th>
+                    <th>Önem</th>
+                    <th>Durum</th>
+                    <th>Güncelleme</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var rule in _rules)
+                {
+                    <tr class="@(rule.IsActive ? "" : "table-secondary text-muted")">
+                        <td>
+                            <span class="badge bg-secondary font-monospace">
+                                @(rule.DeviceId == "*" ? "Tümü" : rule.DeviceId)
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge @DataSourceBadge(rule.DataSource)" title="@rule.DataSource">
+                                @rule.DataSource
+                            </span>
+                        </td>
+                        <td><code>@rule.Metric</code></td>
+                        <td><strong>@rule.Operator</strong></td>
+                        <td><strong>@rule.Threshold.ToString("F2")</strong></td>
+                        <td>
+                            <span class="badge @SeverityBadge(rule.Severity)">
+                                @rule.Severity
+                            </span>
+                        </td>
+                        <td>
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input" type="checkbox"
+                                       checked="@rule.IsActive"
+                                       @onchange="() => ToggleAsync(rule)"
+                                       title="@(rule.IsActive ? "Pasife al" : "Aktive et")" />
+                            </div>
+                        </td>
+                        <td class="small text-muted">
+                            @rule.UpdatedAt.ToLocalTime().ToString("dd.MM.yy HH:mm")
+                        </td>
+                        <td>
+                            <div class="d-flex gap-1">
+                                <button class="btn btn-outline-secondary btn-sm"
+                                        @onclick="() => OpenEdit(rule)"
+                                        title="Düzenle">
+                                    <span class="bi bi-pencil"></span>
+                                </button>
+                                <button class="btn btn-outline-danger btn-sm"
+                                        @onclick="() => ConfirmDelete(rule)"
+                                        title="Sil">
+                                    <span class="bi bi-trash"></span>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@* ── Kural oluştur/düzenle modal ──────────────────────────────────────────── *@
+@if (_showForm)
+{
+    <div class="modal fade show d-block" tabindex="-1" @onclick="CloseForm">
+        <div class="modal-dialog modal-lg" @onclick:stopPropagation="true">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <span class="bi bi-bell me-2"></span>
+                        @(_editId.HasValue ? "Kuralı Düzenle" : "Yeni Kural")
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CloseForm"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Cihaz ID <small class="text-muted">('*' = tümü)</small></label>
+                            <input class="form-control font-monospace" @bind="_form.DeviceId"
+                                   placeholder="sensor-01 veya *" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Metrik</label>
+                            <input class="form-control font-monospace" @bind="_form.Metric"
+                                   placeholder="temperature, humidity, pressure…" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Operatör</label>
+                            <select class="form-select" @bind="_form.Operator">
+                                <option value=">">&gt; (büyük)</option>
+                                <option value=">=">&gt;= (büyük eşit)</option>
+                                <option value="<">&lt; (küçük)</option>
+                                <option value="<=">&lt;= (küçük eşit)</option>
+                                <option value="==">== (eşit)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Eşik Değeri</label>
+                            <input class="form-control" type="number" step="0.01"
+                                   @bind="_form.Threshold" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Önem Derecesi</label>
+                            <select class="form-select" @bind="_form.Severity">
+                                <option value="info">info</option>
+                                <option value="warning">warning</option>
+                                <option value="critical">critical</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                Veri Kaynağı
+                                <small class="text-muted ms-1">— Flink hangi stream'i değerlendirsin?</small>
+                            </label>
+                            <select class="form-select" @bind="_form.DataSource">
+                                <option value="timeseries">timeseries — Sensör zaman serisi</option>
+                                <option value="video">video — Video akışı metrikleri</option>
+                                <option value="lidar">lidar — LiDAR nokta bulutu</option>
+                                <option value="media">media — Medya yükleme</option>
+                                <option value="*">* — Tüm kaynaklar</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox"
+                                       @bind="_form.IsActive" id="chkActive" />
+                                <label class="form-check-label" for="chkActive">Aktif</label>
+                            </div>
+                        </div>
+                    </div>
+                    @if (!string.IsNullOrEmpty(_formError))
+                    {
+                        <div class="alert alert-danger mt-3 mb-0">@_formError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseForm">İptal</button>
+                    <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
+                        @if (_saving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        Kaydet
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+}
+
+@* ── Silme onayı ──────────────────────────────────────────────────────────── *@
+@if (_deleteTarget is not null)
+{
+    <div class="modal fade show d-block" tabindex="-1" @onclick="CancelDelete">
+        <div class="modal-dialog modal-sm" @onclick:stopPropagation="true">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h6 class="modal-title mb-0">Kuralı Sil</h6>
+                    <button type="button" class="btn-close btn-close-white" @onclick="CancelDelete"></button>
+                </div>
+                <div class="modal-body small">
+                    <strong>@_deleteTarget.DeviceId</strong> — @_deleteTarget.Metric @_deleteTarget.Operator @_deleteTarget.Threshold
+                    <br />Bu kural kalıcı olarak silinecek ve Flink broadcast state'den kaldırılacak.
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="CancelDelete">İptal</button>
+                    <button class="btn btn-danger btn-sm" @onclick="DeleteConfirmedAsync">Sil</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+}
+
+@code {
+    private List<AlertRuleDto> _rules = [];
+    private bool   _loading = true;
+    private bool   _saving  = false;
+    private bool   _showForm;
+    private Guid?  _editId;
+    private string? _message;
+    private string  _messageClass = "success";
+    private string? _formError;
+    private AlertRuleDto? _deleteTarget;
+
+    private AlertRuleDto _form = new();
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try   { _rules = await Repo.GetAllAsync(); }
+        catch { ShowMessage("Kurallar yüklenemedi.", "danger"); }
+        finally { _loading = false; }
+    }
+
+    private void OpenCreate()
+    {
+        _form      = new AlertRuleDto { Operator = ">", Severity = "warning", IsActive = true, DataSource = "timeseries" };
+        _editId    = null;
+        _formError = null;
+        _showForm  = true;
+    }
+
+    private void OpenEdit(AlertRuleDto rule)
+    {
+        _form = new AlertRuleDto
+        {
+            DeviceId   = rule.DeviceId,
+            Metric     = rule.Metric,
+            Operator   = rule.Operator,
+            Threshold  = rule.Threshold,
+            Severity   = rule.Severity,
+            IsActive   = rule.IsActive,
+            DataSource = rule.DataSource
+        };
+        _editId    = rule.Id;
+        _formError = null;
+        _showForm  = true;
+    }
+
+    private void CloseForm()
+    {
+        _showForm  = false;
+        _formError = null;
+    }
+
+    private async Task SaveAsync()
+    {
+        _formError = Validate(_form);
+        if (_formError is not null) return;
+
+        _saving = true;
+        try
+        {
+            if (_editId.HasValue)
+                await Repo.UpdateAsync(_editId.Value, _form);
+            else
+                await Repo.CreateAsync(_form);
+
+            _showForm = false;
+            ShowMessage(_editId.HasValue ? "Kural güncellendi." : "Kural oluşturuldu.");
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _formError = $"Hata: {ex.Message}";
+        }
+        finally { _saving = false; }
+    }
+
+    private async Task ToggleAsync(AlertRuleDto rule)
+    {
+        try
+        {
+            await Repo.ToggleAsync(rule.Id);
+            ShowMessage($"{rule.DeviceId}/{rule.Metric} kuralı {(rule.IsActive ? "pasife" : "aktive")} alındı.");
+            await LoadAsync();
+        }
+        catch { ShowMessage("Toggle işlemi başarısız.", "danger"); }
+    }
+
+    private void ConfirmDelete(AlertRuleDto rule) => _deleteTarget = rule;
+    private void CancelDelete()                   => _deleteTarget = null;
+
+    private async Task DeleteConfirmedAsync()
+    {
+        if (_deleteTarget is null) return;
+        try
+        {
+            await Repo.DeleteAsync(_deleteTarget.Id);
+            ShowMessage($"Kural silindi: {_deleteTarget.DeviceId}/{_deleteTarget.Metric}");
+            _deleteTarget = null;
+            await LoadAsync();
+        }
+        catch { ShowMessage("Silme işlemi başarısız.", "danger"); }
+    }
+
+    private static string? Validate(AlertRuleDto f)
+    {
+        if (string.IsNullOrWhiteSpace(f.DeviceId))  return "Cihaz ID boş olamaz.";
+        if (string.IsNullOrWhiteSpace(f.Metric))    return "Metrik boş olamaz.";
+        if (f.Operator   is not (">" or ">=" or "<" or "<=" or "=="))                   return "Geçersiz operatör.";
+        if (f.Severity   is not ("info" or "warning" or "critical"))                     return "Geçersiz önem derecesi.";
+        if (f.DataSource is not ("timeseries" or "video" or "lidar" or "media" or "*")) return "Geçersiz veri kaynağı.";
+        return null;
+    }
+
+    private static string SeverityBadge(string severity) => severity.ToLower() switch
+    {
+        "critical" => "bg-danger",
+        "warning"  => "bg-warning text-dark",
+        _          => "bg-info text-dark"
+    };
+
+    private static string DataSourceBadge(string ds) => ds.ToLower() switch
+    {
+        "video"  => "bg-purple",
+        "lidar"  => "bg-dark",
+        "media"  => "bg-secondary",
+        "*"      => "bg-black",
+        _        => "bg-primary"
+    };
+
+    private void ShowMessage(string msg, string cls = "success")
+    {
+        _message      = msg;
+        _messageClass = cls;
+    }
+}

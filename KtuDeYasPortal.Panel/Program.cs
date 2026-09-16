@@ -52,7 +52,10 @@ builder.Services.AddHttpClient("video-api", c =>
 builder.Services.AddHttpClient("alert-config-api", c =>
 {
     c.BaseAddress = new Uri(
-        builder.Configuration["Services:AlertConfigApi"] ?? "http://localhost:5020");
+        builder.Configuration["Services:AlertConfigApi"]
+        ?? (builder.Environment.IsDevelopment()
+            ? "http://localhost:5020"
+            : "http://alert-config-service:5020"));
     c.Timeout = TimeSpan.FromSeconds(30);
 });
 

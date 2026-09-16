@@ -2472,7 +2472,11 @@
             alertMessage   = (string?)null
         }).ToList() ?? new();
 
-        var imgUrl = _editingStructure.ImageUrl ?? "";
+        // Eski kayıtlarda ImageUrl boş olabilir; yapı tipinin varsayılan görseli
+        // sensör konumlandırma overlay'i için de kullanılmalıdır.
+        var imgUrl = string.IsNullOrWhiteSpace(_editingStructure.ImageUrl)
+            ? GetStructureImagePath(_editingStructure.StructureType)
+            : _editingStructure.ImageUrl;
         try { await JS.InvokeVoidAsync("initStructureImage", "structure-image", imgUrl, sensors); }
         catch { }
     }

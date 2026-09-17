@@ -29,27 +29,41 @@
     <div class="alert alert-danger py-2">@_error</div>
 }
 
-@* ─── Bildirim listesi özeti ───────────────────────────────────────── *@
+@* ─── Bildirim Listesi filtresi ────────────────────────────────────────── *@
 @if (_contacts.Count > 0)
 {
     <div class="card border-0 bg-light mb-3 p-3">
-        <div class="fw-semibold mb-2 small text-muted text-uppercase">
-            <span class="bi bi-people me-1"></span>Bildirim Listesi
+        <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
+            <div class="fw-semibold small text-muted text-uppercase">
+                <span class="bi bi-people me-1"></span>Bildirim Listesi Filtresi
+            </div>
+            <div class="d-flex gap-1">
+                <button class="btn btn-outline-secondary btn-sm py-0 px-2" style="font-size:0.75em"
+                        @onclick="SelectAllContactFilter">Tümü</button>
+                <button class="btn btn-outline-secondary btn-sm py-0 px-2" style="font-size:0.75em"
+                        @onclick="ClearContactFilter">Temizle</button>
+            </div>
         </div>
-        <div class="d-flex flex-wrap gap-3">
+        <div class="d-flex flex-wrap gap-2">
             @foreach (var c in _contacts)
             {
-                <div class="small">
-                    <span class="fw-semibold">@c.FullName</span>
+                var active = _contactFilter.Count == 0 || _contactFilter.Contains(c.FullName);
+                <button class="btn btn-sm @(active ? "btn-primary" : "btn-outline-secondary")"
+                        @onclick="() => ToggleContactFilter(c.FullName)">
+                    @c.FullName
                     @if (c.NotifyAdmin)
-                    { <span class="badge bg-primary ms-1" style="font-size:0.7em">Yönetici</span> }
+                    { <span class="badge bg-light text-primary ms-1" style="font-size:0.7em">Y</span> }
                     @if (c.NotifyOperations)
-                    { <span class="badge bg-info text-dark ms-1" style="font-size:0.7em">Operasyon</span> }
-                    @if (!string.IsNullOrWhiteSpace(c.Phone))
-                    { <span class="text-muted ms-1"><span class="bi bi-telephone"></span> @c.Phone</span> }
-                </div>
+                    { <span class="badge bg-light text-info ms-1" style="font-size:0.7em">O</span> }
+                </button>
             }
         </div>
+        @if (_contactFilter.Count > 0)
+        {
+            <div class="small text-muted mt-2">
+                <span class="bi bi-funnel me-1"></span>@_contactFilter.Count kişiye göre filtreleniyor
+            </div>
+        }
     </div>
 }
 
@@ -67,17 +81,19 @@
 {
     <div class="text-center py-5"><span class="spinner-border text-primary"></span></div>
 }
-else if (_escalations.Count == 0)
+else if (!_filteredEscalations.Any())
 {
     <div class="alert alert-light border text-center py-5">
         <span class="bi bi-inbox fs-2 text-muted d-block mb-2"></span>
-        <span class="text-muted">Henüz merkeze iletilen alert bulunmuyor.</span>
+        <span class="text-muted">
+            @(_contactFilter.Count > 0 ? "Seçili kişiye gönderilmiş alert bulunamadı." : "Henüz merkeze iletilen alert bulunmuyor.")
+        </span>
     </div>
 }
 else
 {
     <div class="d-flex flex-column gap-2">
-        @foreach (var e in _escalations)
+        @foreach (var e in _filteredEscalations)
         {
             var borderCls = e.Severity.ToLower() switch { "critical" => "border-danger", "warning" => "border-warning", _ => "border-info" };
             var badgeCls  = e.Severity.ToLower() switch { "critical" => "bg-danger", "warning" => "bg-warning text-dark", _ => "bg-info text-dark" };
@@ -94,6 +110,14 @@ else
                                 <span><span class="bi bi-person me-1"></span>@e.EscalatedBy</span>
                                 @if (!string.IsNullOrWhiteSpace(e.Note))
                                 { <span class="fst-italic text-secondary">Not: @e.Note</span> }
+                                @* Bildirim giden kişiler *@
+                                @if (e.NotifiedContacts.Count > 0)
+                                {
+                                    <span>
+                                        <span class="bi bi-bell me-1 text-primary"></span>
+                                        @string.Join(", ", e.NotifiedContacts.Select(c => c.FullName))
+                                    </span>
+                                }
                             </div>
                         </div>
                         <div class="text-end small text-muted" style="min-width:90px">
@@ -111,6 +135,15 @@ else
     private readonly List<AlertEscalationDto>  _escalations = [];
     private readonly Queue<AlertEscalationDto> _pendingNew  = new();
     private readonly List<ContactSummaryDto>   _contacts    = [];
+    // Filtre: boşsa tümü göster, doluysa sadece o kişiye gidenleri göster
+    private readonly HashSet<string>           _contactFilter = new(StringComparer.OrdinalIgnoreCase);
+
+    private IEnumerable<AlertEscalationDto> _filteredEscalations =>
+        _contactFilter.Count == 0
+            ? _escalations
+            : _escalations.Where(e =>
+                e.NotifiedContacts.Any(c => _contactFilter.Contains(c.FullName)));
+
     private int  _newCount;
     private bool _loadingHistory;
     private string? _error;
@@ -148,7 +181,7 @@ else
             _contacts.Clear();
             _contacts.AddRange(list);
         }
-        catch { /* sessiz */ }
+        catch { }
     }
 
     private void OnEscalationReceived(PortalEscalation esc)
@@ -156,7 +189,7 @@ else
         var dto = new AlertEscalationDto(
             esc.Id, esc.AlarmId, esc.DeviceId, esc.LocationId,
             esc.Severity, esc.Message, esc.EscalatedBy,
-            esc.StructureId, esc.Note, esc.EscalatedAt);
+            esc.StructureId, esc.Note, esc.EscalatedAt, []);
         _pendingNew.Enqueue(dto);
         _newCount = _pendingNew.Count;
         InvokeAsync(StateHasChanged);
@@ -171,12 +204,29 @@ else
             _escalations.RemoveRange(200, _escalations.Count - 200);
     }
 
+    // ─── Filtre ────────────────────────────────────────────────────────────────
+    private void ToggleContactFilter(string name)
+    {
+        if (!_contactFilter.Remove(name))
+            _contactFilter.Add(name);
+    }
+
+    private void SelectAllContactFilter()
+    {
+        _contactFilter.Clear();
+    }
+
+    private void ClearContactFilter() => _contactFilter.Clear();
+
     public void Dispose() => AlertState.OnEscalationReceived -= OnEscalationReceived;
 
     private sealed record AlertEscalationDto(
         Guid Id, string AlarmId, string DeviceId, string? LocationId,
         string Severity, string Message, string EscalatedBy,
-        Guid? StructureId, string? Note, DateTime EscalatedAt);
+        Guid? StructureId, string? Note, DateTime EscalatedAt,
+        List<NotifiedContactDto> NotifiedContacts);
+
+    private sealed record NotifiedContactDto(string FullName, string? Phone, string? Email);
 
     private sealed record ContactSummaryDto(
         string FullName, string? Phone, string? Email,

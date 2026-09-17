@@ -195,6 +195,8 @@
                                         @(IsLocalPipelineEnabled(s.Id) ? "Çalışıyor" : "Çalıştır")
                                     }
                                 </button>
+                                @if (s.SensorCount > 0)
+                                {
                                 <button class="btn btn-sm @( _forwardingStates.TryGetValue(s.Id, out var isForwardingActive) && isForwardingActive ? "btn-outline-secondary" : "btn-outline-primary")"
                                         @onclick="() => SetStructureForwardingAsync(s.Id, !(_forwardingStates.TryGetValue(s.Id, out var current) && current))"
                                         @onclick:stopPropagation="true"
@@ -202,6 +204,7 @@
                                     <span class="bi bi-cloud-arrow-@( _forwardingStates.TryGetValue(s.Id, out var state) && state ? "down" : "up") me-1"></span>
                                     @( _forwardingStates.TryGetValue(s.Id, out var enabled) && enabled ? "Aktarımı durdur" : "Aktar")
                                 </button>
+                                }
                                 <button class="btn btn-sm btn-outline-warning"
                                         @onclick="() => OpenNodeRedAsync(s.Id, s.Name)"
                                         @onclick:stopPropagation="true"

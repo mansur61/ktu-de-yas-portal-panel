@@ -357,24 +357,37 @@
                             <input class="form-control @(!string.IsNullOrWhiteSpace(_newNodeRedUrl) ? "bg-light" : "")"
                                    @bind="_newNodeRedUrl"
                                    readonly="@(!string.IsNullOrWhiteSpace(Configuration[$"NodeRed:PerStructureUrls:{_newType}"]))"
-                                   placeholder="http://nodered-yapi-adi:1880 (opsiyonel)" />
+                                   placeholder="http://localhost:1881 (Baraj için merkez Dam Node-RED)" />
                             @if (!string.IsNullOrWhiteSpace(_newNodeRedUrl))
                             {
+                                <button class="btn btn-outline-primary" type="button"
+                                        title="Atanmış Node-RED canlı izleme ekranını aç"
+                                        @onclick="OpenNewStructureNodeRedAsync">
+                                    <span class="bi bi-box-arrow-up-right"></span>
+                                </button>
                                 <button class="btn btn-outline-secondary" type="button"
                                         title="Temizle — ortak instance kullanılır"
                                         @onclick="() => _newNodeRedUrl = string.Empty">
                                     <span class="bi bi-x-lg"></span>
                                 </button>
                             }
+                            else if (HasAutomaticNodeRedUrl)
+                            {
+                                <button class="btn btn-outline-primary" type="button"
+                                        title="Yapı tipi için tanımlı Node-RED URL'ini yeniden ata"
+                                        @onclick="RestoreAutomaticNodeRedUrl">
+                                    <span class="bi bi-arrow-counterclockwise"></span>
+                                </button>
+                            }
                         </div>
                         <div class="form-text">
                             @if (!string.IsNullOrWhiteSpace(_newNodeRedUrl))
                             {
-                                <span class="text-success"><span class="bi bi-check-circle me-1"></span>Bu yapı tipi için Node-RED instance'ı otomatik atandı.</span>
+                                <span class="text-success"><span class="bi bi-check-circle me-1"></span>Baraj verilerinin izlendiği merkez <code>nodered-center-dam</code> instance'ı atandı. Yanındaki aç ikonuyla canlı izleme ekranını açabilirsiniz.</span>
                             }
                             else
                             {
-                                <span>Yapı tipini seçince otomatik dolar. Kubernetes'te özel pod varsa URL'i girin; Docker Compose'da <code>nodered-{yapı-slug}</code> kullanın.</span>
+                                <span>Boş bırakılırsa ortak Node-RED kullanılır. Özel Kubernetes pod'u veya farklı bir saha instance'ı gerekiyorsa tarayıcıdan erişilebilen URL'i girin.</span>
                             }
                         </div>
                     </div>
@@ -454,8 +467,11 @@
                                 <div class="col-md-6"><label class="form-label">Yapı Tipi</label><input class="form-control" @bind="_setupStructureType" /></div>
                                 <div class="col-md-6">
                                     <label class="form-label">Merkez Timeseries API URL</label>
-                                    <input class="form-control bg-light" value="@GetEnv("CENTRAL_TIMESERIES_API_BASE_URL")" readonly />
-                                    <div class="form-text">Merkez Timeseries API adresinden otomatik alınır ve Edge Config'e yazılır.</div>
+                                    <input class="form-control" type="url"
+                                           value="@GetEnv("CENTRAL_TIMESERIES_API_BASE_URL")"
+                                           @onchange="e => SetEnv("CENTRAL_TIMESERIES_API_BASE_URL", e.Value?.ToString())"
+                                           placeholder="http://merkez-timeseries:5000" />
+                                    <div class="form-text">Saha bu adresi commissioning ve merkezi envanter için kullanır; değer Edge Config ve saha .env dosyasına kaydedilir.</div>
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label">Node-RED URL</label>
@@ -528,6 +544,26 @@
                                         {
                                             <textarea class="form-control font-monospace" rows="3" value="@GetEnv(field.Key)" @onchange="e => SetEnv(field.Key, e.Value?.ToString())"
                                                       placeholder='[{"host":"192.168.1.51","port":1567}]'></textarea>
+                                        }
+                                        else if (field.Key == "DEYAS_BRIDGE_SENSOR_HOST")
+                                        {
+                                            var udpSrc = GetEnv("DEYAS_BRIDGE_UDP_SOURCES");
+                                            var udpActive = !string.IsNullOrWhiteSpace(udpSrc) && udpSrc.Trim() != "[]";
+                                            @if (udpActive)
+                                            {
+                                                <div class="input-group">
+                                                    <input class="form-control bg-light" value="@GetEnv(field.Key)" readonly />
+                                                    <span class="input-group-text text-muted small" title="UDP Sources doluyken bu alan devre dışıdır">
+                                                        <span class="bi bi-lock-fill me-1"></span>UDP Sources aktif
+                                                    </span>
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <input class="form-control" value="@GetEnv(field.Key)"
+                                                       @onchange="e => SetEnv(field.Key, e.Value?.ToString())"
+                                                       placeholder="@field.Placeholder" />
+                                            }
                                         }
                                         else if (field.Key == "DEYAS_BRIDGE_TCP_SOURCES")
                                         {
@@ -1227,10 +1263,10 @@
     private static readonly SiteEnvironmentField[] SiteEnvironmentFields =
     [
         new("DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED", "Sensör provisioning", "İlk keşifte true yapın; sensörler merkeze aktarılır."),
+        new("DEYAS_BRIDGE_UDP_SOURCES", "UDP Sources", "Birden çok kaynak için JSON liste. Örn: [{host,port}].", "[{\"host\":\"100.118.6.94\",\"port\":1572}]"),
         new("DEYAS_BRIDGE_SENSOR_HOST", "Kaynak Sensör Host", "UDP/GCF kaynağının IP veya DNS adresi. Tek UDP kaynak kullanılıyorsa gereklidir.", "100.118.6.94"),
         new("DEYAS_BRIDGE_SENSOR_PORT", "Sensör Port", "Tek UDP kaynağının hedef portu.", "1572"),
         new("DEYAS_BRIDGE_UDP_LOCAL_PORT", "UDP Local Port", "Bridge'in sabit kaynak portu; cihaz tarafı port hafızalıysa değiştirmeyin.", "58431"),
-        new("DEYAS_BRIDGE_UDP_SOURCES", "UDP Sources", "Birden çok kaynak için JSON liste. Örn: [{host,port}].", "[{\"host\":\"192.168.1.51\",\"port\":1567}]"),
         new("DEYAS_BRIDGE_TCP_SOURCES", "TCP Sources", "3. adımda eklenen TCP/IP sensörlerinden otomatik üretilir; UDP kaynaklarıyla karıştırmayın.", "[]"),
         new("DEYAS_BRIDGE_SOURCE_MODE", "Kaynak Modu", "udp | mqtt | tcp | both (yalnız UDP+MQTT) | all (UDP+MQTT+TCP). Aynı cihaz iki kaynaktan aynı deviceId ile gelirse çift telemetry oluşur.", "both"),
         new("DEYAS_BRIDGE_SOURCE_MQTT_HOST", "Kaynak MQTT Broker Host", "Ham sensör verisini yayımlayan MQTT broker adresi; Node-RED editör adresi değildir.", "100.118.6.94"),
@@ -1980,6 +2016,25 @@
             _newNodeRedUrl = autoUrl;
         else
             _newNodeRedUrl = "";
+    }
+
+    private bool HasAutomaticNodeRedUrl =>
+        _newType.HasValue &&
+        !string.IsNullOrWhiteSpace(Configuration[$"NodeRed:PerStructureUrls:{_newType.Value}"]);
+
+    private void RestoreAutomaticNodeRedUrl()
+    {
+        if (_newType is not { } type) return;
+        var autoUrl = Configuration[$"NodeRed:PerStructureUrls:{type}"];
+        if (!string.IsNullOrWhiteSpace(autoUrl))
+            _newNodeRedUrl = autoUrl.Trim();
+    }
+
+    private async Task OpenNewStructureNodeRedAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newNodeRedUrl)) return;
+        var url = _newNodeRedUrl.TrimEnd('/') + "/api/ui/#flow/tab-monitor";
+        await JS.InvokeVoidAsync("open", url, "_blank");
     }
 
     // Adım 1 → 2: haritayı hemen göster

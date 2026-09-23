@@ -469,7 +469,7 @@
                                     <label class="form-label">Merkez Timeseries API URL</label>
                                     <input class="form-control" type="url"
                                            value="@GetEnv("CENTRAL_TIMESERIES_API_BASE_URL")"
-                                           @onchange="e => SetEnv("CENTRAL_TIMESERIES_API_BASE_URL", e.Value?.ToString())"
+                                           @onchange='e => SetEnv("CENTRAL_TIMESERIES_API_BASE_URL", e.Value?.ToString())'
                                            placeholder="http://merkez-timeseries:5000" />
                                     <div class="form-text">Saha bu adresi commissioning ve merkezi envanter için kullanır; değer Edge Config ve saha .env dosyasına kaydedilir.</div>
                                 </div>

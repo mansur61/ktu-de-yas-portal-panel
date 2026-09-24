@@ -27,8 +27,8 @@ public sealed record PortalEscalation(
     DateTime EscalatedAt);
 
 /// <summary>
-/// Redis'ten gelen aktif alert'lerin ve portal escalation'larının
-/// panel belleğindeki canlı listesi.
+/// Redis'ten gelen son saha alertlerinin ve portal escalation'larının
+/// panel belleğindeki canlı listesi. Saha geçmişi açılışta Redis'ten yüklenir.
 /// </summary>
 public sealed class AlertState
 {
@@ -37,7 +37,7 @@ public sealed class AlertState
     public event Action<FieldAlert>?        OnFieldAlertReceived;
     public event Action<PortalEscalation>?  OnEscalationReceived;
 
-    public int ActiveCount => _alerts.Count;
+    public int FieldAlertCount => _alerts.Count;
 
     public IReadOnlyList<FieldAlert> FieldAlerts => _alerts.Values
         .OrderByDescending(alert => alert.Timestamp)

@@ -68,9 +68,9 @@
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="field-alerts">
                 <span class="bi bi-broadcast-pin me-2 text-danger" aria-hidden="true"></span> Saha Alertleri
-                @if (AlertState.ActiveCount > 0)
+                @if (AlertState.FieldAlertCount > 0)
                 {
-                    <span class="badge rounded-pill bg-danger ms-1">@AlertState.ActiveCount</span>
+                    <span class="badge rounded-pill bg-danger ms-1">@AlertState.FieldAlertCount</span>
                 }
             </NavLink>
         </div>

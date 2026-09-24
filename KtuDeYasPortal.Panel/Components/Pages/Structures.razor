@@ -360,11 +360,6 @@
                                    placeholder="http://localhost:1881 (Baraj için merkez Dam Node-RED)" />
                             @if (!string.IsNullOrWhiteSpace(_newNodeRedUrl))
                             {
-                                <button class="btn btn-outline-primary" type="button"
-                                        title="Atanmış Node-RED canlı izleme ekranını aç"
-                                        @onclick="OpenNewStructureNodeRedAsync">
-                                    <span class="bi bi-box-arrow-up-right"></span>
-                                </button>
                                 <button class="btn btn-outline-secondary" type="button"
                                         title="Temizle — ortak instance kullanılır"
                                         @onclick="() => _newNodeRedUrl = string.Empty">
@@ -383,7 +378,7 @@
                         <div class="form-text">
                             @if (!string.IsNullOrWhiteSpace(_newNodeRedUrl))
                             {
-                                <span class="text-success"><span class="bi bi-check-circle me-1"></span>Baraj verilerinin izlendiği merkez <code>nodered-center-dam</code> instance'ı atandı. Yanındaki aç ikonuyla canlı izleme ekranını açabilirsiniz.</span>
+                                <span class="text-success"><span class="bi bi-check-circle me-1"></span>Baraj verilerinin izlendiği merkez <code>nodered-center-dam</code> instance'ı atandı. Bu adres Edge Config'e kaydedilir.</span>
                             }
                             else
                             {
@@ -502,10 +497,22 @@
                         }
                         else if (_setupTab == "env")
                         {
-                            <div class="row g-3">
-                                @foreach (var field in SiteEnvironmentFields)
+                            @foreach (var group in EnvironmentGroups.Where(group => SiteEnvironmentFields.Any(field => GetEnvironmentGroup(field.Key) == group.Key && ShouldShowEnvironmentField(field.Key))))
+                            {
+                            <fieldset class="border rounded p-3 mb-3">
+                                <legend class="float-none w-auto px-2 fs-6 mb-0">
+                                    @group.Label
+                                    @if (group.Key is "mqtt-source" or "central")
+                                    {
+                                        <button type="button" class="btn btn-sm btn-link py-0 ms-2" @onclick="() => _showBrokerCredentials = !_showBrokerCredentials">
+                                            @(_showBrokerCredentials ? "Kimlik alanlarını gizle" : "Kimlik alanlarını göster")
+                                        </button>
+                                    }
+                                </legend>
+                                <div class="row g-3">
+                                @foreach (var field in SiteEnvironmentFields.Where(field => GetEnvironmentGroup(field.Key) == group.Key))
                                 {
-                                    if (field.Key is "CAMERA_NORTH_RTSP_URL" or "CAMERA_ENTRY_RTSP_URL" && !IsCameraPipelineSelected)
+                                    if (!ShouldShowEnvironmentField(field.Key))
                                         continue;
                                     <div class="col-md-6">
                                         <label class="form-label fw-semibold">@field.Label</label>
@@ -532,7 +539,7 @@
                                         }
                                         else if (field.Key == "DEYAS_BRIDGE_SOURCE_MODE")
                                         {
-                                            <select class="form-select" value="@GetEnv(field.Key)" @onchange="e => SetEnv(field.Key, e.Value?.ToString())">
+                                            <select class="form-select" value="@GetEnv(field.Key)" @onchange="OnSourceModeChanged">
                                                 <option value="udp">udp</option>
                                                 <option value="mqtt">mqtt</option>
                                                 <option value="tcp">tcp</option>
@@ -569,6 +576,20 @@
                                         {
                                             <textarea class="form-control font-monospace bg-light" rows="3" readonly>@BuildTcpSourcesJson()</textarea>
                                         }
+                                        else if (field.Key == "DEYAS_BRIDGE_SOURCE_MQTT_SCALAR_METRICS")
+                                        {
+                                            <div class="input-group">
+                                                <input class="form-control @(IsSingleScalarMetricActive ? "bg-light" : "")"
+                                                       value="@GetEnv(field.Key)"
+                                                       readonly="@IsSingleScalarMetricActive"
+                                                       @onchange="e => SetEnv(field.Key, e.Value?.ToString())"
+                                                       placeholder="temperature,humidity" />
+                                                @if (IsSingleScalarMetricActive)
+                                                {
+                                                    <span class="input-group-text text-muted small" title="Tek Scalar Metrik doluyken çoklu seçim kapalıdır"><span class="bi bi-lock-fill me-1"></span>Tek metrik aktif</span>
+                                                }
+                                            </div>
+                                        }
                                         else
                                         {
                                             <input class="form-control" value="@GetEnv(field.Key)" @onchange="e => SetEnv(field.Key, e.Value?.ToString())" placeholder="@field.Placeholder" />
@@ -576,6 +597,10 @@
                                         <div class="form-text">@field.Description</div>
                                     </div>
                                 }
+                                </div>
+                            </fieldset>
+                            }
+                            <div class="row g-3">
                                 @if (IsCameraPipelineSelected)
                                 {
                                 <div class="col-12">
@@ -594,9 +619,13 @@
                                 <button class="btn btn-success ms-auto" @onclick="GoToSensorStep" disabled="@_setupSaving">
                                     Sensör Ekle adımına geç <span class="bi bi-arrow-right ms-1"></span>
                                 </button>
-                                <button class="btn btn-outline-success" @onclick="FinishWithoutSensorsAsync" disabled="@_setupSaving">
+                                <button class="btn btn-outline-success" @onclick="FinishWithoutSensorsAsync" disabled="@(_setupSaving || IsTcpSourceMode)">
                                     Sensör eklemeden tamamla
                                 </button>
+                                @if (IsTcpSourceMode)
+                                {
+                                    <span class="small text-warning"><span class="bi bi-lock-fill me-1"></span>TCP modu için en az bir TCP/IP sensörü eklenmelidir.</span>
+                                }
                             }
                         </div>
                     </div>
@@ -655,7 +684,7 @@
                 }
                 <div class="mt-4 d-flex justify-content-between">
                     <button class="btn btn-outline-secondary" @onclick="OpenSetupStep">Geri: Saha Kurulumu</button>
-                    <button class="btn btn-success" @onclick="GoToDeploymentStep">İleri: Saha Deployment <span class="bi bi-arrow-right ms-1"></span></button>
+                    <button class="btn btn-success" @onclick="GoToDeploymentStep" disabled="@(IsTcpSourceMode && !HasTcpSensor)">İleri: Saha Deployment <span class="bi bi-arrow-right ms-1"></span></button>
                 </div>
             </div>
             <div hidden="@(_wizardStep != 5)">
@@ -1263,12 +1292,12 @@
     private static readonly SiteEnvironmentField[] SiteEnvironmentFields =
     [
         new("DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED", "Sensör provisioning", "İlk keşifte true yapın; sensörler merkeze aktarılır."),
-        new("DEYAS_BRIDGE_UDP_SOURCES", "UDP Sources", "Birden çok kaynak için JSON liste. Örn: [{host,port}].", "[{\"host\":\"100.118.6.94\",\"port\":1572}]"),
+        new("DEYAS_BRIDGE_UDP_SOURCES", "UDP Sources", "Birden çok UDP kaynak için isteğe bağlı JSON liste. Doluysa bridge bu listeyi kullanır; boşsa aşağıdaki tekil host/port kullanılır.", "[]"),
         new("DEYAS_BRIDGE_SENSOR_HOST", "Kaynak Sensör Host", "UDP/GCF kaynağının IP veya DNS adresi. Tek UDP kaynak kullanılıyorsa gereklidir.", "100.118.6.94"),
         new("DEYAS_BRIDGE_SENSOR_PORT", "Sensör Port", "Tek UDP kaynağının hedef portu.", "1572"),
         new("DEYAS_BRIDGE_UDP_LOCAL_PORT", "UDP Local Port", "Bridge'in sabit kaynak portu; cihaz tarafı port hafızalıysa değiştirmeyin.", "58431"),
         new("DEYAS_BRIDGE_TCP_SOURCES", "TCP Sources", "3. adımda eklenen TCP/IP sensörlerinden otomatik üretilir; UDP kaynaklarıyla karıştırmayın.", "[]"),
-        new("DEYAS_BRIDGE_SOURCE_MODE", "Kaynak Modu", "udp | mqtt | tcp | both (yalnız UDP+MQTT) | all (UDP+MQTT+TCP). Aynı cihaz iki kaynaktan aynı deviceId ile gelirse çift telemetry oluşur.", "both"),
+        new("DEYAS_BRIDGE_SOURCE_MODE", "Kaynak Modu", "udp | mqtt | tcp | both (yalnız UDP+MQTT) | all (UDP+MQTT+TCP). Aynı cihaz iki kaynaktan aynı deviceId ile gelirse çift telemetry oluşur.", "udp"),
         new("DEYAS_BRIDGE_SOURCE_MQTT_HOST", "Kaynak MQTT Broker Host", "Ham sensör verisini yayımlayan MQTT broker adresi; Node-RED editör adresi değildir.", "100.118.6.94"),
         new("DEYAS_BRIDGE_SOURCE_MQTT_PORT", "Kaynak MQTT Port", "Sensör kaynağı MQTT portu.", "1883"),
         new("DEYAS_BRIDGE_SOURCE_MQTT_TOPIC", "Kaynak MQTT Topic", "Kaynak broker'dan okunacak topic.", "shm/gumushane-baca/temperature"),
@@ -1277,7 +1306,7 @@
         new("DEYAS_BRIDGE_SOURCE_MQTT_PAYLOAD_MODE", "MQTT Veri Biçimi", "waveform: samples + sampling rate içeren JSON bekler. scalar: MQTT JSON'undaki sayısal metrikleri samples:[değer], sampling_rate:1 olarak iletir.", "scalar"),
         new("DEYAS_BRIDGE_SOURCE_MQTT_SCALAR_SAMPLING_RATE", "Scalar Örnekleme Hızı", "scalar modunda oluşturulan örneğin sampling_rate değeri. Varsayılan: 1.", "1"),
         new("DEYAS_BRIDGE_SOURCE_MQTT_SCALAR_METRIC", "Tek Scalar Metrik", "SCALAR_METRICS boşken okunacak tek JSON metriği.", "temperature"),
-        new("DEYAS_BRIDGE_SOURCE_MQTT_SCALAR_METRICS", "Çoklu Scalar Metrikler", "scalar modunda MQTT JSON içinden alınacak sayısal alanları virgülle yazın (örn. temperature,humidity). Her değer samples:[değer] ve sampling_rate bu ekrandaki varsayılanla iletilir; boşsa Tek Scalar Metrik kullanılır.", "temperature,humidity"),
+        new("DEYAS_BRIDGE_SOURCE_MQTT_SCALAR_METRICS", "Çoklu Scalar Metrikler", "Tek Scalar Metrik boşsa MQTT JSON içinden alınacak sayısal alanları virgülle yazın (örn. temperature,humidity). Her değer samples:[değer] ve sampling_rate bu ekrandaki varsayılanla iletilir.", ""),
         new("DEYAS_BRIDGE_KEEPALIVE_SECONDS", "UDP Keepalive (sn)", "UDP bağlantı keepalive aralığı.", "5"),
         new("DEYAS_BRIDGE_LOCATION_ID", "Bridge Konum Kimliği", "Hedef MQTT topic'indeki location_id bölümü.", "default"),
         new("DEYAS_BRIDGE_DEVICE_ID_PREFIX", "Device ID Öneki", "Eşleme yoksa üretilecek otomatik deviceId öneki.", "stream-"),
@@ -1306,6 +1335,52 @@
     private List<string>  _newDistricts   = new();
     private List<Sensor>  _newStructureSensors = new(); // wizard adım 3'te eklenenler
     private List<StructureSensor> _discoveredSensors = new();
+    private bool _showBrokerCredentials;
+
+    private sealed record EnvironmentGroup(string Key, string Label);
+    private static readonly EnvironmentGroup[] EnvironmentGroups =
+    [
+        new("source", "Veri Kaynağı"),
+        new("mqtt-source", "Kaynak MQTT"),
+        new("bridge", "Bridge Çıkışı ve Eşleme"),
+        new("pipeline", "Saha Pipeline'ları"),
+        new("central", "Merkez Bağlantısı"),
+        new("camera", "Kamera Bağlantıları")
+    ];
+
+    private bool IsUdpSourceMode => GetEnv("DEYAS_BRIDGE_SOURCE_MODE") is "udp" or "both" or "all";
+    private bool IsMqttSourceMode => GetEnv("DEYAS_BRIDGE_SOURCE_MODE") is "mqtt" or "both" or "all";
+    private bool IsTcpSourceMode => GetEnv("DEYAS_BRIDGE_SOURCE_MODE") is "tcp" or "all";
+    private bool IsScalarMqttMode => GetEnv("DEYAS_BRIDGE_SOURCE_MQTT_PAYLOAD_MODE").Equals("scalar", StringComparison.OrdinalIgnoreCase);
+    private bool IsSingleScalarMetricActive => !string.IsNullOrWhiteSpace(GetEnv("DEYAS_BRIDGE_SOURCE_MQTT_SCALAR_METRIC"));
+    private bool HasTcpSensor => _newStructureSensors.Any(IsTcpSensor);
+
+    private static string GetEnvironmentGroup(string key) => key switch
+    {
+        "DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED" or "DEYAS_BRIDGE_UDP_SOURCES" or "DEYAS_BRIDGE_SENSOR_HOST" or "DEYAS_BRIDGE_SENSOR_PORT" or "DEYAS_BRIDGE_UDP_LOCAL_PORT" or "DEYAS_BRIDGE_TCP_SOURCES" or "DEYAS_BRIDGE_SOURCE_MODE" => "source",
+        var value when value.StartsWith("DEYAS_BRIDGE_SOURCE_MQTT_", StringComparison.Ordinal) => "mqtt-source",
+        "SAHA_ENABLED_PIPELINES" or "SAHA_PIPELINE_RUNTIME_ENABLED" or "SAHA_MEDIA_ENABLED" => "pipeline",
+        "CAMERA_NORTH_RTSP_URL" or "CAMERA_ENTRY_RTSP_URL" => "camera",
+        var value when value.StartsWith("CENTRAL_", StringComparison.Ordinal) || value == "LOCAL_TIMESERIES_API_BASE_URL" || value == "EDGE_FORWARDING_ENABLED" || value == "EDGE_LOCAL_TIMESERIES_PRODUCER" => "central",
+        _ => "bridge"
+    };
+
+    private bool ShouldShowEnvironmentField(string key)
+    {
+        if (key is "CAMERA_NORTH_RTSP_URL" or "CAMERA_ENTRY_RTSP_URL") return IsCameraPipelineSelected;
+        if (key is "DEYAS_BRIDGE_UDP_SOURCES" or "DEYAS_BRIDGE_SENSOR_HOST" or "DEYAS_BRIDGE_SENSOR_PORT" or "DEYAS_BRIDGE_UDP_LOCAL_PORT") return IsUdpSourceMode;
+        if (key == "DEYAS_BRIDGE_TCP_SOURCES") return IsTcpSourceMode;
+        if (key.StartsWith("DEYAS_BRIDGE_SOURCE_MQTT_", StringComparison.Ordinal))
+        {
+            if (!IsMqttSourceMode) return false;
+            if (key is "DEYAS_BRIDGE_SOURCE_MQTT_USERNAME" or "DEYAS_BRIDGE_SOURCE_MQTT_PASSWORD") return _showBrokerCredentials;
+            return key is not "DEYAS_BRIDGE_SOURCE_MQTT_SCALAR_SAMPLING_RATE" and not "DEYAS_BRIDGE_SOURCE_MQTT_SCALAR_METRIC" and not "DEYAS_BRIDGE_SOURCE_MQTT_SCALAR_METRICS" || IsScalarMqttMode;
+        }
+        if (key is "CENTRAL_MQTT_USERNAME" or "CENTRAL_MQTT_PASSWORD") return _showBrokerCredentials;
+        return true;
+    }
+
+    private void OnSourceModeChanged(ChangeEventArgs args) => SetEnv("DEYAS_BRIDGE_SOURCE_MODE", args.Value?.ToString());
 
     private bool IsCameraPipelineSelected => GetEnv("SAHA_ENABLED_PIPELINES")
         .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
@@ -1987,6 +2062,7 @@
         _samePcEmqxDashboardPort = 18083;
         _samePcTimescaleDbPort   = 5432;
         _samePcTimeseriesPort   = 5000;
+        _showBrokerCredentials  = false;
         _siteEnvironment.Clear();
         foreach (var field in SiteEnvironmentFields)
             _siteEnvironment[field.Key] = field.Key == "DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED" ? "true" : field.Placeholder;
@@ -2030,13 +2106,6 @@
             _newNodeRedUrl = autoUrl.Trim();
     }
 
-    private async Task OpenNewStructureNodeRedAsync()
-    {
-        if (string.IsNullOrWhiteSpace(_newNodeRedUrl)) return;
-        var url = _newNodeRedUrl.TrimEnd('/') + "/api/ui/#flow/tab-monitor";
-        await JS.InvokeVoidAsync("open", url, "_blank");
-    }
-
     // Adım 1 → 2: haritayı hemen göster
     private void GoToStep2()
     {
@@ -2051,7 +2120,11 @@
         _wizardStep = 4;
     }
 
-    private void GoToDeploymentStep() => _wizardStep = 5;
+    private void GoToDeploymentStep()
+    {
+        if (IsTcpSourceMode && !HasTcpSensor) return;
+        _wizardStep = 5;
+    }
     private void GoBackToSensorStep() => _wizardStep = 4;
 
     private bool IsPipelineSelected(string pipeline) => GetEnv("SAHA_ENABLED_PIPELINES")
@@ -2069,7 +2142,7 @@
 
     private async Task FinishWithoutSensorsAsync()
     {
-        if (_createdStructureId == Guid.Empty || _setupSaving) return;
+        if (_createdStructureId == Guid.Empty || _setupSaving || IsTcpSourceMode) return;
         await SaveFieldSetupAsync();
         if (string.IsNullOrEmpty(_saveError))
             GoToDeploymentStep();

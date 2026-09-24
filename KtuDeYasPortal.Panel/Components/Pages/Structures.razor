@@ -502,12 +502,6 @@
                             <fieldset class="border rounded p-3 mb-3">
                                 <legend class="float-none w-auto px-2 fs-6 mb-0">
                                     @group.Label
-                                    @if (group.Key is "mqtt-source" or "central")
-                                    {
-                                        <button type="button" class="btn btn-sm btn-link py-0 ms-2" @onclick="() => _showBrokerCredentials = !_showBrokerCredentials">
-                                            @(_showBrokerCredentials ? "Kimlik alanlarını gizle" : "Kimlik alanlarını göster")
-                                        </button>
-                                    }
                                 </legend>
                                 <div class="row g-3">
                                 @foreach (var field in SiteEnvironmentFields.Where(field => GetEnvironmentGroup(field.Key) == group.Key))
@@ -708,6 +702,20 @@
                                     <div class="form-text mt-2">İlk ZIP'te ortak altyapıyı bir kez başlatın. Sonraki yapı ZIP'lerinde aynı ortak altyapı portlarını kullanın; yalnız <code>saha-b</code>, Edge <code>5081</code> ve Node-RED <code>1881</code> farklı olsun. Edge/Node-RED URL'si ZIP'te seçilen portla güncellenir.</div>
                                 </div>
                             }
+                            <div class="border rounded p-3 mb-3 bg-light">
+                                <h6 class="mb-1"><span class="bi bi-shield-lock me-1"></span>İsteğe bağlı bağlantı gizli bilgileri</h6>
+                                <p class="small text-muted mb-3">Bu alanlar yalnız indirilecek ZIP'in <code>.env</code> dosyasına yazılır; yapı kaydına ve merkez veritabanına kaydedilmez. Broker anonim erişime izin veriyorsa boş bırakın.</p>
+                                <div class="small text-success mb-3"><span class="bi bi-check-circle me-1"></span>Yerel PostgreSQL ve EMQX dashboard parolaları paket için otomatik ve benzersiz üretilir. Kurulumdan sonra gerektiğinde ZIP içindeki <code>.env</code> dosyasından erişin.</div>
+                                <div class="row g-2">
+                                    @if (IsMqttSourceMode)
+                                    {
+                                        <div class="col-md-6"><label class="form-label small">Kaynak MQTT kullanıcı adı</label><input class="form-control form-control-sm" @bind='_deploymentSecrets["DEYAS_BRIDGE_SOURCE_MQTT_USERNAME"]' autocomplete="off" /></div>
+                                        <div class="col-md-6"><label class="form-label small">Kaynak MQTT şifresi</label><input type="password" class="form-control form-control-sm" @bind='_deploymentSecrets["DEYAS_BRIDGE_SOURCE_MQTT_PASSWORD"]' autocomplete="new-password" /></div>
+                                    }
+                                    <div class="col-md-6"><label class="form-label small">Merkez MQTT kullanıcı adı</label><input class="form-control form-control-sm" @bind='_deploymentSecrets["CENTRAL_MQTT_USERNAME"]' autocomplete="off" /></div>
+                                    <div class="col-md-6"><label class="form-label small">Merkez MQTT şifresi</label><input type="password" class="form-control form-control-sm" @bind='_deploymentSecrets["CENTRAL_MQTT_PASSWORD"]' autocomplete="new-password" /></div>
+                                </div>
+                            </div>
                             <div class="d-flex gap-2">
                                 <button class="btn btn-outline-secondary" @onclick="GoBackToSensorStep"><span class="bi bi-arrow-left me-1"></span>Geri: Sensör Ekle</button>
                                 <button class="btn btn-success" @onclick="DownloadDeploymentPackage"><span class="bi bi-file-earmark-zip me-1"></span>Saha deployment ZIP indir</button>
@@ -1301,8 +1309,6 @@
         new("DEYAS_BRIDGE_SOURCE_MQTT_HOST", "Kaynak MQTT Broker Host", "Ham sensör verisini yayımlayan MQTT broker adresi; Node-RED editör adresi değildir.", "100.118.6.94"),
         new("DEYAS_BRIDGE_SOURCE_MQTT_PORT", "Kaynak MQTT Port", "Sensör kaynağı MQTT portu.", "1883"),
         new("DEYAS_BRIDGE_SOURCE_MQTT_TOPIC", "Kaynak MQTT Topic", "Kaynak broker'dan okunacak topic.", "shm/gumushane-baca/temperature"),
-        new("DEYAS_BRIDGE_SOURCE_MQTT_USERNAME", "Kaynak MQTT Kullanıcı", "Kaynak broker kullanıcı adı; sırları güvenli saklayın."),
-        new("DEYAS_BRIDGE_SOURCE_MQTT_PASSWORD", "Kaynak MQTT Şifre", "Kaynak broker şifresi; merkez DB'ye yazılmaz."),
         new("DEYAS_BRIDGE_SOURCE_MQTT_PAYLOAD_MODE", "MQTT Veri Biçimi", "waveform: samples + sampling rate içeren JSON bekler. scalar: MQTT JSON'undaki sayısal metrikleri samples:[değer], sampling_rate:1 olarak iletir.", "scalar"),
         new("DEYAS_BRIDGE_SOURCE_MQTT_SCALAR_SAMPLING_RATE", "Scalar Örnekleme Hızı", "scalar modunda oluşturulan örneğin sampling_rate değeri. Varsayılan: 1.", "1"),
         new("DEYAS_BRIDGE_SOURCE_MQTT_SCALAR_METRIC", "Tek Scalar Metrik", "SCALAR_METRICS boşken okunacak tek JSON metriği.", "temperature"),
@@ -1327,15 +1333,20 @@
         new("CENTRAL_MQTT_HOST", "Merkez MQTT Host", "Yalnız merkezi Node-RED izleme/iletim için kullanılan EMQX adresi; paket merkezi sensor_data tablosuna ikinci kayıt yazmaz.", "100.116.23.112"),
         new("CENTRAL_MQTT_PORT", "Merkez MQTT Port", "Merkez EMQX portu.", "1883"),
         new("CENTRAL_MQTT_USE_TLS", "Merkez MQTT TLS", "Merkez MQTT TLS kullanımı.", "false"),
-        new("CENTRAL_MQTT_USERNAME", "Merkez MQTT Kullanıcı", "Merkez MQTT kullanıcı adı."),
-        new("CENTRAL_MQTT_PASSWORD", "Merkez MQTT Şifre", "Merkez MQTT şifresi."),
         new("CAMERA_NORTH_RTSP_URL", "Kuzey Kamera RTSP URL", "Kamera pipeline'ı kullanılıyorsa media-config.json içindeki CAMERA_NORTH_RTSP_URL değişkeninin değeri."),
         new("CAMERA_ENTRY_RTSP_URL", "Giriş Kamera RTSP URL", "Kamera pipeline'ı kullanılıyorsa media-config.json içindeki CAMERA_ENTRY_RTSP_URL değişkeninin değeri.")
     ];
     private List<string>  _newDistricts   = new();
     private List<Sensor>  _newStructureSensors = new(); // wizard adım 3'te eklenenler
     private List<StructureSensor> _discoveredSensors = new();
-    private bool _showBrokerCredentials;
+    private readonly Dictionary<string, string> _deploymentSecrets = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["DEYAS_BRIDGE_SOURCE_MQTT_USERNAME"] = "",
+        ["DEYAS_BRIDGE_SOURCE_MQTT_PASSWORD"] = "",
+        ["CENTRAL_MQTT_USERNAME"] = "",
+        ["CENTRAL_MQTT_PASSWORD"] = ""
+    };
+    private readonly Dictionary<string, string> _localDeploymentSecrets = new(StringComparer.OrdinalIgnoreCase);
 
     private sealed record EnvironmentGroup(string Key, string Label);
     private static readonly EnvironmentGroup[] EnvironmentGroups =
@@ -1373,10 +1384,8 @@
         if (key.StartsWith("DEYAS_BRIDGE_SOURCE_MQTT_", StringComparison.Ordinal))
         {
             if (!IsMqttSourceMode) return false;
-            if (key is "DEYAS_BRIDGE_SOURCE_MQTT_USERNAME" or "DEYAS_BRIDGE_SOURCE_MQTT_PASSWORD") return _showBrokerCredentials;
             return key is not "DEYAS_BRIDGE_SOURCE_MQTT_SCALAR_SAMPLING_RATE" and not "DEYAS_BRIDGE_SOURCE_MQTT_SCALAR_METRIC" and not "DEYAS_BRIDGE_SOURCE_MQTT_SCALAR_METRICS" || IsScalarMqttMode;
         }
-        if (key is "CENTRAL_MQTT_USERNAME" or "CENTRAL_MQTT_PASSWORD") return _showBrokerCredentials;
         return true;
     }
 
@@ -2062,7 +2071,9 @@
         _samePcEmqxDashboardPort = 18083;
         _samePcTimescaleDbPort   = 5432;
         _samePcTimeseriesPort   = 5000;
-        _showBrokerCredentials  = false;
+        foreach (var key in _deploymentSecrets.Keys.ToList()) _deploymentSecrets[key] = string.Empty;
+        _localDeploymentSecrets["POSTGRES_PASSWORD"] = GenerateDeploymentSecret();
+        _localDeploymentSecrets["EMQX_DASHBOARD_PASSWORD"] = GenerateDeploymentSecret();
         _siteEnvironment.Clear();
         foreach (var field in SiteEnvironmentFields)
             _siteEnvironment[field.Key] = field.Key == "DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED" ? "true" : field.Placeholder;
@@ -2890,7 +2901,7 @@
             ? "http://100.116.167.67:5080"
             : _editingStructure.EdgeApiUrl;
         _editEdgeConfigJson = _editingStructure.EdgeConfigJson ?? "";
-        _editSiteEnvironmentJson = _editingStructure.SiteEnvironmentJson ?? "";
+        _editSiteEnvironmentJson = StripDeploymentSecrets(_editingStructure.SiteEnvironmentJson ?? "");
         _editDistricts   = _districtMap.TryGetValue(_editProvince, out var d) ? d : new();
         _showEditPopup   = true;
     }
@@ -2919,7 +2930,7 @@
             _editingStructure.NodeRedUrl   = string.IsNullOrWhiteSpace(_editNodeRedUrl) ? null : _editNodeRedUrl.Trim();
             _editingStructure.EdgeApiUrl   = string.IsNullOrWhiteSpace(_editEdgeApiUrl) ? null : _editEdgeApiUrl.Trim();
             _editingStructure.EdgeConfigJson = NormalizeJson(_editEdgeConfigJson);
-            _editingStructure.SiteEnvironmentJson = NormalizeJson(_editSiteEnvironmentJson);
+            _editingStructure.SiteEnvironmentJson = NormalizeJson(StripDeploymentSecrets(_editSiteEnvironmentJson));
 
             var ids = _editingStructure.Sensors?.Select(s => s.SensorId).ToList() ?? new();
             await StructureUC.UpdateAsync(_editingStructure.Id, _editingStructure, ids);
@@ -2936,6 +2947,22 @@
         if (string.IsNullOrWhiteSpace(value)) return null;
         using var document = System.Text.Json.JsonDocument.Parse(value);
         return document.RootElement.GetRawText();
+    }
+
+    private static string StripDeploymentSecrets(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return value;
+        try
+        {
+            var values = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, System.Text.Json.JsonElement>>(value);
+            if (values is null) return value;
+            values.Remove("DEYAS_BRIDGE_SOURCE_MQTT_USERNAME");
+            values.Remove("DEYAS_BRIDGE_SOURCE_MQTT_PASSWORD");
+            values.Remove("CENTRAL_MQTT_USERNAME");
+            values.Remove("CENTRAL_MQTT_PASSWORD");
+            return System.Text.Json.JsonSerializer.Serialize(values, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+        }
+        catch (System.Text.Json.JsonException) { return value; }
     }
 
         private static string ResolveStructurePlaceholders(string value, Structure structure) =>
@@ -2964,8 +2991,9 @@
                         isActive = structure.IsActive
                     }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
 
-                private string BuildSiteEnvironmentJson() =>
-                    System.Text.Json.JsonSerializer.Serialize(new Dictionary<string, string?>(_siteEnvironment)
+                private string BuildSiteEnvironmentJson()
+                {
+                    var values = new Dictionary<string, string?>(_siteEnvironment)
                     {
                         ["STRUCTURE_ID"] = _createdStructureId == Guid.Empty ? null : _createdStructureId.ToString(),
                         ["STRUCTURE_TYPE"] = _setupStructureType,
@@ -2973,7 +3001,10 @@
                         ["STRUCTURE_SLUG"] = ToStructureSlug(_setupName),
                         ["DEYAS_BRIDGE_STRUCTURE_ID"] = _createdStructureId == Guid.Empty ? null : _createdStructureId.ToString(),
                         ["DEYAS_BRIDGE_TCP_SOURCES"] = BuildTcpSourcesJson()
-                    }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+                    };
+                    foreach (var key in _deploymentSecrets.Keys) values.Remove(key);
+                    return System.Text.Json.JsonSerializer.Serialize(values, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+                }
 
                 private string GetEnv(string key) => _siteEnvironment.TryGetValue(key, out var value) ? value ?? string.Empty : string.Empty;
                 private void SetEnv(string key, string? value) => _siteEnvironment[key] = value ?? string.Empty;
@@ -2992,6 +3023,11 @@
 
                     foreach (var field in SiteEnvironmentFields)
                         values[field.Key] = field.Key == "DEYAS_BRIDGE_TCP_SOURCES" ? BuildTcpSourcesJson() : GetEnv(field.Key);
+
+                    foreach (var (key, value) in _deploymentSecrets)
+                        values[key] = value;
+                    foreach (var (key, value) in _localDeploymentSecrets)
+                        values[key] = value;
 
                     if (_samePcDeployment)
                     {
@@ -3027,6 +3063,10 @@
                     var normalized = System.Text.RegularExpressions.Regex.Replace(name.Trim().ToLowerInvariant(), "[^a-z0-9]+", "-").Trim('-');
                     return string.IsNullOrWhiteSpace(normalized) ? "saha-yapisi" : normalized;
                 }
+
+                private static string GenerateDeploymentSecret() =>
+                    Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(24))
+                        .Replace('+', '-').Replace('/', '_').TrimEnd('=');
 
                 private string NormalizeMediaConfigJson()
                 {

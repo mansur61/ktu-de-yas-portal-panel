@@ -12,6 +12,31 @@
 
 <PageTitle>Baraj Yönetimi</PageTitle>
 
+<style>
+    .site-env-group {
+        border: 2px solid #9aa7b5 !important;
+        box-shadow: 0 .125rem .35rem rgba(31, 41, 55, .08);
+        overflow: hidden;
+    }
+
+    .site-env-group-header {
+        background: #f3f6f9;
+        border-bottom: 1px solid #c8d0d9;
+    }
+
+    .site-env-group-header button {
+        color: #263746;
+        text-decoration: none;
+    }
+
+    .site-env-group .form-control,
+    .site-env-group .form-select,
+    .site-env-group .input-group-text {
+        border-color: #8795a5;
+        border-width: 2px;
+    }
+</style>
+
 @* ══════════════════════════════════════════════════════════════════
    ANA SAYFA — Liste + Başlık
    ══════════════════════════════════════════════════════════════════ *@
@@ -499,10 +524,24 @@
                         {
                             @foreach (var group in EnvironmentGroups.Where(group => SiteEnvironmentFields.Any(field => GetEnvironmentGroup(field.Key) == group.Key && ShouldShowEnvironmentField(field.Key))))
                             {
-                            <fieldset class="border rounded p-3 mb-3">
-                                <legend class="float-none w-auto px-2 fs-6 mb-0">
-                                    @group.Label
-                                </legend>
+                            <section class="site-env-group rounded mb-3">
+                                <div class="site-env-group-header">
+                                    <button type="button" class="btn w-100 d-flex align-items-center justify-content-between px-3 py-2 text-start fw-semibold"
+                                            @onclick="() => ToggleEnvironmentGroup(group.Key)"
+                                            aria-expanded="@IsEnvironmentGroupExpanded(group.Key)">
+                                        <span>
+                                            <span class="d-block">@group.Label</span>
+                                            @if (!string.IsNullOrWhiteSpace(group.Description))
+                                            {
+                                                <small class="d-block fw-normal text-muted mt-1">@group.Description</small>
+                                            }
+                                        </span>
+                                        <span class="bi @(IsEnvironmentGroupExpanded(group.Key) ? "bi-chevron-up" : "bi-chevron-down")"></span>
+                                    </button>
+                                </div>
+                                @if (IsEnvironmentGroupExpanded(group.Key))
+                                {
+                                <div class="p-3">
                                 <div class="row g-3">
                                 @foreach (var field in SiteEnvironmentFields.Where(field => GetEnvironmentGroup(field.Key) == group.Key))
                                 {
@@ -543,14 +582,23 @@
                                         }
                                         else if (field.Key == "DEYAS_BRIDGE_UDP_SOURCES")
                                         {
-                                            <textarea class="form-control font-monospace" rows="3" value="@GetEnv(field.Key)" @onchange="e => SetEnv(field.Key, e.Value?.ToString())"
-                                                      placeholder='[{"host":"192.168.1.51","port":1567}]'></textarea>
+                                            <div class="input-group">
+                                                <textarea class="form-control font-monospace @(IsSingleUdpSourceActive ? "bg-light" : "")" rows="3"
+                                                          value="@(IsSingleUdpSourceActive ? BuildSingleUdpSourcePreview() : GetEnv(field.Key))"
+                                                          readonly="@IsSingleUdpSourceActive"
+                                                          @onchange="OnUdpSourcesChanged"
+                                                          placeholder='[{"host":"192.168.1.51","port":1572}]'></textarea>
+                                                @if (IsSingleUdpSourceActive)
+                                                {
+                                                    <span class="input-group-text text-muted small" title="Tekil Kaynak Sensör Host doluyken çoklu UDP listesi düzenlenemez">
+                                                        <span class="bi bi-lock-fill me-1"></span>Tekil kaynak aktif
+                                                    </span>
+                                                }
+                                            </div>
                                         }
-                                        else if (field.Key == "DEYAS_BRIDGE_SENSOR_HOST")
+                                        else if (field.Key is "DEYAS_BRIDGE_SENSOR_HOST" or "DEYAS_BRIDGE_SENSOR_PORT")
                                         {
-                                            var udpSrc = GetEnv("DEYAS_BRIDGE_UDP_SOURCES");
-                                            var udpActive = !string.IsNullOrWhiteSpace(udpSrc) && udpSrc.Trim() != "[]";
-                                            @if (udpActive)
+                                            @if (IsMultipleUdpSourcesActive)
                                             {
                                                 <div class="input-group">
                                                     <input class="form-control bg-light" value="@GetEnv(field.Key)" readonly />
@@ -592,7 +640,9 @@
                                     </div>
                                 }
                                 </div>
-                            </fieldset>
+                                </div>
+                                }
+                            </section>
                             }
                             <div class="row g-3">
                                 @if (IsCameraPipelineSelected)
@@ -1300,9 +1350,9 @@
     private static readonly SiteEnvironmentField[] SiteEnvironmentFields =
     [
         new("DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED", "Sensör provisioning", "İlk keşifte true yapın; sensörler merkeze aktarılır."),
-        new("DEYAS_BRIDGE_UDP_SOURCES", "UDP Sources", "Birden çok UDP kaynak için isteğe bağlı JSON liste. Doluysa bridge bu listeyi kullanır; boşsa aşağıdaki tekil host/port kullanılır.", "[]"),
-        new("DEYAS_BRIDGE_SENSOR_HOST", "Kaynak Sensör Host", "UDP/GCF kaynağının IP veya DNS adresi. Tek UDP kaynak kullanılıyorsa gereklidir.", "100.118.6.94"),
-        new("DEYAS_BRIDGE_SENSOR_PORT", "Sensör Port", "Tek UDP kaynağının hedef portu.", "1572"),
+        new("DEYAS_BRIDGE_UDP_SOURCES", "UDP Sources", "Tekil Kaynak Sensör Host doluyken host ve port burada JSON önizlemesi olarak gösterilir. Birden çok kaynak kullanmak için önce tekil hostu temizleyin, ardından JSON listesini girin. Liste doluysa bridge doğrudan bu kaynakları kullanır.", "[]"),
+        new("DEYAS_BRIDGE_SENSOR_HOST", "Kaynak Sensör Host", "Tek UDP/GCF kaynağının IP veya DNS adresi. UDP Sources listesi doluyken devre dışıdır; liste boşken bridge bu host ve port değerine geri döner.", "100.118.6.94"),
+        new("DEYAS_BRIDGE_SENSOR_PORT", "Sensör Port", "Tek UDP/GCF kaynağının hedef portu. UDP Sources listesi doluyken listedeki portlar kullanılır.", "1572"),
         new("DEYAS_BRIDGE_UDP_LOCAL_PORT", "UDP Local Port", "Bridge'in sabit kaynak portu; cihaz tarafı port hafızalıysa değiştirmeyin.", "58431"),
         new("DEYAS_BRIDGE_TCP_SOURCES", "TCP Sources", "3. adımda eklenen TCP/IP sensörlerinden otomatik üretilir; UDP kaynaklarıyla karıştırmayın.", "[]"),
         new("DEYAS_BRIDGE_SOURCE_MODE", "Kaynak Modu", "udp | mqtt | tcp | both (yalnız UDP+MQTT) | all (UDP+MQTT+TCP). Aynı cihaz iki kaynaktan aynı deviceId ile gelirse çift telemetry oluşur.", "udp"),
@@ -1348,23 +1398,41 @@
     };
     private readonly Dictionary<string, string> _localDeploymentSecrets = new(StringComparer.OrdinalIgnoreCase);
 
-    private sealed record EnvironmentGroup(string Key, string Label);
+    private sealed record EnvironmentGroup(string Key, string Label, string? Description = null);
     private static readonly EnvironmentGroup[] EnvironmentGroups =
     [
         new("source", "Veri Kaynağı"),
         new("mqtt-source", "Kaynak MQTT"),
-        new("bridge", "Bridge Çıkışı ve Eşleme"),
+        new("bridge", "Veri Dönüştürme ve Sensör Eşleme", "Kaynak verisinin yerel MQTT mesajına nasıl dönüştürüleceğini ve gelen stream'lerin hangi sensör/device kimliğiyle eşleşeceğini belirler."),
         new("pipeline", "Saha Pipeline'ları"),
         new("central", "Merkez Bağlantısı"),
         new("camera", "Kamera Bağlantıları")
     ];
+    private readonly HashSet<string> _expandedEnvironmentGroups = new(StringComparer.OrdinalIgnoreCase) { "source" };
 
     private bool IsUdpSourceMode => GetEnv("DEYAS_BRIDGE_SOURCE_MODE") is "udp" or "both" or "all";
     private bool IsMqttSourceMode => GetEnv("DEYAS_BRIDGE_SOURCE_MODE") is "mqtt" or "both" or "all";
     private bool IsTcpSourceMode => GetEnv("DEYAS_BRIDGE_SOURCE_MODE") is "tcp" or "all";
     private bool IsScalarMqttMode => GetEnv("DEYAS_BRIDGE_SOURCE_MQTT_PAYLOAD_MODE").Equals("scalar", StringComparison.OrdinalIgnoreCase);
     private bool IsSingleScalarMetricActive => !string.IsNullOrWhiteSpace(GetEnv("DEYAS_BRIDGE_SOURCE_MQTT_SCALAR_METRIC"));
+    private bool IsMultipleUdpSourcesActive
+    {
+        get
+        {
+            var value = GetEnv("DEYAS_BRIDGE_UDP_SOURCES").Trim();
+            return !string.IsNullOrWhiteSpace(value) && value != "[]";
+        }
+    }
+    private bool IsSingleUdpSourceActive => !IsMultipleUdpSourcesActive && !string.IsNullOrWhiteSpace(GetEnv("DEYAS_BRIDGE_SENSOR_HOST"));
     private bool HasTcpSensor => _newStructureSensors.Any(IsTcpSensor);
+
+    private bool IsEnvironmentGroupExpanded(string key) => _expandedEnvironmentGroups.Contains(key);
+
+    private void ToggleEnvironmentGroup(string key)
+    {
+        if (!_expandedEnvironmentGroups.Add(key))
+            _expandedEnvironmentGroups.Remove(key);
+    }
 
     private static string GetEnvironmentGroup(string key) => key switch
     {
@@ -1390,6 +1458,18 @@
     }
 
     private void OnSourceModeChanged(ChangeEventArgs args) => SetEnv("DEYAS_BRIDGE_SOURCE_MODE", args.Value?.ToString());
+
+    private void OnUdpSourcesChanged(ChangeEventArgs args) =>
+        SetEnv("DEYAS_BRIDGE_UDP_SOURCES", args.Value?.ToString()?.Trim());
+
+    private string BuildSingleUdpSourcePreview()
+    {
+        var port = int.TryParse(GetEnv("DEYAS_BRIDGE_SENSOR_PORT"), out var parsedPort) ? parsedPort : 1572;
+        return System.Text.Json.JsonSerializer.Serialize(new[]
+        {
+            new { host = GetEnv("DEYAS_BRIDGE_SENSOR_HOST").Trim(), port }
+        });
+    }
 
     private bool IsCameraPipelineSelected => GetEnv("SAHA_ENABLED_PIPELINES")
         .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
@@ -2071,6 +2151,8 @@
         _samePcEmqxDashboardPort = 18083;
         _samePcTimescaleDbPort   = 5432;
         _samePcTimeseriesPort   = 5000;
+        _expandedEnvironmentGroups.Clear();
+        _expandedEnvironmentGroups.Add("source");
         foreach (var key in _deploymentSecrets.Keys.ToList()) _deploymentSecrets[key] = string.Empty;
         _localDeploymentSecrets["POSTGRES_PASSWORD"] = GenerateDeploymentSecret();
         _localDeploymentSecrets["EMQX_DASHBOARD_PASSWORD"] = GenerateDeploymentSecret();
@@ -2474,7 +2556,6 @@
             }
 
             SetEnv("DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED", "false");
-            SetEnv("DEYAS_BRIDGE_UDP_SOURCES", BuildUdpSourcesJson());
             structure.EdgeConfigJson = BuildEdgeConfigJson(structure);
             structure.SiteEnvironmentJson = BuildSiteEnvironmentJson();
             await StructureUC.UpdateAsync(structure.Id, structure, createdIds);
@@ -2562,7 +2643,6 @@
 
             // Provisioning ilk saha keşfi için true bırakılır; bridge sensörleri merkeze aktarır.
             SetEnv("DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED", "true");
-            SetEnv("DEYAS_BRIDGE_UDP_SOURCES", BuildUdpSourcesJson());
             created.SiteEnvironmentJson = BuildSiteEnvironmentJson();
             await StructureUC.UpdateAsync(created.Id, created, createdIds);
 
@@ -3073,12 +3153,6 @@
                     try { return NormalizeJson(_mediaConfigJson) ?? DefaultMediaConfigJson; }
                     catch { return DefaultMediaConfigJson; }
                 }
-
-                private string BuildUdpSourcesJson() => System.Text.Json.JsonSerializer.Serialize(
-                    _newStructureSensors
-                        .Where(sensor => !IsTcpSensor(sensor) && !string.IsNullOrWhiteSpace(sensor.IpAddress) && sensor.Port.HasValue)
-                        .Select(sensor => new { host = sensor.IpAddress, port = sensor.Port })
-                        .ToList());
 
                 private string BuildTcpSourcesJson() => System.Text.Json.JsonSerializer.Serialize(
                     _newStructureSensors

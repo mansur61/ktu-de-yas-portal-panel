@@ -542,6 +542,46 @@
                                 @if (IsEnvironmentGroupExpanded(group.Key))
                                 {
                                 <div class="p-3">
+                                @if (group.Key == "mqtt-source")
+                                {
+                                    <div class="alert alert-info mb-3">
+                                        <h6 class="alert-heading mb-2"><span class="bi bi-diagram-3 me-1"></span>Topic, metrik ve cihaz nasıl bağlanır?</h6>
+                                        <p class="small mb-3">
+                                            <strong>Kaynak MQTT Topic</strong>, Saha Bridge'in kaynak broker'da abone olduğu adrestir; Device ID değildir.
+                                            Bridge gelen JSON'daki seçili metrikleri stream'e dönüştürür. İsterseniz oluşan stream'i
+                                            <strong>Kaynak Stream/Metrik → Device ID Eşlemesi</strong> alanıyla kalıcı cihaz kimliğine bağlayabilirsiniz.
+                                        </p>
+                                        <div class="row g-2">
+                                            <div class="col-lg-6">
+                                                <div class="bg-white border rounded p-2 h-100 small">
+                                                    <div class="fw-semibold text-primary mb-2">1. Tekli Scalar örneği</div>
+                                                    <div><span class="text-muted">Topic:</span> <code>shm/gumushane-baca/temperature</code></div>
+                                                    <div><span class="text-muted">Tek metrik:</span> <code>temperature</code></div>
+                                                    <div><span class="text-muted">Gelen JSON:</span> <code>{"temperature":24.5}</code></div>
+                                                    <div><span class="text-muted">Oluşan stream:</span> <code>mqtt/temperature</code></div>
+                                                    <div class="mt-2"><span class="text-muted">Eşleme:</span></div>
+                                                    <code class="d-block text-break">{"mqtt/temperature":"gumushane-baca-sicaklik"}</code>
+                                                </div>
+                                            </div>
+                                            <div class="col-lg-6">
+                                                <div class="bg-white border rounded p-2 h-100 small">
+                                                    <div class="fw-semibold text-primary mb-2">2. Çoklu Scalar örneği</div>
+                                                    <div><span class="text-muted">Topic:</span> <code>shm/gumushane-baca/environment</code></div>
+                                                    <div><span class="text-muted">Çoklu metrik:</span> <code>temperature,humidity</code></div>
+                                                    <div><span class="text-muted">Gelen JSON:</span> <code>{"temperature":24.5,"humidity":61}</code></div>
+                                                    <div><span class="text-muted">Stream'ler:</span> <code>mqtt/temperature</code>, <code>mqtt/humidity</code></div>
+                                                    <div class="mt-2"><span class="text-muted">Eşleme:</span></div>
+                                                    <code class="d-block text-break">{"mqtt/temperature":"baca-sicaklik","mqtt/humidity":"baca-nem"}</code>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="small mt-2 mb-0">
+                                            <span class="bi bi-info-circle me-1"></span>
+                                            Farklı topic'ler dinlenecekse <code>shm/gumushane-baca/#</code> gibi filtre kullanın. Mesajlar metrik adlarını içeren JSON olmalıdır.
+                                            Eşleme boşsa sistem <code>stream-mqtt-temperature</code> gibi bir Device ID üretir.
+                                        </div>
+                                    </div>
+                                }
                                 <div class="row g-3">
                                 @foreach (var field in SiteEnvironmentFields.Where(field => GetEnvironmentGroup(field.Key) == group.Key))
                                 {
@@ -1355,18 +1395,18 @@
         new("DEYAS_BRIDGE_SENSOR_PORT", "Sensör Port", "Tek UDP/GCF kaynağının hedef portu. UDP Sources listesi doluyken listedeki portlar kullanılır.", "1572"),
         new("DEYAS_BRIDGE_UDP_LOCAL_PORT", "UDP Local Port", "Bridge'in sabit kaynak portu; cihaz tarafı port hafızalıysa değiştirmeyin.", "58431"),
         new("DEYAS_BRIDGE_TCP_SOURCES", "TCP Sources", "3. adımda eklenen TCP/IP sensörlerinden otomatik üretilir; UDP kaynaklarıyla karıştırmayın.", "[]"),
-        new("DEYAS_BRIDGE_SOURCE_MODE", "Kaynak Modu", "udp | mqtt | tcp | both (yalnız UDP+MQTT) | all (UDP+MQTT+TCP). Aynı cihaz iki kaynaktan aynı deviceId ile gelirse çift telemetry oluşur.", "udp"),
+        new("DEYAS_BRIDGE_SOURCE_MODE", "Kaynak Modu", "udp | mqtt | tcp | both (yalnız UDP+MQTT) | all (UDP+MQTT+TCP). Varsayılan: both. Aynı cihaz iki kaynaktan aynı deviceId ile gelirse çift telemetry oluşur.", "both"),
         new("DEYAS_BRIDGE_SOURCE_MQTT_HOST", "Kaynak MQTT Broker Host", "Ham sensör verisini yayımlayan MQTT broker adresi; Node-RED editör adresi değildir.", "100.118.6.94"),
         new("DEYAS_BRIDGE_SOURCE_MQTT_PORT", "Kaynak MQTT Port", "Sensör kaynağı MQTT portu.", "1883"),
-        new("DEYAS_BRIDGE_SOURCE_MQTT_TOPIC", "Kaynak MQTT Topic", "Kaynak broker'dan okunacak topic.", "shm/gumushane-baca/temperature"),
+        new("DEYAS_BRIDGE_SOURCE_MQTT_TOPIC", "Kaynak MQTT Topic / Abonelik Filtresi", "Bridge'in kaynak broker'da dinleyeceği MQTT adresidir; metrik adı değildir. Tek bir JSON içinde temperature ve humidity birlikte geliyorsa aynı topic'i yazın. Birden fazla topic dinlenecekse örn. shm/gumushane-baca/# filtresini kullanın; mesajların metrik adlarını içeren JSON olması gerekir.", "shm/gumushane-baca/temperature"),
         new("DEYAS_BRIDGE_SOURCE_MQTT_PAYLOAD_MODE", "MQTT Veri Biçimi", "waveform: samples + sampling rate içeren JSON bekler. scalar: MQTT JSON'undaki sayısal metrikleri samples:[değer], sampling_rate:1 olarak iletir.", "scalar"),
         new("DEYAS_BRIDGE_SOURCE_MQTT_SCALAR_SAMPLING_RATE", "Scalar Örnekleme Hızı", "scalar modunda oluşturulan örneğin sampling_rate değeri. Varsayılan: 1.", "1"),
-        new("DEYAS_BRIDGE_SOURCE_MQTT_SCALAR_METRIC", "Tek Scalar Metrik", "SCALAR_METRICS boşken okunacak tek JSON metriği.", "temperature"),
-        new("DEYAS_BRIDGE_SOURCE_MQTT_SCALAR_METRICS", "Çoklu Scalar Metrikler", "Tek Scalar Metrik boşsa MQTT JSON içinden alınacak sayısal alanları virgülle yazın (örn. temperature,humidity). Her değer samples:[değer] ve sampling_rate bu ekrandaki varsayılanla iletilir.", ""),
+        new("DEYAS_BRIDGE_SOURCE_MQTT_SCALAR_METRIC", "Tek Scalar Metrik", "Çoklu alan boşken JSON'dan okunacak tek metriktir. Stream kimliği topic'in son bölümünden oluşur; örn. shm/gumushane-baca/temperature → mqtt/temperature.", "temperature"),
+        new("DEYAS_BRIDGE_SOURCE_MQTT_SCALAR_METRICS", "Çoklu Scalar Metrikler", "Tek Scalar Metrik temizlendikten sonra aynı MQTT JSON mesajından alınacak sayısal alanları virgülle yazın (örn. temperature,humidity). Her metrik ayrı stream/sensör olur ve mqtt/temperature, mqtt/humidity anahtarlarıyla Device ID'ye eşlenebilir.", ""),
         new("DEYAS_BRIDGE_KEEPALIVE_SECONDS", "UDP Keepalive (sn)", "UDP bağlantı keepalive aralığı.", "5"),
         new("DEYAS_BRIDGE_LOCATION_ID", "Bridge Konum Kimliği", "Hedef MQTT topic'indeki location_id bölümü.", "default"),
         new("DEYAS_BRIDGE_DEVICE_ID_PREFIX", "Device ID Öneki", "Eşleme yoksa üretilecek otomatik deviceId öneki.", "stream-"),
-        new("DEYAS_BRIDGE_DEVICE_MAP", "Stream → Device ID Eşlemesi", "JSON nesnesi. Örn: {\"mqtt/temperature\":\"gumushane-baca-temperature\"}.", "{}"),
+        new("DEYAS_BRIDGE_DEVICE_MAP", "Kaynak Stream/Metrik → Device ID Eşlemesi", "Bridge'in oluşturduğu stream'i sistemdeki kalıcı cihaz kimliğine bağlayan isteğe bağlı JSON nesnesidir. Çoklu scalar örneği: {\"mqtt/temperature\":\"baca-sicaklik\",\"mqtt/humidity\":\"baca-nem\"}. Eşleme yazılmazsa deviceId otomatik olarak stream-mqtt-temperature gibi üretilir.", "{}"),
         new("DEYAS_BRIDGE_SENSOR_ID_MAP", "Stream → Sensor UUID Eşlemesi", "İsteğe bağlı JSON nesnesi; boş bırakılabilir. Örn: {\"mqtt/temperature\":\"11111111-1111-1111-1111-111111111111\"}.", "{}"),
         new("DEYAS_BRIDGE_MQTT_TOPIC_TEMPLATE", "Yerel Hedef MQTT Topic Şablonu", "Bridge'in yerel emqx'e yazdığı sözleşme topic'i; edge-layer uyumluluğu için varsayılanı değiştirmeyin.", "edge/sensors/{location_id}/{device_id}/data"),
         new("DEYAS_BRIDGE_MQTT_QOS", "Yerel Hedef MQTT QoS", "Bridge → yerel EMQX yayın QoS seviyesi.", "1"),

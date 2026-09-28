@@ -542,6 +542,15 @@
                                 @if (IsEnvironmentGroupExpanded(group.Key))
                                 {
                                 <div class="p-3">
+                                @if (group.Key == "source")
+                                {
+                                    <div class="alert alert-primary py-2 small mb-3">
+                                        <strong><code>both</code> nasıl çalışır?</strong>
+                                        UDP ve MQTT seçeneklerini kullanılabilir tutar; ancak yalnız bilgileri doldurulmuş kaynaklar başlatılır.
+                                        Sadece UDP kullanacaksanız <strong>UDP Sources</strong> listesini doldurup Kaynak MQTT Broker Host alanını boş bırakabilirsiniz.
+                                        Sadece MQTT kullanacaksanız UDP Sources değerini <code>[]</code> bırakabilirsiniz. Boş kaynak hata oluşturmaz ve diğer akışı durdurmaz.
+                                    </div>
+                                }
                                 @if (group.Key == "mqtt-source")
                                 {
                                     <div class="alert alert-info mb-3">
@@ -577,9 +586,19 @@
                                         </div>
                                         <div class="small mt-2 mb-0">
                                             <span class="bi bi-info-circle me-1"></span>
-                                            Farklı topic'ler dinlenecekse <code>shm/gumushane-baca/#</code> gibi filtre kullanın. Mesajlar metrik adlarını içeren JSON olmalıdır.
+                                            Yukarıdaki çoklu örnekte <code>environment</code> kullanılır; çünkü iki metrik aynı JSON mesajında ve aynı topic'te gelir.
+                                            <code>#</code> zorunlu değildir. Yalnız cihaz gerçekten farklı alt topic'lere yayın yapıyorsa <code>shm/gumushane-baca/#</code> kullanılır.
                                             Eşleme boşsa sistem <code>stream-mqtt-temperature</code> gibi bir Device ID üretir.
                                         </div>
+                                    </div>
+                                }
+                                @if (group.Key == "central")
+                                {
+                                    <div class="alert alert-warning py-2 small mb-3">
+                                        <strong>Merkez DB veri yolu:</strong>
+                                        Saha Edge → Merkez EMQX → yapı tipine ait merkez Node-RED (ör. Baraj veya Köprü) → Kafka <code>sensor.timeseries</code> → merkez Timeseries DB.
+                                        Panelde <strong>Çalıştır</strong> saha veri akışını, <strong>Aktar</strong> merkeze iletimi açar. Normal kayıt için ayrıca Node-RED Configure işlemi gerekmez.
+                                        <strong>Node-RED Yapılandırma / Configure</strong> yalnız bu yapıya özel flow veya ayrı runtime gerektiğinde kullanılır.
                                     </div>
                                 }
                                 <div class="row g-3">
@@ -622,37 +641,9 @@
                                         }
                                         else if (field.Key == "DEYAS_BRIDGE_UDP_SOURCES")
                                         {
-                                            <div class="input-group">
-                                                <textarea class="form-control font-monospace @(IsSingleUdpSourceActive ? "bg-light" : "")" rows="3"
-                                                          value="@(IsSingleUdpSourceActive ? BuildSingleUdpSourcePreview() : GetEnv(field.Key))"
-                                                          readonly="@IsSingleUdpSourceActive"
-                                                          @onchange="OnUdpSourcesChanged"
-                                                          placeholder='[{"host":"192.168.1.51","port":1572}]'></textarea>
-                                                @if (IsSingleUdpSourceActive)
-                                                {
-                                                    <span class="input-group-text text-muted small" title="Tekil Kaynak Sensör Host doluyken çoklu UDP listesi düzenlenemez">
-                                                        <span class="bi bi-lock-fill me-1"></span>Tekil kaynak aktif
-                                                    </span>
-                                                }
-                                            </div>
-                                        }
-                                        else if (field.Key is "DEYAS_BRIDGE_SENSOR_HOST" or "DEYAS_BRIDGE_SENSOR_PORT")
-                                        {
-                                            @if (IsMultipleUdpSourcesActive)
-                                            {
-                                                <div class="input-group">
-                                                    <input class="form-control bg-light" value="@GetEnv(field.Key)" readonly />
-                                                    <span class="input-group-text text-muted small" title="UDP Sources doluyken bu alan devre dışıdır">
-                                                        <span class="bi bi-lock-fill me-1"></span>UDP Sources aktif
-                                                    </span>
-                                                </div>
-                                            }
-                                            else
-                                            {
-                                                <input class="form-control" value="@GetEnv(field.Key)"
-                                                       @onchange="e => SetEnv(field.Key, e.Value?.ToString())"
-                                                       placeholder="@field.Placeholder" />
-                                            }
+                                            <textarea class="form-control font-monospace" rows="4"
+                                                      value="@GetEnv(field.Key)" @onchange="OnUdpSourcesChanged"
+                                                      placeholder='[{"host":"192.168.1.51","port":1572}]'></textarea>
                                         }
                                         else if (field.Key == "DEYAS_BRIDGE_TCP_SOURCES")
                                         {
@@ -793,17 +784,27 @@
                                 </div>
                             }
                             <div class="border rounded p-3 mb-3 bg-light">
-                                <h6 class="mb-1"><span class="bi bi-shield-lock me-1"></span>İsteğe bağlı bağlantı gizli bilgileri</h6>
-                                <p class="small text-muted mb-3">Bu alanlar yalnız indirilecek ZIP'in <code>.env</code> dosyasına yazılır; yapı kaydına ve merkez veritabanına kaydedilmez. Broker anonim erişime izin veriyorsa boş bırakın.</p>
-                                <div class="small text-success mb-3"><span class="bi bi-check-circle me-1"></span>Yerel PostgreSQL ve EMQX dashboard parolaları paket için otomatik ve benzersiz üretilir. Kurulumdan sonra gerektiğinde ZIP içindeki <code>.env</code> dosyasından erişin.</div>
+                                <h6 class="mb-2"><span class="bi bi-shield-lock me-1"></span>MQTT bağlantı hesapları — çoğu kurulumda boş bırakılır</h6>
+                                <div class="alert alert-secondary py-2 small mb-3">
+                                    <strong>Kaynak MQTT hesabı:</strong> Sensörün veya mevcut Node-RED'in veri yayımladığı harici MQTT broker kullanıcı/şifresidir.
+                                    Yalnız bu broker kimlik doğrulaması istiyorsa doldurun.<br />
+                                    <strong>Merkez MQTT hesabı:</strong> Sahadan merkez EMQX'e veri gönderirken kullanılacak hesaptır.
+                                    Standart merkez paketinde MQTT, Tailscale ağı üzerinde anonim bağlantıya açık olduğundan boş bırakılır. Merkez EMQX'te ayrıca authentication ve MQTT kullanıcısı oluşturursanız aynı hesabı buraya yazın.
+                                </div>
+                                <p class="small text-muted mb-2">Bu dört alan yalnız indirilen ZIP'in <code>.env</code> dosyasına yazılır; yapı kaydına veya merkez veritabanına kaydedilmez.</p>
+                                <div class="small text-success mb-3">
+                                    <span class="bi bi-check-circle me-1"></span>
+                                    Paket ayrıca saha PostgreSQL veritabanı ve EMQX yönetim ekranı için iki parola üretir. Bunlar servislerin kendi yönetim parolalarıdır;
+                                    sensör verisinin MQTT üzerinden taşınmasında kullanılmaz. Kurulum yöneticisi gerektiğinde ZIP içindeki <code>.env</code> dosyasından erişir.
+                                </div>
                                 <div class="row g-2">
                                     @if (IsMqttSourceMode)
                                     {
-                                        <div class="col-md-6"><label class="form-label small">Kaynak MQTT kullanıcı adı</label><input class="form-control form-control-sm" @bind='_deploymentSecrets["DEYAS_BRIDGE_SOURCE_MQTT_USERNAME"]' autocomplete="off" /></div>
-                                        <div class="col-md-6"><label class="form-label small">Kaynak MQTT şifresi</label><input type="password" class="form-control form-control-sm" @bind='_deploymentSecrets["DEYAS_BRIDGE_SOURCE_MQTT_PASSWORD"]' autocomplete="new-password" /></div>
+                                        <div class="col-md-6"><label class="form-label small">Harici kaynak broker kullanıcı adı <span class="text-muted">(isteğe bağlı)</span></label><input class="form-control form-control-sm" @bind='_deploymentSecrets["DEYAS_BRIDGE_SOURCE_MQTT_USERNAME"]' autocomplete="off" /></div>
+                                        <div class="col-md-6"><label class="form-label small">Harici kaynak broker şifresi <span class="text-muted">(isteğe bağlı)</span></label><input type="password" class="form-control form-control-sm" @bind='_deploymentSecrets["DEYAS_BRIDGE_SOURCE_MQTT_PASSWORD"]' autocomplete="new-password" /></div>
                                     }
-                                    <div class="col-md-6"><label class="form-label small">Merkez MQTT kullanıcı adı</label><input class="form-control form-control-sm" @bind='_deploymentSecrets["CENTRAL_MQTT_USERNAME"]' autocomplete="off" /></div>
-                                    <div class="col-md-6"><label class="form-label small">Merkez MQTT şifresi</label><input type="password" class="form-control form-control-sm" @bind='_deploymentSecrets["CENTRAL_MQTT_PASSWORD"]' autocomplete="new-password" /></div>
+                                    <div class="col-md-6"><label class="form-label small">Merkez EMQX MQTT kullanıcı adı <span class="text-muted">(standart kurulumda boş)</span></label><input class="form-control form-control-sm" @bind='_deploymentSecrets["CENTRAL_MQTT_USERNAME"]' autocomplete="off" /></div>
+                                    <div class="col-md-6"><label class="form-label small">Merkez EMQX MQTT şifresi <span class="text-muted">(standart kurulumda boş)</span></label><input type="password" class="form-control form-control-sm" @bind='_deploymentSecrets["CENTRAL_MQTT_PASSWORD"]' autocomplete="new-password" /></div>
                                 </div>
                             </div>
                             <div class="d-flex gap-2">
@@ -1390,15 +1391,15 @@
     private static readonly SiteEnvironmentField[] SiteEnvironmentFields =
     [
         new("DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED", "Sensör provisioning", "İlk keşifte true yapın; sensörler merkeze aktarılır."),
-        new("DEYAS_BRIDGE_UDP_SOURCES", "UDP Sources", "Tekil Kaynak Sensör Host doluyken host ve port burada JSON önizlemesi olarak gösterilir. Birden çok kaynak kullanmak için önce tekil hostu temizleyin, ardından JSON listesini girin. Liste doluysa bridge doğrudan bu kaynakları kullanır.", "[]"),
-        new("DEYAS_BRIDGE_SENSOR_HOST", "Kaynak Sensör Host", "Tek UDP/GCF kaynağının IP veya DNS adresi. UDP Sources listesi doluyken devre dışıdır; liste boşken bridge bu host ve port değerine geri döner.", "100.118.6.94"),
-        new("DEYAS_BRIDGE_SENSOR_PORT", "Sensör Port", "Tek UDP/GCF kaynağının hedef portu. UDP Sources listesi doluyken listedeki portlar kullanılır.", "1572"),
+        new("DEYAS_BRIDGE_UDP_SOURCES", "UDP Sensör Kaynakları", "Sahadaki UDP/GCF veri sunucularını tek JSON listesinde yazın. Tek kaynak: [{\"host\":\"192.168.1.51\",\"port\":1572}]. Birden çok kaynak için listeye yeni host/port nesnesi ekleyin. UDP kullanmıyorsanız [] bırakın; both modu MQTT ile çalışmaya devam eder. Eski pakette Kaynak Sensör Host doluysa ve bu liste boşsa bridge eski host/port değerini otomatik kullanır.", "[]"),
+        new("DEYAS_BRIDGE_SENSOR_HOST", "Eski Tekil UDP Host", "Yalnız eski paketlerle geriye uyumluluk içindir; yeni kurulumlarda UDP Sensör Kaynakları kullanılır.", ""),
+        new("DEYAS_BRIDGE_SENSOR_PORT", "Eski Tekil UDP Port", "Yalnız eski paketlerle geriye uyumluluk içindir.", "1572"),
         new("DEYAS_BRIDGE_UDP_LOCAL_PORT", "UDP Local Port", "Bridge'in sabit kaynak portu; cihaz tarafı port hafızalıysa değiştirmeyin.", "58431"),
         new("DEYAS_BRIDGE_TCP_SOURCES", "TCP Sources", "3. adımda eklenen TCP/IP sensörlerinden otomatik üretilir; UDP kaynaklarıyla karıştırmayın.", "[]"),
-        new("DEYAS_BRIDGE_SOURCE_MODE", "Kaynak Modu", "udp | mqtt | tcp | both (yalnız UDP+MQTT) | all (UDP+MQTT+TCP). Varsayılan: both. Aynı cihaz iki kaynaktan aynı deviceId ile gelirse çift telemetry oluşur.", "both"),
-        new("DEYAS_BRIDGE_SOURCE_MQTT_HOST", "Kaynak MQTT Broker Host", "Ham sensör verisini yayımlayan MQTT broker adresi; Node-RED editör adresi değildir.", "100.118.6.94"),
+        new("DEYAS_BRIDGE_SOURCE_MODE", "Kaynak Modu", "Varsayılan both, yapılandırılmış UDP ve MQTT kaynaklarını birlikte destekler; boş bırakılan kaynak atlanır. udp/mqtt yalnız o protokolü, all ise yapılandırılmış UDP+MQTT+TCP kaynaklarını açar. Aynı cihaz iki kaynaktan aynı deviceId ile gelirse çift telemetry oluşur.", "both"),
+        new("DEYAS_BRIDGE_SOURCE_MQTT_HOST", "Kaynak MQTT Broker Host", "Sensör veya mevcut Node-RED'in ham veriyi yayımladığı MQTT sunucusudur; saha paketinin kendi yerel EMQX'i ve Node-RED editör URL'si değildir. MQTT kaynağı kullanmıyorsanız boş bırakın.", ""),
         new("DEYAS_BRIDGE_SOURCE_MQTT_PORT", "Kaynak MQTT Port", "Sensör kaynağı MQTT portu.", "1883"),
-        new("DEYAS_BRIDGE_SOURCE_MQTT_TOPIC", "Kaynak MQTT Topic / Abonelik Filtresi", "Bridge'in kaynak broker'da dinleyeceği MQTT adresidir; metrik adı değildir. Tek bir JSON içinde temperature ve humidity birlikte geliyorsa aynı topic'i yazın. Birden fazla topic dinlenecekse örn. shm/gumushane-baca/# filtresini kullanın; mesajların metrik adlarını içeren JSON olması gerekir.", "shm/gumushane-baca/temperature"),
+        new("DEYAS_BRIDGE_SOURCE_MQTT_TOPIC", "Kaynak MQTT Topic / Abonelik Filtresi", "Bridge'in kaynak broker'da dinleyeceği MQTT adresidir; metrik adı değildir. Tek JSON içinde temperature ve humidity birlikte geliyorsa örn. shm/gumushane-baca/environment yazın. # yalnız sensör farklı alt topic'lere yayın yapıyorsa kullanılır. MQTT kullanmıyorsanız boş bırakın.", ""),
         new("DEYAS_BRIDGE_SOURCE_MQTT_PAYLOAD_MODE", "MQTT Veri Biçimi", "waveform: samples + sampling rate içeren JSON bekler. scalar: MQTT JSON'undaki sayısal metrikleri samples:[değer], sampling_rate:1 olarak iletir.", "scalar"),
         new("DEYAS_BRIDGE_SOURCE_MQTT_SCALAR_SAMPLING_RATE", "Scalar Örnekleme Hızı", "scalar modunda oluşturulan örneğin sampling_rate değeri. Varsayılan: 1.", "1"),
         new("DEYAS_BRIDGE_SOURCE_MQTT_SCALAR_METRIC", "Tek Scalar Metrik", "Çoklu alan boşken JSON'dan okunacak tek metriktir. Stream kimliği topic'in son bölümünden oluşur; örn. shm/gumushane-baca/temperature → mqtt/temperature.", "temperature"),
@@ -1455,15 +1456,6 @@
     private bool IsTcpSourceMode => GetEnv("DEYAS_BRIDGE_SOURCE_MODE") is "tcp" or "all";
     private bool IsScalarMqttMode => GetEnv("DEYAS_BRIDGE_SOURCE_MQTT_PAYLOAD_MODE").Equals("scalar", StringComparison.OrdinalIgnoreCase);
     private bool IsSingleScalarMetricActive => !string.IsNullOrWhiteSpace(GetEnv("DEYAS_BRIDGE_SOURCE_MQTT_SCALAR_METRIC"));
-    private bool IsMultipleUdpSourcesActive
-    {
-        get
-        {
-            var value = GetEnv("DEYAS_BRIDGE_UDP_SOURCES").Trim();
-            return !string.IsNullOrWhiteSpace(value) && value != "[]";
-        }
-    }
-    private bool IsSingleUdpSourceActive => !IsMultipleUdpSourcesActive && !string.IsNullOrWhiteSpace(GetEnv("DEYAS_BRIDGE_SENSOR_HOST"));
     private bool HasTcpSensor => _newStructureSensors.Any(IsTcpSensor);
 
     private bool IsEnvironmentGroupExpanded(string key) => _expandedEnvironmentGroups.Contains(key);
@@ -1487,7 +1479,8 @@
     private bool ShouldShowEnvironmentField(string key)
     {
         if (key is "CAMERA_NORTH_RTSP_URL" or "CAMERA_ENTRY_RTSP_URL") return IsCameraPipelineSelected;
-        if (key is "DEYAS_BRIDGE_UDP_SOURCES" or "DEYAS_BRIDGE_SENSOR_HOST" or "DEYAS_BRIDGE_SENSOR_PORT" or "DEYAS_BRIDGE_UDP_LOCAL_PORT") return IsUdpSourceMode;
+        if (key is "DEYAS_BRIDGE_SENSOR_HOST" or "DEYAS_BRIDGE_SENSOR_PORT") return false;
+        if (key is "DEYAS_BRIDGE_UDP_SOURCES" or "DEYAS_BRIDGE_UDP_LOCAL_PORT") return IsUdpSourceMode;
         if (key == "DEYAS_BRIDGE_TCP_SOURCES") return IsTcpSourceMode;
         if (key.StartsWith("DEYAS_BRIDGE_SOURCE_MQTT_", StringComparison.Ordinal))
         {
@@ -1501,15 +1494,6 @@
 
     private void OnUdpSourcesChanged(ChangeEventArgs args) =>
         SetEnv("DEYAS_BRIDGE_UDP_SOURCES", args.Value?.ToString()?.Trim());
-
-    private string BuildSingleUdpSourcePreview()
-    {
-        var port = int.TryParse(GetEnv("DEYAS_BRIDGE_SENSOR_PORT"), out var parsedPort) ? parsedPort : 1572;
-        return System.Text.Json.JsonSerializer.Serialize(new[]
-        {
-            new { host = GetEnv("DEYAS_BRIDGE_SENSOR_HOST").Trim(), port }
-        });
-    }
 
     private bool IsCameraPipelineSelected => GetEnv("SAHA_ENABLED_PIPELINES")
         .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)

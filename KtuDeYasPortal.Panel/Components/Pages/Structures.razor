@@ -546,9 +546,10 @@
                                 {
                                     <div class="alert alert-primary py-2 small mb-3">
                                         <strong><code>both</code> nasıl çalışır?</strong>
-                                        UDP ve MQTT seçeneklerini kullanılabilir tutar; ancak yalnız bilgileri doldurulmuş kaynaklar başlatılır.
-                                        Sadece UDP kullanacaksanız <strong>UDP Sources</strong> listesini doldurup Kaynak MQTT Broker Host alanını boş bırakabilirsiniz.
-                                        Sadece MQTT kullanacaksanız UDP Sources değerini <code>[]</code> bırakabilirsiniz. Boş kaynak hata oluşturmaz ve diğer akışı durdurmaz.
+                                        <strong>UDP ve MQTT aynı anda kullanılabilir.</strong>
+                                        İkisini birlikte kullanmak için <strong>UDP Sources</strong> listesini ve <strong>Kaynak MQTT Broker Host / Topic</strong> alanlarını doldurun; iki kaynak eşzamanlı dinlenir.
+                                        Yalnız UDP için MQTT Host alanını boş, yalnız MQTT için UDP Sources değerini <code>[]</code> bırakabilirsiniz.
+                                        Tanımlanmayan kaynak atlanır; tanımlı diğer kaynak çalışmaya devam eder.
                                     </div>
                                 }
                                 @if (group.Key == "mqtt-source")

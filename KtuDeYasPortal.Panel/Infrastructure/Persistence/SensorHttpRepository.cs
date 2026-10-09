@@ -16,7 +16,7 @@ public class SensorHttpRepository : ISensorRepository
         Converters = { new JsonStringEnumConverter() }
     };
 
-    public SensorHttpRepository(IHttpClientFactory factory)
+    public SensorHttpRepository(KtuDeYasPortal.Panel.Infrastructure.Persistence.PanelApiClients factory)
     {
         _http = factory.CreateClient("timeseries-api");
     }

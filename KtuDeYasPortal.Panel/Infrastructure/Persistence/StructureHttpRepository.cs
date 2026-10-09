@@ -45,7 +45,7 @@ public class StructureHttpRepository : IStructureRepository
         }
     };
 
-    public StructureHttpRepository(IHttpClientFactory factory)
+    public StructureHttpRepository(KtuDeYasPortal.Panel.Infrastructure.Persistence.PanelApiClients factory)
     {
         _http = factory.CreateClient("timeseries-api");
     }
@@ -115,7 +115,9 @@ public class StructureHttpRepository : IStructureRepository
 
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)
     {
-        var resp = await _http.DeleteAsync($"api/structures/{id}", ct);
-        resp.EnsureSuccessStatusCode();
+        using var resp = await _http.DeleteAsync($"api/structures/{id}", ct);
+        if (resp.StatusCode == System.Net.HttpStatusCode.NotFound) return;
+        if (!resp.IsSuccessStatusCode)
+            throw new HttpRequestException($"Merkez API silme isteğini reddetti (HTTP {(int)resp.StatusCode}). Timeseries servis logunu kontrol edin.", null, resp.StatusCode);
     }
 }

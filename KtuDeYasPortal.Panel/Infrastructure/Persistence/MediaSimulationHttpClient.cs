@@ -12,7 +12,7 @@ public sealed class MediaSimulationHttpClient : IMediaSimulationClient
 {
     private readonly HttpClient _http;
 
-    public MediaSimulationHttpClient(IHttpClientFactory factory)
+    public MediaSimulationHttpClient(KtuDeYasPortal.Panel.Infrastructure.Persistence.PanelApiClients factory)
     {
         _http = factory.CreateClient("edge-api");
     }

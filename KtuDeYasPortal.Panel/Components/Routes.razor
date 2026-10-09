@@ -1,8 +1,11 @@
-﻿@using KtuDeYasPortal.Panel.Components.Pages
+@using Microsoft.AspNetCore.Components.Authorization
+@using KtuDeYasPortal.Panel.Components.Pages
 
 <Router AppAssembly="typeof(Program).Assembly">
     <Found Context="routeData">
-        <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
+        <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
+            <NotAuthorized><p>Bu sayfa için oturum veya yetki gerekiyor. <a href="/login">Giriş yap</a></p></NotAuthorized>
+        </AuthorizeRouteView>
         <FocusOnNavigate RouteData="routeData" Selector="h1" />
     </Found>
 </Router>

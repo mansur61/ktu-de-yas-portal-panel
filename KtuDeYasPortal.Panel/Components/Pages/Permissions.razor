@@ -1,9 +1,11 @@
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Policy = "platform.admin")]
 @page "/permissions"
 @rendermode InteractiveServer
 @using System.Net.Http.Json
 @using System.Text.Json
 @using DeYas.Contracts.Authorization
-@inject IHttpClientFactory HttpFactory
+@inject KtuDeYasPortal.Panel.Infrastructure.Persistence.PanelApiClients HttpFactory
 
 <PageTitle>Üyeler ve Yetkiler</PageTitle>
 

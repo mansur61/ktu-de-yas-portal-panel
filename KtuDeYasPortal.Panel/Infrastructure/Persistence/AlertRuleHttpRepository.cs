@@ -17,7 +17,7 @@ public class AlertRuleHttpRepository
         Converters = { new JsonStringEnumConverter() }
     };
 
-    public AlertRuleHttpRepository(IHttpClientFactory factory)
+    public AlertRuleHttpRepository(KtuDeYasPortal.Panel.Infrastructure.Persistence.PanelApiClients factory)
     {
         _http = factory.CreateClient("alert-config-api");
     }

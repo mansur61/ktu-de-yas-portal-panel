@@ -1,3 +1,7 @@
+@using DeYas.Contracts.Authorization
+@inject PanelAccess Access
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Policy = "media.access")]
 @page "/media-dashboard"
 @rendermode InteractiveServer
 @inject IMediaArchiveClient MediaArchive
@@ -8,7 +12,7 @@
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div>
         <h4 class="mb-0 fw-bold">Medya Arşivi</h4>
-        <small class="text-muted">Sahadan başarıyla merkeze aktarılan snapshot ve olay klipleri</small>
+        <small class="text-muted">Sahadan merkeze aktarılan kamera fotoğrafları ve klipleri</small>
     </div>
     <button class="btn btn-outline-primary" @onclick="LoadAsync" disabled="@_loading">
         <span class="bi bi-arrow-clockwise me-1"></span> Yenile
@@ -36,6 +40,8 @@ else { <div class="row g-3">
                 <div class="small text-muted">@asset.LocationId · @asset.Status</div>
                 <div class="small text-muted mt-2">@FormatSize(asset.FileSizeBytes)@(asset.DurationSeconds is not null ? $" · {asset.DurationSeconds} sn" : "")</div>
             </div>
+            @if (asset.IsProtected) { <span class="badge text-bg-warning mx-3 mb-2">Araştırma için korunuyor</span> }
+            @if (CanProtect(asset)) { <button class="btn btn-sm btn-outline-secondary mx-3 mb-2" @onclick="() => ToggleProtectionAsync(asset)">@(asset.IsProtected ? "Korumayı kaldır" : "Araştırma için koru")</button> }
             <div class="card-footer bg-white border-0 pt-0"><button class="btn btn-sm btn-outline-primary w-100" @onclick="() => OpenAsync(asset)"><span class="bi bi-play-circle me-1"></span>Görüntüle</button></div>
         </article></div>
     }
@@ -51,14 +57,17 @@ else { <div class="row g-3">
 
 @code {
     private List<Structure> _structures = [];
+    private PanelAccessSnapshot _manageAccess = new(false, []);
     private List<MediaAsset> _assets = [];
     private string _structureId = "", _deviceId = "";
     private DateTime? _from = DateTime.Now.AddHours(-24), _to = DateTime.Now;
     private bool _loading, _previewLoading; private string? _error, _previewUrl; private MediaAsset? _selected;
     private IEnumerable<StructureSensor> Cameras => _structures.Where(s => string.IsNullOrWhiteSpace(_structureId) || s.Id.ToString() == _structureId).SelectMany(s => s.Sensors).Where(s => s.SensorType.Equals("Camera", StringComparison.OrdinalIgnoreCase));
-    protected override async Task OnInitializedAsync() { _structures = await StructureUC.GetAllAsync(); foreach (var s in _structures) { var detail = await StructureUC.GetByIdAsync(s.Id); if (detail is not null) s.Sensors = detail.Sensors; } await LoadAsync(); }
+    protected override async Task OnInitializedAsync() { var allowed = await Access.GetAsync(BarajPermissions.Media, PortalMenuPermissions.Media); _manageAccess = await Access.GetAsync(BarajPermissions.Manage, PortalMenuPermissions.Media); _structures = (await StructureUC.GetAllAsync()).Where(s => allowed.IsAdmin || allowed.StructureIds.Contains(s.Id)).ToList(); foreach (var s in _structures) { var detail = await StructureUC.GetByIdAsync(s.Id); if (detail is not null) s.Sensors = detail.Sensors; } await LoadAsync(); }
     private async Task LoadAsync() { _loading = true; _error = null; try { _assets = (await MediaArchive.ListAsync(_structureId, _deviceId, _from?.ToUniversalTime(), _to?.ToUniversalTime())).ToList(); } catch (Exception ex) { _error = $"Medya arşivi okunamadı: {ex.Message}"; } finally { _loading = false; } }
     private async Task OpenAsync(MediaAsset asset) { _selected = asset; _previewUrl = null; _previewLoading = true; try { _previewUrl = await MediaArchive.GetPresignedUrlAsync(asset.Bucket, asset.ObjectKey); } finally { _previewLoading = false; } }
+    private bool CanProtect(MediaAsset asset) => _manageAccess.IsAdmin || _structures.Any(s => _manageAccess.StructureIds.Contains(s.Id) && s.Sensors.Any(c => c.DeviceId == asset.DeviceId));
+    private async Task ToggleProtectionAsync(MediaAsset asset) { try { await MediaArchive.SetProtectionAsync(asset, !asset.IsProtected); await LoadAsync(); } catch { _error = "Kayıt koruması değiştirilemedi; yapı yönetim yetkisi gerekir."; } }
     private void Close() { _selected = null; _previewUrl = null; }
     private static string FormatSize(long? value) => value is null ? "Boyut bilinmiyor" : value < 1024 * 1024 ? $"{value.Value / 1024d:0} KB" : $"{value.Value / 1024d / 1024d:0.0} MB";
 }

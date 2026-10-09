@@ -1,8 +1,10 @@
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Policy = "platform.admin")]
 @page "/menu-permissions"
 @rendermode InteractiveServer
 @using System.Net.Http.Json
 @using DeYas.Contracts.Authorization
-@inject IHttpClientFactory HttpFactory
+@inject KtuDeYasPortal.Panel.Infrastructure.Persistence.PanelApiClients HttpFactory
 @inject ILogger<MenuPermissions> Logger
 
 <PageTitle>Menü Yetkileri</PageTitle>

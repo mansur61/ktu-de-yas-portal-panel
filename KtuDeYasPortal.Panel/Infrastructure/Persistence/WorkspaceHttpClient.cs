@@ -107,7 +107,7 @@ public sealed class WorkspaceHttpClient : IWorkspaceClient
         DefaultIgnoreCondition      = JsonIgnoreCondition.WhenWritingNull
     };
 
-    public WorkspaceHttpClient(IHttpClientFactory factory)
+    public WorkspaceHttpClient(KtuDeYasPortal.Panel.Infrastructure.Persistence.PanelApiClients factory)
     {
         // "timeseries-api" client — timeseries-service base URL
         _http = factory.CreateClient("timeseries-api");
@@ -195,7 +195,7 @@ public sealed class EdgeWorkspaceClient : IEdgeWorkspaceClient
         DefaultIgnoreCondition      = JsonIgnoreCondition.WhenWritingNull
     };
 
-    public EdgeWorkspaceClient(IHttpClientFactory factory)
+    public EdgeWorkspaceClient(KtuDeYasPortal.Panel.Infrastructure.Persistence.PanelApiClients factory)
     {
         _http = factory.CreateClient("edge-api");
     }

@@ -1,3 +1,4 @@
+using DeYas.Contracts.Authorization;
 using KtuDeYasPortal.Panel.Domain.Entities;
 using KtuDeYasPortal.Panel.Domain.Interfaces;
 using KtuDeYasPortal.Panel.Infrastructure.Persistence;
@@ -6,6 +7,7 @@ namespace KtuDeYasPortal.Panel.Application.UseCases;
 
 public class WorkspaceUseCases
 {
+    private readonly PanelAccess _access;
     private readonly IEdgeWorkspaceClient  _edgeWorkspace;
     private readonly IWorkspaceClient      _workspaceData;   // timeseries-api (workspace_data)
     private readonly IStructureRepository  _structures;
@@ -13,16 +15,20 @@ public class WorkspaceUseCases
     public WorkspaceUseCases(
         IEdgeWorkspaceClient edgeWorkspace,
         IWorkspaceClient workspaceData,
-        IStructureRepository structures)
+        IStructureRepository structures, PanelAccess access)
     {
+        _access = access;
         _edgeWorkspace = edgeWorkspace;
         _workspaceData = workspaceData;
         _structures    = structures;
     }
 
     // ── Yapı listesi (dropdown için) ─────────────────────────────────────────
-    public Task<List<Structure>> GetAllStructuresAsync(CancellationToken ct = default) =>
-        _structures.GetAllAsync(ct);
+    public async Task<List<Structure>> GetAllStructuresAsync(CancellationToken ct = default)
+    {
+        var access = await _access.GetAsync(BarajPermissions.Workspace, PortalMenuPermissions.Workspace, ct);
+        return (await _structures.GetAllAsync(ct)).Where(s => access.IsAdmin || access.StructureIds.Contains(s.Id)).ToList();
+    }
 
     // ── Çalışan workspace'leri listele ───────────────────────────────────────
     public Task<List<WorkspaceInfo>> ListWorkspacesAsync(CancellationToken ct = default) =>

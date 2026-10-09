@@ -1,5 +1,6 @@
 @page "/structures"
 @rendermode InteractiveServer
+@using KtuDeYasPortal.Panel.Components.Shared
 @using DeYas.Contracts.Sensors
 @using DeYas.Contracts.Simulation
 @using DeYas.Contracts.Integration
@@ -609,14 +610,7 @@
                                         continue;
                                     <div class="col-md-6">
                                         <label class="form-label fw-semibold">@field.Label</label>
-                                        @if (field.Key is "CAMERA_NORTH_RTSP_URL" or "CAMERA_ENTRY_RTSP_URL")
-                                        {
-                                            if (IsCameraPipelineSelected)
-                                            {
-                                                <input class="form-control" value="@GetEnv(field.Key)" @onchange="e => SetEnv(field.Key, e.Value?.ToString())" placeholder="@field.Placeholder" />
-                                            }
-                                        }
-                                        else if (field.Key == "DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED")
+                                        @if (field.Key == "DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED")
                                         {
                                             <input class="form-control bg-light" value="true - yalnız ilk saha keşfi için" readonly />
                                             SetEnv(field.Key, "true");
@@ -680,9 +674,7 @@
                                 @if (IsCameraPipelineSelected)
                                 {
                                 <div class="col-12">
-                                    <label class="form-label fw-semibold">Kamera medya tanımı (<code>media-config.json</code>)</label>
-                                    <textarea class="form-control font-monospace" rows="10" @bind="_mediaConfigJson"></textarea>
-                                    <div class="form-text">Kamera yalnız <code>SAHA_ENABLED_PIPELINES</code> içinde <code>kamera</code> seçiliyken çalışır. RTSP URL/parolalarını buraya değil, ilgili <code>CAMERA_*</code> ortam değişkenlerine yazın.</div>
+                                    <CameraSettingsEditor Settings="_cameraSettings" />
                                 </div>
                                 }
                             </div>
@@ -804,6 +796,7 @@
                                         <div class="col-md-6"><label class="form-label small">Harici kaynak broker kullanıcı adı <span class="text-muted">(isteğe bağlı)</span></label><input class="form-control form-control-sm" @bind='_deploymentSecrets["DEYAS_BRIDGE_SOURCE_MQTT_USERNAME"]' autocomplete="off" /></div>
                                         <div class="col-md-6"><label class="form-label small">Harici kaynak broker şifresi <span class="text-muted">(isteğe bağlı)</span></label><input type="password" class="form-control form-control-sm" @bind='_deploymentSecrets["DEYAS_BRIDGE_SOURCE_MQTT_PASSWORD"]' autocomplete="new-password" /></div>
                                     }
+                                    <div class="col-12"><label class="form-label small">Ortak DEYAS JWT imzalama anahtarı</label><input type="password" class="form-control form-control-sm" @bind='_deploymentSecrets["DEYAS_JWT_SIGNING_KEY"]' autocomplete="new-password" /><div class="form-text">Merkezde kullanılan aynı anahtarı girin (en az 32 karakter). Yalnız ZIP içindeki .env dosyasına eklenir; merkez yapı kaydında saklanmaz. Boşsa sahada doldurun.</div></div>
                                     <div class="col-md-6"><label class="form-label small">Merkez EMQX MQTT kullanıcı adı <span class="text-muted">(standart kurulumda boş)</span></label><input class="form-control form-control-sm" @bind='_deploymentSecrets["CENTRAL_MQTT_USERNAME"]' autocomplete="off" /></div>
                                     <div class="col-md-6"><label class="form-label small">Merkez EMQX MQTT şifresi <span class="text-muted">(standart kurulumda boş)</span></label><input type="password" class="form-control form-control-sm" @bind='_deploymentSecrets["CENTRAL_MQTT_PASSWORD"]' autocomplete="new-password" /></div>
                                 </div>
@@ -1154,6 +1147,10 @@
                     <label class="form-label">Saha .env JSON</label>
                     <textarea class="form-control font-monospace" rows="5" @bind="_editSiteEnvironmentJson"></textarea>
                 </div>
+                @if (EditCameraPipelineSelected)
+                {
+                    <div class="col-12"><CameraSettingsEditor Settings="_editCameraSettings" /></div>
+                }
                 <div class="col-md-4">
                     <label class="form-label">İl</label>
                     <select class="form-select" value="@_editProvince" @onchange="OnEditProvinceChanged">
@@ -1262,7 +1259,11 @@
             <button style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer" @onclick="() => _deletingId = null">&times;</button>
         </div>
         <div class="sensor-add-popup-body">
-            <p class="mb-3">Bu yapı ve tüm sensör bağlantıları kalıcı olarak silinecek. Devam etmek istiyor musunuz?</p>
+            <p class="mb-3">Bu yapı ve bu yapıya ait sensör bağlantıları silinecek. Sensör envanteri korunacak. Devam etmek istiyor musunuz?</p>
+            @if (!string.IsNullOrWhiteSpace(_deleteError))
+            {
+                <div class="alert alert-danger" role="alert">@_deleteError</div>
+            }
             <div class="d-flex gap-2">
                 <button class="btn btn-danger" @onclick="DoDeleteAsync" disabled="@_isSaving">
                     @if (_isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
@@ -1376,7 +1377,8 @@
     private string          _setupTab = "edge";
     private string          _setupName = "";
     private string          _setupStructureType = "Dam";
-    private string          _mediaConfigJson = DefaultMediaConfigJson;
+    private CameraDeploymentSettings _cameraSettings = new();
+    private CameraDeploymentSettings _editCameraSettings = new();
     private bool             _samePcDeployment;
     private string           _samePcProjectName = "saha-a";
     private int              _samePcEdgePort = 5080;
@@ -1421,12 +1423,12 @@
         new("SAHA_PIPELINE_RUNTIME_ENABLED", "Pipeline Runtime", "Saha pipeline başlangıç çalışma durumu.", "true"),
         new("SAHA_MEDIA_ENABLED", "Media Pipeline", "Kamera/video pipeline etkinliği.", "true"),
         new("LOCAL_TIMESERIES_API_BASE_URL", "Yerel Timeseries API", "Saha içi servis; Docker servis adı kullanılmalıdır.", "http://timeseries-service:5000"),
+        new("CENTRAL_AUTH_API_BASE_URL", "Merkez Auth API", "Merkez uygulama bilgisayarında çalışan auth-service adresi; saha servisleri yapı yetkilerini buradan doğrular.", "http://100.116.23.112:5100"),
         new("CENTRAL_TIMESERIES_API_BASE_URL", "Merkez Timeseries API", "Commissioning ve merkezi envanter adresi. Tailscale yokken edge-layer retry eder; yerel veri akışı etkilenmez.", "http://100.116.23.112:5000"),
         new("CENTRAL_MQTT_HOST", "Merkez MQTT Host", "Yalnız merkezi Node-RED izleme/iletim için kullanılan EMQX adresi; paket merkezi sensor_data tablosuna ikinci kayıt yazmaz.", "100.116.23.112"),
         new("CENTRAL_MQTT_PORT", "Merkez MQTT Port", "Merkez EMQX portu.", "1883"),
         new("CENTRAL_MQTT_USE_TLS", "Merkez MQTT TLS", "Merkez MQTT TLS kullanımı.", "false"),
-        new("CAMERA_NORTH_RTSP_URL", "Kuzey Kamera RTSP URL", "Kamera pipeline'ı kullanılıyorsa media-config.json içindeki CAMERA_NORTH_RTSP_URL değişkeninin değeri."),
-        new("CAMERA_ENTRY_RTSP_URL", "Giriş Kamera RTSP URL", "Kamera pipeline'ı kullanılıyorsa media-config.json içindeki CAMERA_ENTRY_RTSP_URL değişkeninin değeri.")
+
     ];
     private List<string>  _newDistricts   = new();
     private List<Sensor>  _newStructureSensors = new(); // wizard adım 3'te eklenenler
@@ -1436,7 +1438,8 @@
         ["DEYAS_BRIDGE_SOURCE_MQTT_USERNAME"] = "",
         ["DEYAS_BRIDGE_SOURCE_MQTT_PASSWORD"] = "",
         ["CENTRAL_MQTT_USERNAME"] = "",
-        ["CENTRAL_MQTT_PASSWORD"] = ""
+        ["CENTRAL_MQTT_PASSWORD"] = "",
+        ["DEYAS_JWT_SIGNING_KEY"] = ""
     };
     private readonly Dictionary<string, string> _localDeploymentSecrets = new(StringComparer.OrdinalIgnoreCase);
 
@@ -1447,8 +1450,7 @@
         new("mqtt-source", "Kaynak MQTT"),
         new("bridge", "Saha Bridge: Sensör ve Yerel MQTT Bağlantısı", "Yerel MQTT, saha paketinin kendi içinde kurulan MQTT hizmetidir. Saha Bridge ise sensörler ile bu yerel MQTT arasında sahada çalışan servistir; sensör verisini alır, uygun formata dönüştürür ve ilgili sensör/device kimliğiyle yerel MQTT'ye iletir."),
         new("pipeline", "Saha Pipeline'ları"),
-        new("central", "Merkez Bağlantısı"),
-        new("camera", "Kamera Bağlantıları")
+        new("central", "Merkez Bağlantısı")
     ];
     private readonly HashSet<string> _expandedEnvironmentGroups = new(StringComparer.OrdinalIgnoreCase) { "source" };
 
@@ -1472,14 +1474,12 @@
         "DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED" or "DEYAS_BRIDGE_UDP_SOURCES" or "DEYAS_BRIDGE_SENSOR_HOST" or "DEYAS_BRIDGE_SENSOR_PORT" or "DEYAS_BRIDGE_UDP_LOCAL_PORT" or "DEYAS_BRIDGE_TCP_SOURCES" or "DEYAS_BRIDGE_SOURCE_MODE" => "source",
         var value when value.StartsWith("DEYAS_BRIDGE_SOURCE_MQTT_", StringComparison.Ordinal) => "mqtt-source",
         "SAHA_ENABLED_PIPELINES" or "SAHA_PIPELINE_RUNTIME_ENABLED" or "SAHA_MEDIA_ENABLED" => "pipeline",
-        "CAMERA_NORTH_RTSP_URL" or "CAMERA_ENTRY_RTSP_URL" => "camera",
         var value when value.StartsWith("CENTRAL_", StringComparison.Ordinal) || value == "LOCAL_TIMESERIES_API_BASE_URL" || value == "EDGE_FORWARDING_ENABLED" || value == "EDGE_LOCAL_TIMESERIES_PRODUCER" => "central",
         _ => "bridge"
     };
 
     private bool ShouldShowEnvironmentField(string key)
     {
-        if (key is "CAMERA_NORTH_RTSP_URL" or "CAMERA_ENTRY_RTSP_URL") return IsCameraPipelineSelected;
         if (key is "DEYAS_BRIDGE_SENSOR_HOST" or "DEYAS_BRIDGE_SENSOR_PORT") return false;
         if (key is "DEYAS_BRIDGE_UDP_SOURCES" or "DEYAS_BRIDGE_UDP_LOCAL_PORT") return IsUdpSourceMode;
         if (key == "DEYAS_BRIDGE_TCP_SOURCES") return IsTcpSourceMode;
@@ -1499,6 +1499,20 @@
     private bool IsCameraPipelineSelected => GetEnv("SAHA_ENABLED_PIPELINES")
         .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
         .Any(pipeline => pipeline.Equals("kamera", StringComparison.OrdinalIgnoreCase) || pipeline.Equals("all", StringComparison.OrdinalIgnoreCase));
+
+    private bool EditCameraPipelineSelected
+    {
+        get
+        {
+            try
+            {
+                var environment = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string?>>(_editSiteEnvironmentJson);
+                return environment?.GetValueOrDefault("SAHA_ENABLED_PIPELINES")?.Split(',', StringSplitOptions.TrimEntries)
+                    .Any(value => value is "kamera" or "all") == true;
+            }
+            catch (System.Text.Json.JsonException) { return false; }
+        }
+    }
 
     private sealed record DiscoveryMetadata(string? SystemId, string? StreamId);
 
@@ -2167,7 +2181,7 @@
         _setupTab               = "edge";
         _setupName              = "";
         _setupStructureType     = "Dam";
-        _mediaConfigJson        = DefaultMediaConfigJson;
+        _cameraSettings         = new();
         _samePcDeployment       = false;
         _samePcProjectName      = "saha-a";
         _samePcEdgePort         = 5080;
@@ -2317,8 +2331,11 @@
     {
         if (_createdStructureId == Guid.Empty || _setupSaving) return;
         _setupSaving = true;
+        _saveError = null;
         try
         {
+            _cameraSettings.ToJson();
+            _cameraSettings.LinuxUsbDevices();
             var structure = await StructureUC.GetByIdAsync(_createdStructureId);
             if (structure is null) return;
 
@@ -2387,6 +2404,9 @@
     {
         if (_createdStructureId == Guid.Empty) return;
 
+        _saveError = null;
+        try { _cameraSettings.ToJson(); _cameraSettings.LinuxUsbDevices(); }
+        catch (Exception ex) { _saveError = ex.Message; return; }
         var structure = await StructureUC.GetByIdAsync(_createdStructureId);
         if (structure is null) return;
 
@@ -2407,6 +2427,10 @@
             AddPackageEntry(archive, "edge-config.json", edgeConfig);
             AddPackageEntry(archive, ".env", environment);
             AddPackageEntry(archive, "media-config.json", NormalizeMediaConfigJson());
+            foreach (var camera in _cameraSettings.Cameras.Where(camera => camera.SourceType == "mqtt" && !string.IsNullOrWhiteSpace(camera.Device)))
+                AddPackageEntry(archive, $"publishers/{camera.Id}/media-config.json", _cameraSettings.PublisherJson(camera, _createdStructureId));
+            if (IsCameraPipelineSelected)
+                AddPackageEntry(archive, "KAMERA_KURULUM.txt", BuildCameraGuide());
             if (_samePcDeployment)
             {
                 AddPackageEntry(archive, "AYNI_PC_KURULUM.md", BuildSamePcDeploymentGuide());
@@ -2426,6 +2450,15 @@
         _simulationStatusMessage = "Saha deployment paketi indirildi. Manuel olarak saha makinesine kurabilirsiniz.";
     }
 
+    private string BuildCameraGuide() =>
+        "Kamera ayarları panel seçimlerinden üretildi. RTSP adresleri .env içindedir; boş değerleri sahada doldurun.\n" +
+        "Linux USB cihazları ana compose dosyasında kamera servisine eklendi; ek YAML gerekmez.\n" +
+        "Windows/macOS USB için bridge'i kameranın bağlı olduğu işletim sisteminde çalıştırın.\n" +
+        "Uzaktan MQTT: publishers/<kamera>/media-config.json dosyasını USB bilgisayarına taşıyın. Mevcut saha_media_bridge.py dosyasını kullanın; ayrı agent projesi yoktur.\n" +
+        $"STRUCTURE_ID={_createdStructureId} ayarlayın; MQTT_HOST saha bilgisayarının Tailscale IP'si, MQTT_PORT saha EMQX portu, MQTT_USERNAME/PASSWORD broker hesabıdır. SAHA_ENABLED_PIPELINES=kamera ve SAHA_MEDIA_ENABLED=true olmalıdır.\n" +
+        "SAHA_MEDIA_CONFIG_PATH yayıncı dosyasını göstermelidir. Çalıştırma: python saha_media_bridge.py --publish-to-saha\n" +
+        "Manuel veya olay kaydında komut/alarm mesajı yayıncının bağlandığı saha broker'ına gitmelidir. Merkez medya hattı otomatik çalışır.\n";
+
     private static void AddPackageEntry(System.IO.Compression.ZipArchive archive, string name, string content)
     {
         var entry = archive.CreateEntry(name, System.IO.Compression.CompressionLevel.Fastest);
@@ -2433,10 +2466,16 @@
         writer.Write(content);
     }
 
-    private static void AddDeploymentTemplateEntry(System.IO.Compression.ZipArchive archive, string name)
+    private void AddDeploymentTemplateEntry(System.IO.Compression.ZipArchive archive, string name)
     {
         var path = Path.Combine(AppContext.BaseDirectory, "DeploymentTemplates", "saha-deployment", name);
-        if (File.Exists(path)) AddPackageEntry(archive, name, File.ReadAllText(path));
+        if (File.Exists(path))
+        {
+            var content = File.ReadAllText(path);
+            if (name is "docker-compose.yml" or "docker-compose.structure.yml")
+                content = _cameraSettings.ApplyUsbDevices(content);
+            AddPackageEntry(archive, name, content);
+        }
     }
 
     private string BuildSamePcDeploymentGuide() => string.Join(Environment.NewLine,
@@ -3007,6 +3046,11 @@
             : _editingStructure.EdgeApiUrl;
         _editEdgeConfigJson = _editingStructure.EdgeConfigJson ?? "";
         _editSiteEnvironmentJson = StripDeploymentSecrets(_editingStructure.SiteEnvironmentJson ?? "");
+        var savedEnvironment = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string?>>(
+            string.IsNullOrWhiteSpace(_editSiteEnvironmentJson) ? "{}" : _editSiteEnvironmentJson)!;
+        savedEnvironment.Remove(CameraDeploymentSettings.StorageKey, out var savedCameras);
+        _editCameraSettings = CameraDeploymentSettings.FromJson(savedCameras);
+        _editSiteEnvironmentJson = System.Text.Json.JsonSerializer.Serialize(savedEnvironment, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
         _editDistricts   = _districtMap.TryGetValue(_editProvince, out var d) ? d : new();
         _showEditPopup   = true;
     }
@@ -3035,13 +3079,17 @@
             _editingStructure.NodeRedUrl   = string.IsNullOrWhiteSpace(_editNodeRedUrl) ? null : _editNodeRedUrl.Trim();
             _editingStructure.EdgeApiUrl   = string.IsNullOrWhiteSpace(_editEdgeApiUrl) ? null : _editEdgeApiUrl.Trim();
             _editingStructure.EdgeConfigJson = NormalizeJson(_editEdgeConfigJson);
-            _editingStructure.SiteEnvironmentJson = NormalizeJson(StripDeploymentSecrets(_editSiteEnvironmentJson));
+            var environment = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string?>>(
+                string.IsNullOrWhiteSpace(_editSiteEnvironmentJson) ? "{}" : StripDeploymentSecrets(_editSiteEnvironmentJson))!;
+            environment[CameraDeploymentSettings.StorageKey] = _editCameraSettings.ToJson();
+            _editingStructure.SiteEnvironmentJson = System.Text.Json.JsonSerializer.Serialize(environment);
 
             var ids = _editingStructure.Sensors?.Select(s => s.SensorId).ToList() ?? new();
             await StructureUC.UpdateAsync(_editingStructure.Id, _editingStructure, ids);
             _showEditPopup = false;
             await LoadStructuresAsync();
         }
+        catch (Exception ex) { _saveError = $"Ayarlar kaydedilemedi: {ex.Message}"; }
         finally { _isSaving = false; }
     }
 
@@ -3065,6 +3113,7 @@
             values.Remove("DEYAS_BRIDGE_SOURCE_MQTT_PASSWORD");
             values.Remove("CENTRAL_MQTT_USERNAME");
             values.Remove("CENTRAL_MQTT_PASSWORD");
+            values.Remove("DEYAS_JWT_SIGNING_KEY");
             return System.Text.Json.JsonSerializer.Serialize(values, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
         }
         catch (System.Text.Json.JsonException) { return value; }
@@ -3101,6 +3150,7 @@
                     var values = new Dictionary<string, string?>(_siteEnvironment)
                     {
                         ["STRUCTURE_ID"] = _createdStructureId == Guid.Empty ? null : _createdStructureId.ToString(),
+                        [CameraDeploymentSettings.StorageKey] = _cameraSettings.ToJson(),
                         ["STRUCTURE_TYPE"] = _setupStructureType,
                         ["STRUCTURE_NAME"] = _setupName.Trim(),
                         ["STRUCTURE_SLUG"] = ToStructureSlug(_setupName),
@@ -3129,6 +3179,8 @@
                     foreach (var field in SiteEnvironmentFields)
                         values[field.Key] = field.Key == "DEYAS_BRIDGE_TCP_SOURCES" ? BuildTcpSourcesJson() : GetEnv(field.Key);
 
+                    foreach (var camera in _cameraSettings.Cameras.Where(camera => camera.SourceType == "rtsp"))
+                        values[camera.SourceEnvironment] = "'" + camera.SourceValue.Replace("'", "\\'") + "'";
                     foreach (var (key, value) in _deploymentSecrets)
                         values[key] = value;
                     foreach (var (key, value) in _localDeploymentSecrets)
@@ -3173,11 +3225,7 @@
                     Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(24))
                         .Replace('+', '-').Replace('/', '_').TrimEnd('=');
 
-                private string NormalizeMediaConfigJson()
-                {
-                    try { return NormalizeJson(_mediaConfigJson) ?? DefaultMediaConfigJson; }
-                    catch { return DefaultMediaConfigJson; }
-                }
+                private string NormalizeMediaConfigJson() => _cameraSettings.ToJson();
 
                 private string BuildTcpSourcesJson() => System.Text.Json.JsonSerializer.Serialize(
                     _newStructureSensors
@@ -3195,19 +3243,6 @@
 
                 private static bool IsTcpSensor(Sensor sensor) => sensor.ProtocolType.Contains("tcp", StringComparison.OrdinalIgnoreCase)
                     || sensor.ProtocolType.Contains("modbus", StringComparison.OrdinalIgnoreCase);
-
-        private const string DefaultMediaConfigJson = """
-{
-  "cameras": {
-    "kuzey-kapi": {
-      "rtspUrlEnv": "CAMERA_NORTH_RTSP_URL",
-      "eventTopic": "alarm/saha/kuzey-kapi",
-      "snapshotEnabled": true,
-      "clipSeconds": 20
-    }
-  }
-}
-""";
 
         private const string EdgeConfigTemplate = """
 {
@@ -3230,11 +3265,13 @@
 
 
     // ── Silme ─────────────────────────────────────────────────────────────────
-    private void ConfirmDelete(Guid id) => _deletingId = id;
+    private string? _deleteError;
+    private void ConfirmDelete(Guid id) { _deleteError = null; _deletingId = id; }
 
     private async Task DoDeleteAsync()
     {
-        if (_deletingId is null) return;
+        if (_deletingId is null || _isSaving) return;
+        _deleteError = null;
         _isSaving = true;
         try
         {
@@ -3242,6 +3279,10 @@
             _deletingId       = null;
             _editingStructure = null;
             await LoadStructuresAsync();
+        }
+        catch (Exception ex)
+        {
+            _deleteError = $"Yapı silinemedi. {ex.Message}";
         }
         finally { _isSaving = false; }
     }

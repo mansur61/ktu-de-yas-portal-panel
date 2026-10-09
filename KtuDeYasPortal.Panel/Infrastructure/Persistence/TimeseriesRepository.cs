@@ -9,7 +9,7 @@ public class TimeseriesRepository : ITimeseriesRepository
     private readonly HttpClient _http;
     private static readonly JsonSerializerOptions _json = new() { PropertyNameCaseInsensitive = true };
 
-    public TimeseriesRepository(IHttpClientFactory factory)
+    public TimeseriesRepository(KtuDeYasPortal.Panel.Infrastructure.Persistence.PanelApiClients factory)
     {
         _http = factory.CreateClient("timeseries-api");
     }

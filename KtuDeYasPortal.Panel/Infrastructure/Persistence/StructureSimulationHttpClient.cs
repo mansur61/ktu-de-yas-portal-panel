@@ -34,9 +34,9 @@ public sealed class EdgeDeviceLifecycleState
 
 public sealed class StructureSimulationHttpClient : IStructureSimulationClient
 {
-    private readonly IHttpClientFactory _factory;
+    private readonly KtuDeYasPortal.Panel.Infrastructure.Persistence.PanelApiClients _factory;
 
-    public StructureSimulationHttpClient(IHttpClientFactory factory) => _factory = factory;
+    public StructureSimulationHttpClient(KtuDeYasPortal.Panel.Infrastructure.Persistence.PanelApiClients factory) => _factory = factory;
 
     public async Task<EdgeLifecycleState> GetStateAsync(string edgeApiUrl, Guid structureId, CancellationToken ct = default)
     {

@@ -1,104 +1,24 @@
 @page "/login"
-@rendermode InteractiveServer
-@using System.Net.Http.Json
-@inject IHttpClientFactory HttpFactory
-@inject NavigationManager Nav
+@using Microsoft.AspNetCore.Components.Forms
 
 <PageTitle>DSİ Panel Girişi</PageTitle>
-
-<div class="login-wrapper">
-    <div class="login-card">
-        <div class="login-header">
-            <span class="bi bi-shield-lock-fill login-icon"></span>
-            <h4>DSİ Baraj İzleme</h4>
-            <p class="text-muted">Panel kullanıcı erişimi</p>
-        </div>
-        <div class="login-body">
-            <div class="btn-group w-100 mb-4" role="group">
-                <button class="btn @(!_registerMode ? "btn-primary" : "btn-outline-primary")" @onclick="() => _registerMode = false">Giriş Yap</button>
-                <button class="btn @(_registerMode ? "btn-primary" : "btn-outline-primary")" @onclick="() => _registerMode = true">Kayıt Ol</button>
-            </div>
-
-            <div class="mb-3">
-                <label class="form-label fw-semibold">Kullanıcı Adı</label>
-                <input type="text" class="form-control" @bind="_userName" placeholder="kullanici.adi" autocomplete="username" />
-            </div>
-            <div class="mb-3">
-                <label class="form-label fw-semibold">Şifre</label>
-                <input type="password" class="form-control" @bind="_password" placeholder="En az 8 karakter" autocomplete="@( _registerMode ? "new-password" : "current-password")" />
-            </div>
-            @if (_registerMode)
-            {
-                <div class="mb-3">
-                    <label class="form-label fw-semibold">Kurum</label>
-                    <input type="text" class="form-control" @bind="_organizationName" placeholder="DSİ Bölge Müdürlüğü" />
-                </div>
-            }
-
-            @if (!string.IsNullOrWhiteSpace(_error))
-            {
-                <div class="alert alert-danger py-2 small">@_error</div>
-            }
-
-            <button class="btn btn-primary w-100 py-2 fw-semibold" @onclick="SubmitAsync" disabled="@_busy">
-                @if (_busy) { <span class="spinner-border spinner-border-sm me-2"></span> }
-                <span class="bi bi-box-arrow-in-right me-2"></span>@(_registerMode ? "Kayıt Ol" : "Giriş Yap")
-            </button>
-        </div>
+<div class="login-wrapper"><div class="login-card">
+    <div class="login-header"><span class="bi bi-shield-lock-fill login-icon"></span><h4>DSİ Baraj İzleme</h4><p class="text-muted">Panel kullanıcı erişimi</p></div>
+    <div class="login-body">
+        <div class="btn-group w-100 mb-4"><a class="btn @(!RegisterMode ? "btn-primary" : "btn-outline-primary")" href="/login">Giriş Yap</a><a class="btn @(RegisterMode ? "btn-primary" : "btn-outline-primary")" href="/login?register=true">Kayıt Ol</a></div>
+        @if (Error is not null) { <div class="alert alert-warning">@(Error == "token" ? "Kimlik servisinde JWT anahtarı ve token üretimi yapılandırılmalıdır." : Error == "register" ? "Kayıt tamamlanamadı. Kullanıcı adını ve en az 8 karakterli şifreyi kontrol edin." : "Kullanıcı adı veya şifre hatalı.")</div> }
+        @if (Registered) { <div class="alert alert-success">Kayıt tamamlandı. Giriş yapabilirsiniz; yapı yetkileriniz yönetici tarafından verilir.</div> }
+        <form method="post" action="@(RegisterMode ? "/session/register" : "/session/login")">
+            <AntiforgeryToken />
+            <label class="form-label fw-semibold">Kullanıcı adı</label><input name="username" class="form-control mb-3" autocomplete="username" required />
+            <label class="form-label fw-semibold">Şifre</label><input name="password" type="password" class="form-control mb-3" autocomplete="@(RegisterMode ? "new-password" : "current-password")" required />
+            @if (RegisterMode) { <label class="form-label">Kurum</label><input name="organization" class="form-control mb-3" /> }
+            <button class="btn btn-primary w-100 py-2" type="submit">@(RegisterMode ? "Kayıt Ol" : "Giriş Yap")</button>
+        </form>
     </div>
-</div>
-
+</div></div>
 @code {
-    private string _userName = string.Empty;
-    private string _password = string.Empty;
-    private string? _organizationName;
-    private bool _registerMode;
-    private bool _busy;
-    private string? _error;
-
-    private HttpClient Api => HttpFactory.CreateClient("auth-api");
-
-    private async Task SubmitAsync()
-    {
-        _busy = true;
-        _error = null;
-        try
-        {
-            HttpResponseMessage response;
-            if (_registerMode)
-            {
-                response = await Api.PostAsJsonAsync("api/auth/register",
-                    new RegisterRequest(_userName, _password, _organizationName));
-            }
-            else
-            {
-                response = await Api.PostAsJsonAsync("api/auth/login",
-                    new LoginRequest(_userName, _password));
-            }
-
-            if (!response.IsSuccessStatusCode)
-            {
-                _error = await response.Content.ReadAsStringAsync();
-                return;
-            }
-
-            var result = await response.Content.ReadFromJsonAsync<AuthResponse>();
-            if (result is not null)
-            {
-                Nav.NavigateTo($"/?userId={Uri.EscapeDataString(result.UserId)}&userName={Uri.EscapeDataString(result.UserName)}");
-            }
-        }
-        catch (Exception ex)
-        {
-            _error = $"Kimlik servisine ulaşılamadı: {ex.Message}";
-        }
-        finally
-        {
-            _busy = false;
-        }
-    }
-
-    private sealed record RegisterRequest(string UserName, string Password, string? OrganizationName);
-    private sealed record LoginRequest(string UserName, string Password);
-    private sealed record AuthResponse(string UserId, string UserName, string Role, string[] Permissions, string? Token);
+    [SupplyParameterFromQuery(Name = "error")] public string? Error { get; set; }
+    [SupplyParameterFromQuery(Name = "register")] public bool RegisterMode { get; set; }
+    [SupplyParameterFromQuery(Name = "registered")] public bool Registered { get; set; }
 }

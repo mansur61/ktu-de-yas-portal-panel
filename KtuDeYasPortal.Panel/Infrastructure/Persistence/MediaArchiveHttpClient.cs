@@ -15,18 +15,20 @@ public sealed record MediaAsset(
     string? ObjectKey,
     string? ThumbnailBucket,
     string? ThumbnailKey,
-    string Status);
+    string Status,
+    bool IsProtected);
 
 public interface IMediaArchiveClient
 {
     Task<IReadOnlyList<MediaAsset>> ListAsync(string? structureId, string? deviceId, DateTime? from, DateTime? to, CancellationToken ct = default);
+    Task SetProtectionAsync(MediaAsset asset, bool isProtected, CancellationToken ct = default);
     Task<string?> GetPresignedUrlAsync(string bucket, string? key, CancellationToken ct = default);
 }
 
 public sealed class MediaArchiveHttpClient : IMediaArchiveClient
 {
     private readonly HttpClient _http;
-    public MediaArchiveHttpClient(IHttpClientFactory factory) => _http = factory.CreateClient("video-api");
+    public MediaArchiveHttpClient(KtuDeYasPortal.Panel.Infrastructure.Persistence.PanelApiClients factory) => _http = factory.CreateClient("video-api");
 
     public async Task<IReadOnlyList<MediaAsset>> ListAsync(string? structureId, string? deviceId, DateTime? from, DateTime? to, CancellationToken ct = default)
     {
@@ -47,21 +49,27 @@ public sealed class MediaArchiveHttpClient : IMediaArchiveClient
         return response?.Url;
     }
 
+    public async Task SetProtectionAsync(MediaAsset asset, bool isProtected, CancellationToken ct = default)
+    {
+        using var response = await _http.PutAsJsonAsync($"api/media/{asset.Kind}/{asset.Id}/protection", new { IsProtected = isProtected }, ct);
+        response.EnsureSuccessStatusCode();
+    }
+
     private sealed class PresignDto { public string? Url { get; set; } }
     private sealed class VideoDto
     {
         public Guid Id { get; set; } public string DeviceId { get; set; } = ""; public string LocationId { get; set; } = "";
         public DateTime RecordingStart { get; set; } public int? DurationSeconds { get; set; } public string? Format { get; set; }
         public long? FileSizeBytes { get; set; } public string MinioBucket { get; set; } = "videos"; public string? MinioObjectKey { get; set; }
-        public string? ThumbnailBucket { get; set; } public string? ThumbnailKey { get; set; } public string Status { get; set; } = "";
-        public MediaAsset ToAsset() => new(Id, DeviceId, LocationId, RecordingStart, "video", DurationSeconds, Format, FileSizeBytes, MinioBucket, MinioObjectKey, ThumbnailBucket, ThumbnailKey, Status);
+        public string? ThumbnailBucket { get; set; } public string? ThumbnailKey { get; set; } public string Status { get; set; } = ""; public bool IsProtected { get; set; }
+        public MediaAsset ToAsset() => new(Id, DeviceId, LocationId, RecordingStart, "video", DurationSeconds, Format, FileSizeBytes, MinioBucket, MinioObjectKey, ThumbnailBucket, ThumbnailKey, Status, IsProtected);
     }
     private sealed class ImageDto
     {
         public Guid Id { get; set; } public string DeviceId { get; set; } = ""; public string LocationId { get; set; } = "";
         public DateTime CapturedAt { get; set; } public string? Format { get; set; } public long? FileSizeBytes { get; set; }
         public string MinioBucket { get; set; } = "images"; public string? MinioObjectKey { get; set; }
-        public string? ThumbnailBucket { get; set; } public string? ThumbnailKey { get; set; } public string Status { get; set; } = "";
-        public MediaAsset ToAsset() => new(Id, DeviceId, LocationId, CapturedAt, "image", null, Format, FileSizeBytes, MinioBucket, MinioObjectKey, ThumbnailBucket, ThumbnailKey, Status);
+        public string? ThumbnailBucket { get; set; } public string? ThumbnailKey { get; set; } public string Status { get; set; } = ""; public bool IsProtected { get; set; }
+        public MediaAsset ToAsset() => new(Id, DeviceId, LocationId, CapturedAt, "image", null, Format, FileSizeBytes, MinioBucket, MinioObjectKey, ThumbnailBucket, ThumbnailKey, Status, IsProtected);
     }
 }

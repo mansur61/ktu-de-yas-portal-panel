@@ -180,7 +180,7 @@ app.MapPost("/session/login", async (HttpContext context, IHttpClientFactory fac
     claims.AddRange(session.Permissions.Select(p => new Claim("permission", p)));
     await context.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme,
         new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)));
-    return Results.LocalRedirect("/media-dashboard");
+    return Results.LocalRedirect("/");
 });
 app.MapPost("/session/logout", async (HttpContext context, Microsoft.AspNetCore.Antiforgery.IAntiforgery antiforgery) =>
 {

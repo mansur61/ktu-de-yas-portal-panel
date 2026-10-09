@@ -5,6 +5,7 @@ namespace KtuDeYasPortal.Panel.Infrastructure.Persistence;
 
 public interface IStructureSimulationClient
 {
+    Task CaptureCameraAsync(string edgeApiUrl, Guid structureId, string deviceId, CancellationToken ct = default);
     Task<EdgeLifecycleState> GetStateAsync(string edgeApiUrl, Guid structureId, CancellationToken ct = default);
     Task StartAsync(string edgeApiUrl, Guid structureId, CancellationToken ct = default);
     Task StopAsync(string edgeApiUrl, Guid structureId, CancellationToken ct = default);
@@ -37,6 +38,14 @@ public sealed class StructureSimulationHttpClient : IStructureSimulationClient
     private readonly KtuDeYasPortal.Panel.Infrastructure.Persistence.PanelApiClients _factory;
 
     public StructureSimulationHttpClient(KtuDeYasPortal.Panel.Infrastructure.Persistence.PanelApiClients factory) => _factory = factory;
+
+    public async Task CaptureCameraAsync(string edgeApiUrl, Guid structureId, string deviceId, CancellationToken ct = default)
+    {
+        using var http = CreateEdgeClient(edgeApiUrl);
+        using var response = await http.PostAsync($"api/edge/cameras/{structureId}/{Uri.EscapeDataString(deviceId)}/capture", null, ct);
+        if (!response.IsSuccessStatusCode)
+            throw new InvalidOperationException($"[{(int)response.StatusCode}] {await response.Content.ReadAsStringAsync(ct)}");
+    }
 
     public async Task<EdgeLifecycleState> GetStateAsync(string edgeApiUrl, Guid structureId, CancellationToken ct = default)
     {

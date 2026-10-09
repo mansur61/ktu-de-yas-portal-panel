@@ -1,52 +1,52 @@
-<div class="card border-secondary mt-3">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <strong>Kameralar</strong>
-        <button type="button" class="btn btn-sm btn-outline-primary" @onclick="AddCamera">Kamera ekle</button>
-    </div>
-    <div class="card-body">
-        <p class="small text-muted">Kameralar ivmeölçerden bağımsız çalışır. Her kamera için bağlantıyı ve kayıt şeklini seçin. Ayarlar kaydedilir ve deployment paketine aktarılır.</p>
+<div class="card mb-3">
+    <div class="card-body p-4">
+        <div class="d-flex align-items-center justify-content-between mb-3"><div><h3 class="h5 mb-1">Kameralar</h3><p class="dy-subtle mb-0">Kameranın nereden görüntü vereceğini ve ne zaman kayıt alacağını seçin.</p></div>@if (AllowAdd) { <button type="button" class="btn btn-outline-primary" @onclick="AddCamera">+ Kamera ekle</button> }</div>
         @foreach (var camera in Settings.Cameras)
         {
-            <div class="border rounded p-3 mb-3" @key="camera">
+            <section class="dy-choice mb-3" @key="camera">
+                <div class="d-flex justify-content-between align-items-center mb-3"><h4 class="h6 mb-0">Kamera @(Settings.Cameras.IndexOf(camera) + 1)</h4>@if (AllowAdd) { <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => Settings.Cameras.Remove(camera)">Kaldır</button> }</div>
                 <div class="row g-3">
-                    <div class="col-md-4"><label class="form-label">Kamera kimliği</label><input class="form-control" @bind="camera.Id" placeholder="saha-kamera-1" /><div class="form-text">Sistemde benzersiz; küçük harf, rakam, tire.</div></div>
-                    <div class="col-md-4"><label class="form-label">Bağlantı yeri</label><select class="form-select" @bind="camera.Mode" disabled="@(camera.SourceType == "mqtt")"><option value="remote">Remote — uzaktan eklenen</option><option value="local">Local — saha bilgisayarına bağlı</option></select></div>
-                    <div class="col-md-4"><label class="form-label">Kaynak</label><select class="form-select" @bind="camera.SourceType"><option value="mqtt">Uzaktan MQTT</option><option value="usb">USB</option><option value="rtsp">RTSP yayını</option></select></div>
-                    @if (camera.SourceType is "usb" or "mqtt")
-                    {
-                        <div class="col-md-6"><label class="form-label">@(camera.SourceType == "mqtt" ? "Gönderen bilgisayardaki USB cihazı (isteğe bağlı)" : "USB cihaz adresi / adı")</label><input class="form-control" @bind="camera.Device" placeholder="/dev/video0 veya kamera adı" /></div>
-                        <div class="col-md-6"><label class="form-label">Kamerayı okuyan işletim sistemi</label><select class="form-select" @bind="camera.Backend"><option value="v4l2">Linux</option><option value="dshow">Windows</option><option value="avfoundation">macOS</option></select></div>
-                        <div class="col-12 small text-muted">USB, bridge’in çalıştığı bilgisayara bağlı olmalıdır. Remote bir USB bilgisayarı için o bilgisayardaki bridge MQTT üzerinden yayın yapar; sahada Uzaktan MQTT seçin.</div>
-                    }
+                    <div class="col-md-6"><label class="form-label">Kamera nasıl bağlı?</label><select class="form-select" value="@camera.SourceType" @onchange="e => ChangeSource(camera, e.Value?.ToString())"><option value="rtsp">Ağ üzerinden görüntü veren kamera</option><option value="usb">Saha bilgisayarına takılı kamera</option><option value="mqtt">Başka bilgisayardan gönderilen görüntü</option></select></div>
+                    <div class="col-md-6"><label class="form-label">Ne zaman kayıt alınsın?</label><select class="form-select" @bind="camera.CaptureMode"><option value="scheduled">Belirli aralıklarla</option><option value="continuous">Sürekli, kısa kayıtlar halinde</option><option value="manual">Komut verildiğinde</option><option value="event">Alarm oluştuğunda</option></select></div>
                     @if (camera.SourceType == "rtsp")
                     {
-                        <div class="col-12"><label class="form-label">RTSP adresi</label><input type="password" class="form-control" @bind="camera.SourceValue" autocomplete="new-password" placeholder="rtsp://kullanici:parola@adres:8554/kamera" /><div class="form-text">Yalnız indirilen .env dosyasına yazılır; merkez kaydına parola eklenmez. Değişken: @camera.SourceEnvironment. Boşsa saha .env dosyasında doldurun.</div></div>
+                        <div class="col-12"><label class="form-label">Kamera görüntü adresi</label><input type="password" class="form-control" @bind="camera.SourceValue" autocomplete="new-password" placeholder="Kamera kurulum sorumlusundan alınan rtsp:// adresi" /><div class="form-text">Şifre içeriyorsa yalnız kurulum ZIP'ine yazılır. Boş bırakılırsa sahada doldurulur; kaydı yeniden açınca gizli adres geri yüklenmez.</div></div>
                     }
-                    @if (camera.SourceType == "mqtt")
+                    @if (camera.SourceType is "usb" or "mqtt")
                     {
-                        <div class="col-12"><label class="form-label">Gelen medya topic’i (isteğe bağlı)</label><input class="form-control" @bind="camera.InputTopic" placeholder="Boşsa yapı ve kamera kimliğinden üretilir" /><div class="form-text">Gönderen bilgisayar mevcut bridge ile bu topic’e medya chunk’ları yayınlar. Gönderen USB cihazını doldurursanız paket bu bilgisayar için ayrı yayıncı yapılandırması üretir. Kayıt ayarları yayıncıda uygulanır; alıcı gelen klibi yeniden çekmez.</div></div>
+                        <div class="col-md-6"><label class="form-label">Kamerayı okuyan bilgisayar</label><select class="form-select" @bind="camera.Backend"><option value="v4l2">Linux</option><option value="dshow">Windows</option><option value="avfoundation">macOS</option></select></div>
+                        <div class="col-md-6"><label class="form-label">Kamera cihazı / adı @(camera.SourceType == "mqtt" ? "(isteğe bağlı)" : "")</label><input class="form-control" @bind="camera.Device" placeholder="Kurulum sorumlusunun verdiği kamera adı veya /dev/video0" /></div>
+                        <div class="col-12"><div class="dy-guide mb-0"><p>@(camera.SourceType == "mqtt" ? "Kamera başka bilgisayara takılıdır. Görüntüyü gönderen yazılım o bilgisayarda çalışmalıdır; cihaz adı yazılırsa ZIP içinde yayıncı ayarları da hazırlanır." : "Kamera saha bilgisayarına takılı olmalıdır. Linux'ta cihaz erişimi pakete eklenir. Windows ve macOS'ta kamera gönderici yazılımı işletim sistemi üzerinde çalıştırılır.")</p></div></div>
                     }
-                    <div class="col-md-4"><label class="form-label">Kayıt şekli</label><select class="form-select" @bind="camera.CaptureMode"><option value="manual">Manuel komut</option><option value="scheduled">Zamanlanmış</option><option value="continuous">Ardışık klipler</option><option value="event">Olay / alarm</option></select></div>
-                    <div class="col-md-4"><label class="form-label">Klip süresi (sn)</label><input type="number" min="1" max="300" class="form-control" @bind="camera.ClipSeconds" /></div>
-                    @if (camera.CaptureMode == "scheduled")
-                    { <div class="col-md-4"><label class="form-label">Kayıt aralığı (sn)</label><input type="number" min="1" max="86400" class="form-control" @bind="camera.IntervalSeconds" /></div> }
-                    <div class="col-md-4"><label class="form-label">FPS</label><input type="number" min="1" max="120" class="form-control" @bind="camera.Fps" /></div>
-                    <div class="col-md-4"><label class="form-label">Çözünürlük</label><input class="form-control" @bind="camera.Resolution" placeholder="1280x720" /></div>
-                    <div class="col-md-8"><label class="form-label">Manuel komut topic’i (isteğe bağlı)</label><input class="form-control" @bind="camera.CommandTopic" placeholder="Boşsa yapı ve kamera kimliğinden üretilir" /></div>
-                    @if (camera.CaptureMode == "event")
-                    { <div class="col-12"><label class="form-label">Olay / alarm topic’i</label><input class="form-control" @bind="camera.EventTopic" /></div> }
-                    <div class="col-12 d-flex gap-3 align-items-center">
-                        <label><input type="checkbox" @bind="camera.Enabled" /> Etkin</label>
-                        <label><input type="checkbox" @bind="camera.SnapshotEnabled" /> Fotoğraf da çek</label>
-                        <button type="button" class="btn btn-sm btn-outline-danger ms-auto" @onclick="() => Settings.Cameras.Remove(camera)">Kamerayı kaldır</button>
-                    </div>
+                    <div class="col-md-6"><label class="form-label">Her kaydın süresi (saniye)</label><input type="number" min="1" max="300" class="form-control" @bind="camera.ClipSeconds" /></div>
+                    @if (camera.CaptureMode == "scheduled") { <div class="col-md-6"><label class="form-label">Kayıtlar arası süre (saniye)</label><input type="number" min="1" max="86400" class="form-control" @bind="camera.IntervalSeconds" /></div> }
+                    @if (camera.CaptureMode == "event") { <div class="col-12"><label class="form-label">İlişkili alarmın yayın adresi</label><input class="form-control" @bind="camera.EventTopic" /><div class="form-text">Alarm ayarlarından veya kurulum sorumlusundan alın. Alarm bağlantısı belirlenmeden olay kaydı başlatılamaz.</div></div> }
+                    <div class="col-12 d-flex flex-wrap gap-4"><label><input type="checkbox" @bind="camera.Enabled" /> Kurulum paketine dahil et</label><label><input type="checkbox" @bind="camera.SnapshotEnabled" /> Video ile birlikte fotoğraf kaydet</label></div>
                 </div>
-            </div>
+                <details class="dy-technical mb-0"><summary>Görüntü kalitesi ve teknik ayrıntılar</summary><div class="row g-3">
+                    <div class="col-md-4"><label class="form-label">Teknik kamera kimliği</label><input class="form-control" @bind="camera.Id" /></div>
+                    <div class="col-md-4"><label class="form-label">Saniyedeki kare sayısı</label><input type="number" min="1" max="120" class="form-control" @bind="camera.Fps" /></div>
+                    <div class="col-md-4"><label class="form-label">Görüntü çözünürlüğü</label><input class="form-control" @bind="camera.Resolution" placeholder="1280x720" /></div>
+                    @if (camera.SourceType == "mqtt") { <div class="col-12"><label class="form-label">Gelen görüntü yayın adresi (isteğe bağlı)</label><input class="form-control" @bind="camera.InputTopic" placeholder="Boşsa sistem oluşturur" /></div> }
+                    <div class="col-12"><label class="form-label">Kayıt komutu yayın adresi (isteğe bağlı)</label><input class="form-control" @bind="camera.CommandTopic" placeholder="Boşsa sistem oluşturur" /></div>
+                </div></details>
+            </section>
         }
-        @if (Settings.Cameras.Count == 0) { <p class="mb-0 text-muted">Henüz kamera eklenmedi.</p> }
+        @if (Settings.Cameras.Count == 0) { <p class="text-muted small mb-0">Henüz kamera tanımlanmadı. Kamera ekle düğmesiyle başlayın.</p> }
     </div>
 </div>
 @code {
+    [Parameter] public bool AllowAdd { get; set; } = true;
     [Parameter, EditorRequired] public CameraDeploymentSettings Settings { get; set; } = new();
-    private void AddCamera() => Settings.Cameras.Add(new CameraDeploymentEntry { Mode = "remote", SourceType = "mqtt", CaptureMode = "manual" });
+    private void AddCamera()
+    {
+        var index = 1;
+        while (Settings.Cameras.Any(c => c.Id == $"kamera-{index}")) index++;
+        Settings.Cameras.Add(new CameraDeploymentEntry { Id = $"kamera-{index}", Mode = "remote", SourceType = "rtsp", CaptureMode = "scheduled" });
+    }
+    private static void ChangeSource(CameraDeploymentEntry camera, string? source)
+    {
+        camera.SourceType = source ?? "rtsp";
+        camera.Mode = camera.SourceType == "usb" ? "local" : "remote";
+    }
 }

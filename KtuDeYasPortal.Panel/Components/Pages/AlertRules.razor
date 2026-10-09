@@ -2,13 +2,15 @@
 @rendermode InteractiveServer
 @inject KtuDeYasPortal.Panel.Infrastructure.Persistence.AlertRuleHttpRepository Repo
 
-<PageTitle>Alert Kuralları</PageTitle>
+<KtuDeYasPortal.Panel.Components.Shared.SettingsNavigation />
+
+<PageTitle>Alarm kuralları</PageTitle>
 
 <div class="d-flex align-items-center gap-2 mb-3">
     <span class="bi bi-bell-fill fs-4 text-danger"></span>
-    <h3 class="mb-0">Alert Kuralları</h3>
+    <h3 class="mb-0">Alarm kuralları</h3>
     <button class="btn btn-primary btn-sm ms-auto" @onclick="OpenCreate">
-        <span class="bi bi-plus-lg me-1"></span> Yeni Kural
+        <span class="bi bi-plus-lg me-1"></span> Alarm kuralı ekle
     </button>
 </div>
 
@@ -32,7 +34,7 @@
 else if (_rules.Count == 0)
 {
     <div class="alert alert-info">
-        Henüz alert kuralı tanımlanmamış.
+        Henüz alarm kuralı tanımlanmamış.
         <button class="btn btn-link p-0 ms-1" @onclick="OpenCreate">İlk kuralı ekle</button>
     </div>
 }
@@ -116,7 +118,7 @@ else
                 <div class="modal-header">
                     <h5 class="modal-title">
                         <span class="bi bi-bell me-2"></span>
-                        @(_editId.HasValue ? "Kuralı Düzenle" : "Yeni Kural")
+                        @(_editId.HasValue ? "Kuralı Düzenle" : "Alarm kuralı ekle")
                     </h5>
                     <button type="button" class="btn-close" @onclick="CloseForm"></button>
                 </div>

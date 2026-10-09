@@ -20,6 +20,9 @@
     <Content Include="..\..\ktu-de-yas\infra\compose\saha-deployment\README.md" Link="DeploymentTemplates\saha-deployment\README.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\..\ktu-de-yas\infra\compose\saha-deployment\AKIS_VE_ENV_REHBERI.md" Link="DeploymentTemplates\saha-deployment\AKIS_VE_ENV_REHBERI.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\..\ktu-de-yas\infra\compose\saha-deployment\.env.example" Link="DeploymentTemplates\saha-deployment\.env.template" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\ktu-de-yas\src\saha-media-bridge\saha_media_bridge.py" Link="DeploymentTemplates\saha-deployment\publisher\saha_media_bridge.py" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\ktu-de-yas\src\saha-media-bridge\requirements.txt" Link="DeploymentTemplates\saha-deployment\publisher\requirements.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\ktu-de-yas\infra\compose\saha-deployment\ONCE_BUNU_OKUYUN.md" Link="DeploymentTemplates\saha-deployment\SENARYOLAR.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

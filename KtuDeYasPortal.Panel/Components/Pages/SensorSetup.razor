@@ -5,7 +5,9 @@
 
 <PageTitle>Sensör Kurulum Durumu</PageTitle>
 
-<h3>Sensör Kaynakları <small class="text-muted fs-6">— Merkez envanterindeki UDP, MQTT ve TCP kaynakları</small></h3>
+<div class="dy-heading"><div><div class="dy-eyebrow">Baraj ve Sensör Yönetimi</div><h1>Bağlantı ve kurulum kontrolü</h1><p>Kaydı, cihaz bağlantısını ve örnek ölçümü ayrı ayrı kontrol edin.</p></div><a class="btn btn-outline-secondary" href="structures">Barajlara dön</a></div>
+<div class="dy-guide"><h2>Bir sensörün kaydedilmiş olması çalıştığı anlamına gelmez</h2><p>Önce bağlantıyı, ardından veri okumasını ve örnek ölçümü doğrulayın. Veri toplama baraj ekranından ayrıca başlatılır.</p></div>
+@if (_error is not null) { <div class="alert alert-warning" role="alert">@_error</div> }
 
 @if (_loading)
 {
@@ -70,21 +72,21 @@ else
         {
             <div class="alert alert-warning">@_error</div>
         }
-        <div class="table-responsive border rounded">
-            <table class="table table-sm table-hover mb-0">
-                <thead class="table-light"><tr><th>Sensör</th><th>Kaynak</th><th>Bağlantı</th><th>Durum</th></tr></thead>
-                <tbody>
-                @foreach (var sensor in VisibleSensors)
-                {
-                    <tr>
-                        <td><div class="fw-semibold">@sensor.Name</div><code class="small">@sensor.DeviceId</code></td>
-                        <td><span class="badge bg-secondary">@GetSourceType(sensor)</span></td>
-                        <td>@GetEndpoint(sensor)</td>
-                        <td><span class="badge @(sensor.IsActive ? "bg-success" : "bg-secondary")">@(sensor.IsActive ? "Aktif" : "Pasif")</span></td>
-                    </tr>
-                }
-                </tbody>
-            </table>
+        <div class="table-responsive card">
+            <table class="table mb-0"><thead><tr><th>Sensör</th><th>Kaydı</th><th>Bağlantı</th><th>Veri okuma</th><th>Örnek ölçüm</th><th>İşlem</th></tr></thead><tbody>
+            @foreach (var sensor in VisibleSensors) {
+                var ready = _readiness.GetValueOrDefault(sensor.SensorId);
+                var direct = !string.IsNullOrWhiteSpace(sensor.IpAddress) && sensor.Port.HasValue;
+                <tr><td><strong>@sensor.Name</strong><details><summary class="dy-subtle">Teknik bilgiler</summary><small>@GetSourceType(sensor) · @GetEndpoint(sensor)<br />@sensor.DeviceId</small></details></td>
+                <td><span class="dy-chip neutral">Kaydedildi</span><small class="d-block">@(ready is null ? "Çalışma durumu alınamadı" : LifecycleLabel(ready.LifecycleStatus))</small></td>
+                <td>@(ready is null ? "Bilinmiyor" : ready.ConnectionValid ? "✓ Doğrulandı" : "○ Kontrol gerekiyor")</td>
+                <td>@(ready is null ? "Bilinmiyor" : ready.ParserValid ? "✓ Okunabiliyor" : "○ Doğrulanmadı")</td>
+                <td>@(ready is null ? "Bilinmiyor" : ready.MetricPreviewValid ? "✓ Kontrol edildi" : "○ Kontrol gerekiyor")</td>
+                <td>@if (direct) { <div class="d-flex flex-wrap gap-2"><button class="btn btn-sm btn-outline-primary" disabled="@(_activeSensorId is not null || _readinessLoading)" @onclick="() => RunConnectionTestAsync(sensor)">1. Bağlantıyı kontrol et</button><button class="btn btn-sm btn-outline-primary" disabled="@(_activeSensorId is not null || ready?.ConnectionValid != true)" @onclick="() => RunParserValidationAsync(sensor)">2. Veriyi doğrula</button><button class="btn btn-sm btn-outline-primary" disabled="@(_activeSensorId is not null || ready?.ParserValid != true)" @onclick="() => GenerateMetricPreviewAsync(sensor)">3. Ölçümü kontrol et</button></div> }
+                else { <a href="sensor-dashboard" class="btn btn-sm btn-outline-secondary">Gelen ölçümleri kontrol et</a><small class="d-block text-muted">Yayın veya kamera kaynağı; canlı veri / görüntü ayrıca doğrulanır.</small> }</td></tr>
+            }
+            </tbody></table>
+            @if (!VisibleSensors.Any()) { <div class="dy-empty"><p>Bu barajda kayıtlı sensör yok. Barajlar ve saha kurulumu ekranından ekleyin.</p></div> }
         </div>
     }
 }
@@ -115,7 +117,7 @@ else
         catch (Exception ex)
         {
             Logger.LogError(ex, "Sensor setup page could not load structures.");
-            _error = "Yapılar yüklenemedi. Timeseries API erişilebilir değilse 'Bir hata oluştu' yerine bu uyarı gösterilir; ayrıntı panel logundadır.";
+            _error = "Baraj listesi alınamadı. Bağlantıyı kontrol edip sayfayı yeniden yükleyin.";
         }
         finally { _loading = false; }
     }
@@ -145,7 +147,7 @@ else
         catch (Exception ex)
         {
             Logger.LogError(ex, "Sensor readiness could not be loaded for structure {StructureId}", _selectedStructureId);
-            _error = "Kurulum bilgisi alınamadı. Ayrıntı için panel container logunu kontrol edin.";
+            _error = "Kurulum bilgisi alınamadı. Yenile düğmesiyle tekrar deneyin.";
         }
         finally { _readinessLoading = false; }
     }
@@ -153,6 +155,10 @@ else
     private Task OnStructureChanged(ChangeEventArgs args) => Guid.TryParse(args.Value?.ToString(), out var id) ? SelectStructureAsync(id) : Task.CompletedTask;
     private void OnSensorChanged(ChangeEventArgs args) => SelectSensor(Guid.TryParse(args.Value?.ToString(), out var id) ? id : null);
     private void SelectSensor(Guid? id) => _selectedSensorId = id;
+    private static string LifecycleLabel(string status) => status switch {
+        "Running" => "Veri toplama çalışıyor", "Reconnecting" => "Bağlantı yeniden kuruluyor", "Ready" => "Başlatmaya hazır",
+        "Stopped" => "Veri toplama durduruldu", "ConnectionFailed" => "Bağlantı başarısız", _ => "Kurulum kontrolü gerekiyor"
+    };
     private static string StatusMark(bool? success) => success == true ? "✓" : success == false ? "✗" : "?";
     private static string GetSourceType(StructureSensor sensor) =>
         sensor.ProtocolType.Contains("tcp", StringComparison.OrdinalIgnoreCase) || sensor.ProtocolType.Contains("modbus", StringComparison.OrdinalIgnoreCase) ? "TCP" :
@@ -177,7 +183,7 @@ else
             IpAddress = sensor.IpAddress, Port = sensor.Port, TimeoutMs = sensor.TimeoutMs ?? 5000,
             Profile = string.IsNullOrWhiteSpace(sensor.ProtocolType) ? "Unknown" : sensor.ProtocolType,
             Encoding = string.IsNullOrWhiteSpace(sensor.Encoding) ? "utf-8" : sensor.Encoding
-        }), "Parser doğrulaması");
+        }), "Veri okuma kontrolü");
     }
 
     private async Task GenerateMetricPreviewAsync(StructureSensor sensor)
@@ -188,7 +194,7 @@ else
         await RunStepAsync(sensor.SensorId, "metric", () => DashboardUC.GenerateMetricPreviewAsync(sensor.SensorId, new GenerateMetricPreviewRequestDto
         {
             ParserProfile = sensor.ProtocolType, Metrics = metrics
-        }), "Metrik önizleme");
+        }), "Örnek ölçüm kontrolü");
     }
 
     private async Task RunStepAsync<T>(Guid sensorId, string step, Func<Task<T>> action, string operation)

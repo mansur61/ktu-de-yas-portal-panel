@@ -6,7 +6,9 @@
 @inject WorkspaceUseCases WorkspaceUC
 @inject IJSRuntime JS
 
-<PageTitle>Workspace Yönetimi</PageTitle>
+<KtuDeYasPortal.Panel.Components.Shared.SettingsNavigation />
+
+<PageTitle>Çalışma alanları</PageTitle>
 
 @* ── Bildirim bantları ──────────────────────────────────────────────────── *@
 @if (!string.IsNullOrWhiteSpace(_successMsg))
@@ -30,7 +32,7 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h4 class="mb-0 fw-bold">
-            <span class="bi bi-box-seam me-2 text-primary"></span>Workspace Yönetimi
+            <span class="bi bi-box-seam me-2 text-primary"></span>Çalışma alanları
         </h4>
         <small class="text-muted">
             Araştırmacı Node-RED container'ları — geçici, izole, silinebilir

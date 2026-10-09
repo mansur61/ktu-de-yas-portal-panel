@@ -2,21 +2,22 @@
 @using Microsoft.AspNetCore.Components.Forms
 @inherits LayoutComponentBase
 
-<div class="page">
+<a class="dy-skip" href="#main-content">İçeriğe geç</a>
+    <div class="page dy-shell">
     <div class="sidebar">
         <NavMenu />
     </div>
 
     <main>
         <div class="top-row px-4">
-            <span class="text-muted small">KTU DeYas Admin Panel</span>
+            <span class="dy-top-label">DE-YAS · Baraj ve sensör yönetimi</span>
             <AuthorizeView><Authorized Context="session">
                 <span class="ms-3">@session.User.Identity?.Name</span>
                 <form method="post" action="/session/logout" class="d-inline ms-3"><AntiforgeryToken /><button class="btn btn-sm btn-outline-secondary" type="submit">Çıkış</button></form>
             </Authorized></AuthorizeView>
         </div>
 
-        <article class="content px-4">
+        <article class="content px-4" id="main-content">
             @Body
         </article>
     </main>

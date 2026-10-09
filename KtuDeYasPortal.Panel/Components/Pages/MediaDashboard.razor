@@ -6,6 +6,7 @@
 @rendermode InteractiveServer
 @inject IMediaArchiveClient MediaArchive
 @inject StructureUseCases StructureUC
+@inject IStructureSimulationClient StructureSimClient
 
 <PageTitle>Medya Arşivi</PageTitle>
 
@@ -27,6 +28,8 @@
     <div class="col-md-1 d-grid"><button class="btn btn-primary" @onclick="LoadAsync">Filtrele</button></div>
 </div></div></div>
 
+<div class="mb-3"><button class="btn btn-success" @onclick="CaptureAsync" disabled="@(!CanCapture || _capturing)">@(_capturing ? "İstek gönderiliyor…" : "Seçili kameradan kayıt al")</button><div class="form-text">Bir baraj ve kamera seçin. Saha çalışır ve ağdan erişilebilir olmalı. Tamamlanan klip/fotoğraf için arşivi yenileyin.</div></div>
+@if (_captureNotice is not null) { <div class="alert alert-info">@_captureNotice</div> }
 @if (!string.IsNullOrWhiteSpace(_error)) { <div class="alert alert-danger">@_error</div> }
 @if (_loading) { <div class="text-center py-5"><span class="spinner-border text-primary"></span></div> }
 else if (_assets.Count == 0) { <div class="alert alert-light border"><span class="bi bi-camera-video me-2"></span>Bu filtrede merkezi arşive ulaşmış medya kaydı yok.</div> }
@@ -56,6 +59,19 @@ else { <div class="row g-3">
 }
 
 @code {
+    private bool _capturing;
+    private string? _captureNotice;
+    private Structure? SelectedStructure => _structures.FirstOrDefault(s => s.Id.ToString() == _structureId);
+    private bool CanCapture => SelectedStructure is { } s && !string.IsNullOrWhiteSpace(s.EdgeApiUrl)
+        && Cameras.Any(c => c.DeviceId == _deviceId) && (_manageAccess.IsAdmin || _manageAccess.StructureIds.Contains(s.Id));
+    private async Task CaptureAsync()
+    {
+        if (!CanCapture || _capturing) return;
+        _capturing = true; _captureNotice = null; _error = null;
+        try { await StructureSimClient.CaptureCameraAsync(SelectedStructure!.EdgeApiUrl!, SelectedStructure.Id, _deviceId); _captureNotice = "Kayıt isteği sahaya iletildi. Kamera çevrimdışıysa kayıt oluşmaz; tamamlanan kayıt için Yenile'ye basın."; }
+        catch (Exception ex) { _error = $"Kayıt isteği gönderilemedi: {ex.Message}"; }
+        finally { _capturing = false; }
+    }
     private List<Structure> _structures = [];
     private PanelAccessSnapshot _manageAccess = new(false, []);
     private List<MediaAsset> _assets = [];

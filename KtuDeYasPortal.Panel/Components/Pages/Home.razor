@@ -1,89 +1,13 @@
-﻿@page "/"
+@page "/"
 @rendermode InteractiveServer
-
-<PageTitle>DSİ Baraj İzleme Paneli - Ana Sayfa</PageTitle>
-
-<div class="d-flex align-items-center gap-3 mb-4">
-    <span class="bi bi-shield-lock-fill fs-1 text-primary"></span>
-    <div>
-        <h3 class="mb-0">DSİ Baraj İzleme Paneli</h3>
-        <p class="text-muted mb-0">Baraj, sensör ve saha izleme yönetimi</p>
-    </div>
+<PageTitle>Genel bakış · DE-YAS</PageTitle>
+<div class="dy-heading"><div><div class="dy-eyebrow">DSİ × KTÜ · DE-YAS</div><h1>Baraj ve sensör yönetimi</h1><p>Yeni baraj kurulumu, günlük izleme ve genel ayarlar.</p></div><a class="btn btn-primary" href="structures">Barajları yönet →</a></div>
+<div class="dy-guide"><h2>Yeni bir barajı nasıl kurarım?</h2><p>Baraj bilgilerini girin → Sensörleri ve veri kaynaklarını ekleyin → Açılır adımlarla saha ZIP’ini hazırlayın. Teknik bağlantı ayarları gerektiğinde açılır.</p></div>
+<div class="dy-tiles">
+<a class="dy-tile" href="structures"><span class="bi bi-building" aria-hidden="true"></span><h2>Barajlar ve saha kurulumu</h2><p>Baraj ekleyin, kayıtlı kurulumunuza devam edin ve saha ZIP paketini hazırlayın.</p><span class="dy-tile-link">Barajları aç →</span></a>
+<a class="dy-tile" href="sensor-dashboard"><span class="bi bi-activity" aria-hidden="true"></span><h2>İzleme ekranları</h2><p>Barajı seçerek ölçümleri ve zaman içindeki değişimleri inceleyin.</p><span class="dy-tile-link">Ölçümleri aç →</span></a>
+<a class="dy-tile" href="settings"><span class="bi bi-gear" aria-hidden="true"></span><h2>Genel Ayarlar</h2><p>Üyeler, menü yetkileri, çalışma alanları, veri akışları ve bildirimler.</p><span class="dy-tile-link">Ayarları aç →</span></a>
+<a class="dy-tile" href="sensor-setup"><span class="bi bi-check2-circle" aria-hidden="true"></span><h2>Kurulum kontrolü</h2><p>Bağlantı ve örnek veri doğrulamalarını kontrol edin. Kaydedilen sensörün hazır olup olmadığını görün.</p><span class="dy-tile-link">Kontrolleri aç →</span></a>
+<a class="dy-tile" href="media-dashboard"><span class="bi bi-camera-video" aria-hidden="true"></span><h2>Kameralar ve kayıtlar</h2><p>Kamera görüntülerini, fotoğrafları ve olay kayıtlarını inceleyin.</p><span class="dy-tile-link">Görüntüleri aç →</span></a>
+<a class="dy-tile" href="field-alerts"><span class="bi bi-bell" aria-hidden="true"></span><h2>Alarmlar ve incelemeler</h2><p>Sahadan gelen durumları inceleyin; gerekli bildirimi sorumlulara iletin.</p><span class="dy-tile-link">Alarmları aç →</span></a>
 </div>
-
-@if (!string.IsNullOrWhiteSpace(UserName))
-{
-    <div class="alert alert-success d-flex align-items-center gap-2 py-2 mb-4">
-        <span class="bi bi-person-check-fill fs-5"></span>
-        <div>
-            <strong>Hoş geldiniz, @UserName!</strong>
-            <small class="d-block text-muted">Kullanıcı Kimliği: <code>@UserId</code></small>
-        </div>
-    </div>
-}
-
-<div class="row g-4">
-    <div class="col-md-6 col-lg-4">
-        <a href="structures" class="text-decoration-none">
-            <div class="card card-structure border-primary h-100">
-                <div class="card-body text-center py-5">
-                    <span class="bi bi-building fs-1 text-primary"></span>
-                    <h4 class="mt-3">Baraj Yönetimi</h4>
-                    <p class="text-muted">Yeni baraj ekle, düzenle, sensör ata</p>
-                </div>
-            </div>
-        </a>
-    </div>
-    <div class="col-md-6 col-lg-4">
-        <a href="sensor-dashboard" class="text-decoration-none">
-            <div class="card card-structure border-success h-100">
-                <div class="card-body text-center py-5">
-                    <span class="bi bi-activity fs-1 text-success"></span>
-                    <h4 class="mt-3">Sensör Dashboard</h4>
-                    <p class="text-muted">Canlı sensör verileri ve grafikler</p>
-                </div>
-            </div>
-        </a>
-    </div>
-    <div class="col-md-6 col-lg-4">
-        <a href="permissions" class="text-decoration-none">
-            <div class="card card-structure border-warning h-100">
-                <div class="card-body text-center py-5">
-                    <span class="bi bi-people fs-1 text-warning"></span>
-                    <h4 class="mt-3">Üyeler ve Yetkiler</h4>
-                    <p class="text-muted">Kullanıcı ve baraj erişimlerini yönet</p>
-                </div>
-            </div>
-        </a>
-    </div>
-    <div class="col-md-6 col-lg-4">
-        <a href="menu-permissions" class="text-decoration-none">
-            <div class="card card-structure border-secondary h-100">
-                <div class="card-body text-center py-5">
-                    <span class="bi bi-list-check fs-1 text-secondary"></span>
-                    <h4 class="mt-3">Menü Yetkileri</h4>
-                    <p class="text-muted">Kullanıcı portal menü erişimlerini yönet</p>
-                </div>
-            </div>
-        </a>
-    </div>
-    <div class="col-md-6 col-lg-4">
-        <a href="http://localhost:5050" target="_blank" class="text-decoration-none">
-            <div class="card card-structure border-info h-100">
-                <div class="card-body text-center py-5">
-                    <span class="bi bi-box-arrow-up-right fs-1 text-info"></span>
-                    <h4 class="mt-3">Kullanıcı Portalı</h4>
-                    <p class="text-muted">KtuDeYasPortal'a git (localhost:5050)</p>
-                </div>
-            </div>
-        </a>
-    </div>
-</div>
-
-@code {
-    [SupplyParameterFromQuery(Name = "userId")]
-    public string? UserId { get; set; }
-
-    [SupplyParameterFromQuery(Name = "userName")]
-    public string? UserName { get; set; }
-}

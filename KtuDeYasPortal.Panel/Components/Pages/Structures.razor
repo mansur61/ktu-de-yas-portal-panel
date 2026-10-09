@@ -1,4 +1,8 @@
 @page "/structures"
+@using Microsoft.AspNetCore.Authorization
+@using DeYas.Contracts.Authorization
+@attribute [Authorize]
+@inject PanelAccess SetupAccess
 @rendermode InteractiveServer
 @using KtuDeYasPortal.Panel.Components.Shared
 @using DeYas.Contracts.Sensors
@@ -60,14 +64,10 @@
 
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h4 class="mb-0 fw-bold">Baraj Yönetimi</h4>
-            <small class="text-muted">Kayıtlı barajlar, sensörler ve konum bilgileri</small>
+            <div class="dy-eyebrow">Baraj ve Sensör Yönetimi</div><h1 class="mb-2">Barajlar ve saha kurulumu</h1>
+            <small class="text-muted">Barajı tanımlayın, sensörleri ekleyin ve sahaya götürülecek paketi hazırlayın.</small>
         </div>
         <div class="d-flex gap-2 align-items-center">
-            <button class="btn btn-outline-warning" @onclick="OpenCentralNodeRedAsync"
-                    title="Merkez Node-RED — tüm yapıların MQTT akışını izler">
-                <span class="bi bi-diagram-3-fill me-1"></span>Merkez Node-RED
-            </button>
 
             <button class="btn btn-primary" @onclick="ShowCreateWizard">
                 <span class="bi bi-plus-lg me-1"></span> Yeni Baraj
@@ -104,7 +104,7 @@
                         </div>
                         <div class="structure-card-body">
                             <div class="structure-card-title">@s.Name</div>
-                            <div class="small text-secondary font-monospace mb-1">@s.Id</div>
+
                             <div class="structure-card-sub">
                                 <span class="bi bi-geo-alt me-1"></span>
                                 @s.Province@(string.IsNullOrEmpty(s.District) ? "" : " / " + s.District)
@@ -131,9 +131,9 @@
                                     </span>
                                 }
                                 else if (s.IsActive)
-                                { <span class="badge bg-success">Aktif</span> }
+                                { <span class="badge bg-secondary">Envanterde</span> }
                                 else
-                                { <span class="badge bg-secondary">Pasif</span> }
+                                { <span class="badge bg-secondary">Envanter dışı</span> }
                                 @if (_forwardingStates.TryGetValue(s.Id, out var forwarding))
                                 {
                                     <span class="badge @(forwarding ? "bg-info text-dark" : "bg-secondary")">
@@ -167,16 +167,6 @@
                                     }
                                 }
                             </div>
-                            <div class="small text-secondary mt-2 text-truncate" title="@(string.IsNullOrWhiteSpace(s.EdgeApiUrl) ? "Saha Edge URL henüz kaydedilmedi." : s.EdgeApiUrl)">
-                                <span class="bi bi-hdd-network me-1"></span>@(string.IsNullOrWhiteSpace(s.EdgeApiUrl) ? "Saha Edge URL tanımsız" : s.EdgeApiUrl)
-                                <span class="bi bi-info-circle ms-1" title="Çalıştır/Durdur yerel saha pipeline'larını; Aktar kontrolleri merkez iletimini yönetir."></span>
-                            </div>
-                            @if (_forwardingStates.TryGetValue(s.Id, out var knownForwarding))
-                            {
-                                <div class="small text-secondary font-monospace text-truncate" title="Son lifecycle komutu">
-                                    Merkeze aktarım: @(knownForwarding ? "açık" : "kapalı")
-                                </div>
-                            }
                             <div class="mt-3 d-flex justify-content-end gap-2">
                                 @if (IsLocalPipelineEnabled(s.Id))
                                 {
@@ -218,7 +208,7 @@
                                     }
                                     else
                                     {
-                                        @(IsLocalPipelineEnabled(s.Id) ? "Çalışıyor" : "Çalıştır")
+                                        @(IsLocalPipelineEnabled(s.Id) ? "Veri toplama açık" : "Veri toplamayı başlat")
                                     }
                                 </button>
                                 @if (s.SensorCount > 0)
@@ -228,23 +218,10 @@
                                         @onclick:stopPropagation="true"
                                         title="Yerel akışı değiştirmeden merkez aktarımını açar veya kapatır.">
                                     <span class="bi bi-cloud-arrow-@( _forwardingStates.TryGetValue(s.Id, out var state) && state ? "down" : "up") me-1"></span>
-                                    @( _forwardingStates.TryGetValue(s.Id, out var enabled) && enabled ? "Aktarımı durdur" : "Aktar")
+                                    @( _forwardingStates.TryGetValue(s.Id, out var enabled) && enabled ? "Merkeze iletimi durdur" : "Merkeze ilet")
                                 </button>
                                 }
-                                <button class="btn btn-sm btn-outline-warning"
-                                        @onclick="() => OpenNodeRedAsync(s.Id, s.Name)"
-                                        @onclick:stopPropagation="true"
-                                        title="@(string.IsNullOrWhiteSpace(s.NodeRedUrl) ? "Merkez Node-RED Flow Editörü" : $"Flow Editörü: {s.NodeRedUrl}")">
-                                    <span class="bi bi-diagram-3 me-1"></span>
-                                    @if (string.IsNullOrWhiteSpace(s.NodeRedUrl))
-                                    {
-                                        <span class="text-muted">Node-RED</span>
-                                    }
-                                    else
-                                    {
-                                        <span>Node-RED ✦</span>
-                                    }
-                                </button>
+                                <button class="btn btn-sm btn-outline-primary" @onclick="() => DownloadSavedPackageAsync(s.Id)" @onclick:stopPropagation="true">Saha ZIP’ini indir</button>
                             </div>
                         </div>
                     </div>
@@ -258,28 +235,17 @@
    YENİ YAPI OLUŞTURMA — 3 ADIM
    ══════════════════════════════════════════════════════════════════ *@
 <div class="create-structure-panel mb-4" hidden="@(!_showCreateWizard)">
+    @if (!string.IsNullOrWhiteSpace(_saveError)) { <div class="alert alert-danger m-3" role="alert">@_saveError</div> }
+    @if (!string.IsNullOrWhiteSpace(_setupNotice)) { <div class="alert alert-info m-3" role="status">@_setupNotice</div> }
         <div class="create-panel-header">
-            <strong><span class="me-2">🏔️</span>Yeni Baraj Oluştur</strong>
-            <button class="btn btn-sm btn-outline-light" @onclick="CancelCreate">İptal</button>
+            <strong><span class="me-2">🏔️</span>Baraj ve saha kurulumu</strong>
+            <button class="btn btn-sm btn-outline-light" @onclick="CancelCreate">Kurulumu kapat</button>
         </div>
 
         <div class="create-steps">
-            <div class="create-step @(_wizardStep > 2 ? "done" : "active")">
-                <div class="create-step-num">@(_wizardStep > 2 ? "✓" : "1")</div>
-                <div>Bilgiler &amp; Konum</div>
-            </div>
-            <div class="create-step @(_wizardStep == 3 ? "active" : (_wizardStep > 3 ? "done" : ""))">
-                <div class="create-step-num">@(_wizardStep > 3 ? "✓" : "2")</div>
-                <div>Baraj-Saha Kurulumu</div>
-            </div>
-            <div class="create-step @(_wizardStep >= 4 ? "active" : "")">
-                <div class="create-step-num">@(_wizardStep > 4 ? "✓" : "3")</div>
-                <div>Sensör Ekle</div>
-            </div>
-            <div class="create-step @(_wizardStep == 5 ? "active" : "")">
-                <div class="create-step-num">4</div>
-                <div>Saha Deployment</div>
-            </div>
+          <button class="create-step @(_wizardStep == 2 ? "active" : "done")" @onclick="BackFromStep3" aria-expanded="@(_wizardStep == 2)"><span class="create-step-num">1</span>Baraj bilgileri</button>
+          <button class="create-step @(_wizardStep == 4 ? "active" : "")" @onclick="SaveBasicInfoAndContinueAsync" disabled="@(_createdStructureId == Guid.Empty || _isSaving)" aria-expanded="@(_wizardStep == 4)"><span class="create-step-num">2</span>Sensörler ve veri kaynakları</button>
+          <button class="create-step @(_wizardStep == 5 ? "active" : "")" @onclick="GoToDeploymentStep" disabled="@(_createdStructureId == Guid.Empty || _setupSaving)" aria-expanded="@(_wizardStep == 5)"><span class="create-step-num">3</span>Saha ZIP’ini hazırla</button>
         </div>
 
         <div class="p-4">
@@ -288,8 +254,8 @@
             <div hidden="@(_wizardStep != 2)">
                 <div class="row g-3">
                     <div class="col-md-6">
-                        <label class="form-label fw-semibold">Yapı Adı <span class="text-danger">*</span></label>
-                        <input class="form-control" @bind="_newName" placeholder="Örn: Yusufeli Barajı" />
+                        <label for="setup-name" class="form-label fw-semibold">Baraj adı <span class="text-danger">*</span></label>
+                        <input id="setup-name" class="form-control" @bind="_newName" @bind:event="oninput" placeholder="Örn: Yusufeli Barajı" />
                     </div>
                     <div class="col-12">
                         <label class="form-label fw-semibold">Yapı Türü</label>
@@ -310,7 +276,7 @@
                         <label class="form-label fw-semibold">Durum</label>
                         <div class="form-check mt-2">
                             <input class="form-check-input" type="checkbox" @bind="_newIsActive" id="chkActive" />
-                            <label class="form-check-label" for="chkActive">Aktif</label>
+                            <label class="form-check-label" for="chkActive">Envanterde kullanılsın</label>
                         </div>
                     </div>
                     <div class="col-12">
@@ -345,7 +311,7 @@
                         <input id="address-input" class="form-control" @bind="_newAddress" placeholder="Cadde / mahalle" />
                     </div>
                     @* ── Harita ── *@
-                    <div class="col-12">
+                    <div class="col-12"><details class="dy-technical" ontoggle="if(this.open && window.refreshSetupMap) window.refreshSetupMap()"><summary>Haritada konum seç (isteğe bağlı)</summary>
                         <label class="form-label">
                             <span class="bi bi-map me-1"></span>Konum Seç
                             <small class="text-muted fw-normal"> — Haritaya tıklayın ya da marker'ı sürükleyin</small>
@@ -361,9 +327,9 @@
                                 <input id="lng-input" type="number" class="form-control form-control-sm" @bind="_newLng" step="0.000001" />
                             </div>
                         </div>
-                    </div>
-                    @* ── Node-RED ── *@
-                    <div class="col-12"><hr class="my-1" /><small class="text-muted fw-semibold">Node-RED Entegrasyonu</small></div>
+                    </details></div>
+                    @* Teknik hizmet seçimi günlük forma dahil edilmez. *@
+                    <div class="col-12"><details class="dy-technical"><summary>Teknik hizmet ayarları (isteğe bağlı)</summary><hr class="my-1" /><small class="text-muted fw-semibold">Node-RED Entegrasyonu</small>
                     <div class="col-12">
                         <label class="form-label">
                             <span class="bi bi-diagram-3 me-1"></span>Node-RED URL
@@ -411,400 +377,65 @@
                                 <span>Boş bırakılırsa ortak Node-RED kullanılır. Özel Kubernetes pod'u veya farklı bir saha instance'ı gerekiyorsa tarayıcıdan erişilebilen URL'i girin.</span>
                             }
                         </div>
-                    </div>
+                    </div></details></div>
                 </div>
-                <div class="mt-3 d-flex gap-2">
-                    @if (_createdStructureId == Guid.Empty)
-                    {
-                        <button class="btn btn-success" disabled="@(string.IsNullOrWhiteSpace(_newName) || string.IsNullOrEmpty(_newProvince) || _isSaving)"
-                                @onclick="SaveStructureAndOpenSetupAsync">
-                            @if (_isSaving)
-                            {
-                                <span class="spinner-border spinner-border-sm me-1"></span>
-                            }
-                            <span class="bi bi-check-lg me-1"></span> Barajı Kaydet
-                        </button>
-                    }
-                    else
-                    {
-                        <div class="alert alert-success py-2 mb-0 me-auto">
-                            <span class="bi bi-check-circle me-1"></span>Baraj kaydedildi: <code>@_createdStructureId</code>
-                        </div>
-                    }
-                    <button class="btn btn-primary ms-auto"
-                            disabled="@(_createdStructureId == Guid.Empty || _isSaving)"
-                            @onclick="OpenSetupStep">
-                        İleri: Baraj-Saha Kurulumu <span class="bi bi-arrow-right ms-1"></span>
-                    </button>
-                </div>
+                <div class="d-flex align-items-center justify-content-between gap-3 mt-4"><span class="dy-subtle">Kaydettikten sonra bu barajın kurulumuna listeden devam edebilirsiniz.</span><button class="btn btn-primary" disabled="@(string.IsNullOrWhiteSpace(_newName) || string.IsNullOrWhiteSpace(_newProvince) || _isSaving)" @onclick="SaveBasicInfoAndContinueAsync">@(_isSaving ? "Kaydediliyor…" : "Kaydet ve sensör ekle →")</button></div>
             </div>
 
-            @* ADIM 3 — Yapı resmi üzerinde sensör ekleme *@
-            <div hidden="@(_wizardStep != 3)">
-                <div class="mb-3 d-flex align-items-center gap-3">
-                    <div>
-                        <strong>@_newName</strong>
-                        <span class="badge ms-2" style="background:#6f42c1">@(_newType.HasValue ? GetStructureLabel(_newType.Value) : "")</span>
-                        @if (!string.IsNullOrEmpty(_newProvince))
-                        {
-                            <span class="badge bg-info ms-1">@_newProvince@(string.IsNullOrEmpty(_newDistrict) ? "" : " / " + _newDistrict)</span>
-                        }
-                    </div>
-                    <div class="ms-auto d-flex gap-2">
-                        <button class="btn btn-sm btn-outline-secondary" @onclick="BackFromStep3">
-                            <span class="bi bi-arrow-left me-1"></span> Geri
-                        </button>
-                        <button class="btn btn-success" @onclick="() => _showSaveConfirm = true" disabled="@_isSaving">
-                            @if (_isSaving)
-                            {
-                                <span class="spinner-border spinner-border-sm me-1"></span>
-                            }
-                            <span class="bi bi-check-lg me-1"></span> Tamamla &amp; Kaydet
-                        </button>
-                    </div>
-                </div>
-                <div class="card border-primary mb-3">
-                    <div class="card-header bg-primary text-white">
-                        <strong><span class="bi bi-hdd-network me-1"></span>Baraj-Saha Kurulumu</strong>
-                    </div>
-                    <div class="card-body">
-                        <div class="alert alert-info py-2 small">
-                            Yapı kaydedildi. <code>structureId</code> otomatik oluşturuldu; saha ayarları bu yapı ile ilişkilendirilecektir.
-                            Bu alan yalnız UDP/GCF ve MQTT kaynaklarınız içindir. TCP/IP kaynakları için <strong>3. Sensör Ekle</strong> adımına geçin.
-                        </div>
-                        <ul class="nav nav-tabs mb-3">
-                            <li class="nav-item">
-                                <button class="nav-link @(_setupTab == "edge" ? "active" : "")" type="button" @onclick='() => _setupTab = "edge"'>Edge Config</button>
-                            </li>
-                            <li class="nav-item">
-                                <button class="nav-link @(_setupTab == "env" ? "active" : "")" type="button" @onclick='() => _setupTab = "env"'>Saha .env</button>
-                            </li>
-                        </ul>
-                        @if (_setupTab == "edge")
-                        {
-                            <div class="row g-2">
-                                <div class="col-md-6"><label class="form-label">Structure ID</label><input class="form-control" value="@_createdStructureId" readonly /></div>
-                                <div class="col-md-6"><label class="form-label">Yapı Adı</label><input class="form-control" @bind="_setupName" /></div>
-                                <div class="col-md-6"><label class="form-label">Yapı Tipi</label><input class="form-control" @bind="_setupStructureType" /></div>
-                                <div class="col-md-6">
-                                    <label class="form-label">Merkez Timeseries API URL</label>
-                                    <input class="form-control" type="url"
-                                           value="@GetEnv("CENTRAL_TIMESERIES_API_BASE_URL")"
-                                           @onchange='e => SetEnv("CENTRAL_TIMESERIES_API_BASE_URL", e.Value?.ToString())'
-                                           placeholder="http://merkez-timeseries:5000" />
-                                    <div class="form-text">Saha bu adresi commissioning ve merkezi envanter için kullanır; değer Edge Config ve saha .env dosyasına kaydedilir.</div>
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">Node-RED URL</label>
-                                    <input class="form-control" @bind="_newNodeRedUrl" placeholder="http://100.116.167.67:1880" />
-                                    <div class="form-text">
-                                        Saha Node-RED adresi. <strong>Aynı bilgisayarda başka yapıyla birlikte çalışacak</strong> seçilecekse bu port diğer yapıdan farklı olmalıdır (ör. ikinci yapı için <code>1881</code>).
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">Saha Edge API URL</label>
-                                    <input class="form-control" @bind="_newEdgeApiUrl" placeholder="http://100.116.167.67:5080" />
-                                    <div class="form-text">
-                                        Saha Edge API adresi. <strong>Aynı bilgisayarda başka yapıyla birlikte çalışacak</strong> seçilecekse bu port diğer yapıdan farklı olmalıdır (ör. ikinci yapı için <code>5081</code>).
-                                    </div>
-                                </div>
-                                <div class="col-md-6 d-flex align-items-end">
-                                    <div class="form-check mb-2">
-                                        <input class="form-check-input" type="checkbox" @bind="_newAutoRegister" id="chkAutoRegister" />
-                                        <label class="form-check-label" for="chkAutoRegister">Saha açılışında otomatik kayıt</label>
-                                        <div class="form-text">
-                                            <strong>Ne yapar:</strong> edge-layer her yeniden başladığında bu yapının adını, tipini ve Edge/Node-RED URL'lerini merkez API'ye bildirir — böylece merkez panelde saha durumu güncel kalır.<br />
-                                            <strong>Ne yapmaz:</strong> sensör, pipeline veya veri akışı başlatmaz; yalnız kimlik/adres senkronizasyonudur.<br />
-                                            <strong>Ne zaman açık tutulmalı:</strong> Saha makinesi arada sırada yeniden başlıyorsa veya Tailscale IP'si değişebiliyorsa açık bırakın. Sabit IP'li kalıcı kurulumda kapalı da bırakabilirsiniz.
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        }
-                        else if (_setupTab == "env")
-                        {
-                            @foreach (var group in EnvironmentGroups.Where(group => SiteEnvironmentFields.Any(field => GetEnvironmentGroup(field.Key) == group.Key && ShouldShowEnvironmentField(field.Key))))
-                            {
-                            <section class="site-env-group rounded mb-3">
-                                <div class="site-env-group-header">
-                                    <button type="button" class="btn w-100 d-flex align-items-center justify-content-between px-3 py-2 text-start fw-semibold"
-                                            @onclick="() => ToggleEnvironmentGroup(group.Key)"
-                                            aria-expanded="@IsEnvironmentGroupExpanded(group.Key)">
-                                        <span>
-                                            <span class="d-block">@group.Label</span>
-                                            @if (!string.IsNullOrWhiteSpace(group.Description))
-                                            {
-                                                <small class="d-block fw-normal text-muted mt-1">@group.Description</small>
-                                            }
-                                        </span>
-                                        <span class="bi @(IsEnvironmentGroupExpanded(group.Key) ? "bi-chevron-up" : "bi-chevron-down")"></span>
-                                    </button>
-                                </div>
-                                @if (IsEnvironmentGroupExpanded(group.Key))
-                                {
-                                <div class="p-3">
-                                @if (group.Key == "source")
-                                {
-                                    <div class="alert alert-primary py-2 small mb-3">
-                                        <strong><code>both</code> nasıl çalışır?</strong>
-                                        <strong>UDP ve MQTT aynı anda kullanılabilir.</strong>
-                                        İkisini birlikte kullanmak için <strong>UDP Sources</strong> listesini ve <strong>Kaynak MQTT Broker Host / Topic</strong> alanlarını doldurun; iki kaynak eşzamanlı dinlenir.
-                                        Yalnız UDP için MQTT Host alanını boş, yalnız MQTT için UDP Sources değerini <code>[]</code> bırakabilirsiniz.
-                                        Tanımlanmayan kaynak atlanır; tanımlı diğer kaynak çalışmaya devam eder.
-                                    </div>
-                                }
-                                @if (group.Key == "mqtt-source")
-                                {
-                                    <div class="alert alert-info mb-3">
-                                        <h6 class="alert-heading mb-2"><span class="bi bi-diagram-3 me-1"></span>Topic, metrik ve cihaz nasıl bağlanır?</h6>
-                                        <p class="small mb-3">
-                                            <strong>Kaynak MQTT Topic</strong>, Saha Bridge'in kaynak broker'da abone olduğu adrestir; Device ID değildir.
-                                            Bridge gelen JSON'daki seçili metrikleri stream'e dönüştürür. İsterseniz oluşan stream'i
-                                            <strong>Kaynak Stream/Metrik → Device ID Eşlemesi</strong> alanıyla kalıcı cihaz kimliğine bağlayabilirsiniz.
-                                        </p>
-                                        <div class="row g-2">
-                                            <div class="col-lg-6">
-                                                <div class="bg-white border rounded p-2 h-100 small">
-                                                    <div class="fw-semibold text-primary mb-2">1. Tekli Scalar örneği</div>
-                                                    <div><span class="text-muted">Topic:</span> <code>shm/gumushane-baca/temperature</code></div>
-                                                    <div><span class="text-muted">Tek metrik:</span> <code>temperature</code></div>
-                                                    <div><span class="text-muted">Gelen JSON:</span> <code>{"temperature":24.5}</code></div>
-                                                    <div><span class="text-muted">Oluşan stream:</span> <code>mqtt/temperature</code></div>
-                                                    <div class="mt-2"><span class="text-muted">Eşleme:</span></div>
-                                                    <code class="d-block text-break">{"mqtt/temperature":"gumushane-baca-sicaklik"}</code>
-                                                </div>
-                                            </div>
-                                            <div class="col-lg-6">
-                                                <div class="bg-white border rounded p-2 h-100 small">
-                                                    <div class="fw-semibold text-primary mb-2">2. Çoklu Scalar örneği</div>
-                                                    <div><span class="text-muted">Topic:</span> <code>shm/gumushane-baca/environment</code></div>
-                                                    <div><span class="text-muted">Çoklu metrik:</span> <code>temperature,humidity</code></div>
-                                                    <div><span class="text-muted">Gelen JSON:</span> <code>{"temperature":24.5,"humidity":61}</code></div>
-                                                    <div><span class="text-muted">Stream'ler:</span> <code>mqtt/temperature</code>, <code>mqtt/humidity</code></div>
-                                                    <div class="mt-2"><span class="text-muted">Eşleme:</span></div>
-                                                    <code class="d-block text-break">{"mqtt/temperature":"baca-sicaklik","mqtt/humidity":"baca-nem"}</code>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="small mt-2 mb-0">
-                                            <span class="bi bi-info-circle me-1"></span>
-                                            Yukarıdaki çoklu örnekte <code>environment</code> kullanılır; çünkü iki metrik aynı JSON mesajında ve aynı topic'te gelir.
-                                            <code>#</code> zorunlu değildir. Yalnız cihaz gerçekten farklı alt topic'lere yayın yapıyorsa <code>shm/gumushane-baca/#</code> kullanılır.
-                                            Eşleme boşsa sistem <code>stream-mqtt-temperature</code> gibi bir Device ID üretir.
-                                        </div>
-                                    </div>
-                                }
-                                @if (group.Key == "central")
-                                {
-                                    <div class="alert alert-warning py-2 small mb-3">
-                                        <strong>Merkez DB veri yolu:</strong>
-                                        Saha Edge → Merkez EMQX → yapı tipine ait merkez Node-RED (ör. Baraj veya Köprü) → Kafka <code>sensor.timeseries</code> → merkez Timeseries DB.
-                                        Panelde <strong>Çalıştır</strong> saha veri akışını, <strong>Aktar</strong> merkeze iletimi açar. Normal kayıt için ayrıca Node-RED Configure işlemi gerekmez.
-                                        <strong>Node-RED Yapılandırma / Configure</strong> yalnız bu yapıya özel flow veya ayrı runtime gerektiğinde kullanılır.
-                                    </div>
-                                }
-                                <div class="row g-3">
-                                @foreach (var field in SiteEnvironmentFields.Where(field => GetEnvironmentGroup(field.Key) == group.Key))
-                                {
-                                    if (!ShouldShowEnvironmentField(field.Key))
-                                        continue;
-                                    <div class="col-md-6">
-                                        <label class="form-label fw-semibold">@field.Label</label>
-                                        @if (field.Key == "DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED")
-                                        {
-                                            <input class="form-control bg-light" value="true - yalnız ilk saha keşfi için" readonly />
-                                            SetEnv(field.Key, "true");
-                                        }
-                                        else if (field.Key == "SAHA_ENABLED_PIPELINES")
-                                        {
-                                            <div class="d-flex flex-wrap gap-2">
-                                                <button type="button" class="btn btn-sm @(IsPipelineSelected("ivmeolcer") ? "btn-success" : "btn-outline-secondary")" @onclick='() => TogglePipeline("ivmeolcer")'>İvmeölçer</button>
-                                                <button type="button" class="btn btn-sm @(IsPipelineSelected("kamera") ? "btn-success" : "btn-outline-secondary")" @onclick='() => TogglePipeline("kamera")'>Kamera</button>
-                                                <button type="button" class="btn btn-sm @(IsPipelineSelected("lidar") ? "btn-success" : "btn-outline-secondary")" @onclick='() => TogglePipeline("lidar")'>Lidar</button>
-                                            </div>
-                                            <input class="form-control mt-2" value="@GetEnv(field.Key)" readonly aria-label="Seçilen aktif pipeline'lar" />
-                                        }
-                                        else if (field.Key == "DEYAS_BRIDGE_SOURCE_MODE")
-                                        {
-                                            <select class="form-select" value="@GetEnv(field.Key)" @onchange="OnSourceModeChanged">
-                                                <option value="udp">udp</option>
-                                                <option value="mqtt">mqtt</option>
-                                                <option value="tcp">tcp</option>
-                                                <option value="both">both — yalnız UDP + MQTT</option>
-                                                <option value="all">all — UDP + MQTT + TCP</option>
-                                            </select>
-                                        }
-                                        else if (field.Key == "DEYAS_BRIDGE_UDP_SOURCES")
-                                        {
-                                            <textarea class="form-control font-monospace" rows="4"
-                                                      value="@GetEnv(field.Key)" @onchange="OnUdpSourcesChanged"
-                                                      placeholder='[{"host":"192.168.1.51","port":1572}]'></textarea>
-                                        }
-                                        else if (field.Key == "DEYAS_BRIDGE_TCP_SOURCES")
-                                        {
-                                            <textarea class="form-control font-monospace bg-light" rows="3" readonly>@BuildTcpSourcesJson()</textarea>
-                                        }
-                                        else if (field.Key == "DEYAS_BRIDGE_SOURCE_MQTT_SCALAR_METRICS")
-                                        {
-                                            <div class="input-group">
-                                                <input class="form-control @(IsSingleScalarMetricActive ? "bg-light" : "")"
-                                                       value="@GetEnv(field.Key)"
-                                                       readonly="@IsSingleScalarMetricActive"
-                                                       @onchange="e => SetEnv(field.Key, e.Value?.ToString())"
-                                                       placeholder="temperature,humidity" />
-                                                @if (IsSingleScalarMetricActive)
-                                                {
-                                                    <span class="input-group-text text-muted small" title="Tek Scalar Metrik doluyken çoklu seçim kapalıdır"><span class="bi bi-lock-fill me-1"></span>Tek metrik aktif</span>
-                                                }
-                                            </div>
-                                        }
-                                        else
-                                        {
-                                            <input class="form-control" value="@GetEnv(field.Key)" @onchange="e => SetEnv(field.Key, e.Value?.ToString())" placeholder="@field.Placeholder" />
-                                        }
-                                        <div class="form-text">@field.Description</div>
-                                    </div>
-                                }
-                                </div>
-                                </div>
-                                }
-                            </section>
-                            }
-                            <div class="row g-3">
-                                @if (IsCameraPipelineSelected)
-                                {
-                                <div class="col-12">
-                                    <CameraSettingsEditor Settings="_cameraSettings" />
-                                </div>
-                                }
-                            </div>
-                        }
-                        <div class="mt-3 d-flex flex-wrap gap-2 align-items-center">
-                            <button class="btn btn-primary" @onclick="SaveFieldSetupAsync" disabled="@_setupSaving">Saha ayarlarını merkez DB'ye kaydet</button>
-                            <span class="small text-muted">Edge yapılandırması ve saha <code>.env</code> değerleri bu yapının merkez kaydına saklanır; sahaya komut göndermez. <strong>Kaydedilmezse</strong> deployment ZIP bu ayarları içermez ve saha sunucusuna gönderilecek yapılandırma eksik kalır.</span>
-                            @if (_wizardStep == 3)
-                            {
-                                <button class="btn btn-success ms-auto" @onclick="GoToSensorStep" disabled="@_setupSaving">
-                                    Sensör Ekle adımına geç <span class="bi bi-arrow-right ms-1"></span>
-                                </button>
-                                <button class="btn btn-outline-success" @onclick="FinishWithoutSensorsAsync" disabled="@(_setupSaving || IsTcpSourceMode)">
-                                    Sensör eklemeden tamamla
-                                </button>
-                                @if (IsTcpSourceMode)
-                                {
-                                    <span class="small text-warning"><span class="bi bi-lock-fill me-1"></span>TCP modu için en az bir TCP/IP sensörü eklenmelidir.</span>
-                                }
-                            }
-                        </div>
-                    </div>
-                </div>
-            </div>
             <div hidden="@(_wizardStep != 4)">
-                <div class="alert alert-info d-flex align-items-center gap-2 py-2 small mb-2">
-                    <span class="bi bi-cursor-fill text-primary"></span>
-                    Bu adım yalnız TCP/IP sensörleri içindir. Resme tıklayın, bağlantıyı test edin; bulunan metrikleri doğrulayın ve sensörü kaydedin. UDP/MQTT kaynakları önceki adımda tanımlanır.
-                </div>
-                @* Yapı resmi — JS tarafından doldurulur (initStructureImage), burada sadece container *@
-                <div class="wizard-image-wrapper" id="wizard-image">
-                    @* JS initStructureImage() bu div'in içini doldurur *@
-                </div>
-                @* Eklenen sensörler listesi *@
-                @if (_newStructureSensors.Any())
-                {
-                    <div class="mt-3">
-                        <h6 class="fw-semibold mb-2"><span class="bi bi-cpu me-1"></span>Eklenen Sensörler (@_newStructureSensors.Count)</h6>
-                        <div class="table-responsive">
-                            <table class="table table-sm table-bordered mb-0">
-                                <thead class="table-dark">
-                                    <tr><th>#</th><th>Tip</th><th>Ad</th><th>Device ID</th><th>Topic</th><th>Metrikler</th><th>Telemetri</th><th>X/Y</th><th></th></tr>
-                                </thead>
-                                <tbody>
-                                    @for (int i = 0; i < _newStructureSensors.Count; i++)
-                                    {
-                                        var idx = i;
-                                        var s = _newStructureSensors[idx];
-                                        var icon = _sensorTypeInfos.TryGetValue(s.SensorType.ToString(), out var ti) ? ti.Emoji : "🔘";
-                                        <tr>
-                                            <td>@(idx + 1)</td>
-                                            <td><span title="@s.SensorType">@icon</span></td>
-                                            <td>@s.Name</td>
-                                            <td><code style="font-size:0.75rem">@s.DeviceId</code></td>
-                                            <td><small class="font-monospace">@s.Topic</small></td>
-                                            <td>
-                                                @{var wMetrics = !string.IsNullOrWhiteSpace(s.Metrics) ? s.Metrics : s.Description;}
-                                                @foreach (var m in (wMetrics ?? string.Empty).Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
-                                                {
-                                                    <span class="badge bg-info text-dark me-1" style="font-size:0.65rem">@m</span>
-                                                }
-                                            </td>
-                                            <td><small class="text-muted">@(s.TelemetryIntervalMs / 1000) sn / @(s.TelemetryBatchSize) ölçüm</small></td>
-                                            <td><small>@(s.ImagePositionX?.ToString("F1") ?? "-"), @(s.ImagePositionY?.ToString("F1") ?? "-")</small></td>
-                                            <td>
-                                                <button class="btn btn-outline-danger py-0 px-1" style="font-size:0.7rem;line-height:1.4"
-                                                        @onclick="() => RemoveWizardSensor(idx)">✕</button>
-                                            </td>
-                                        </tr>
-                                    }
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                }
-                <div class="mt-4 d-flex justify-content-between">
-                    <button class="btn btn-outline-secondary" @onclick="OpenSetupStep">Geri: Saha Kurulumu</button>
-                    <button class="btn btn-success" @onclick="GoToDeploymentStep" disabled="@(IsTcpSourceMode && !HasTcpSensor)">İleri: Saha Deployment <span class="bi bi-arrow-right ms-1"></span></button>
-                </div>
+              <div class="dy-heading"><div><h2 class="dy-form-heading">Hangi sensörleri izleyeceksiniz?</h2><p>Sensör ekleyin. Ne ölçtüğünü ve verinin nereden alınacağını aynı ekranda seçin.</p></div><button class="btn btn-primary" @onclick="OpenWizardSensorEditor">+ Sensör veya kamera ekle</button></div>
+              <details class="dy-technical"><summary>Görsel üzerinde sensör konumu seç (isteğe bağlı)</summary><p class="dy-subtle">Görsele tıklayarak sensör ekleyebilirsiniz. Gerçek konumu bilinmeyen sensör listede konumlandırılmamış olarak kalır.</p><div class="wizard-image-wrapper" id="wizard-image"></div></details>
+              @if (_newStructureSensors.Any()) {
+                <div class="table-responsive"><table class="table"><thead><tr><th>Sensör</th><th>Ölçüm türü</th><th>Bağlantı</th><th>Konum</th><th></th></tr></thead><tbody>
+                @for (var i = 0; i < _newStructureSensors.Count; i++) { var index = i; var sensor = _newStructureSensors[i];
+                  <tr><td><strong>@sensor.Name</strong><div class="dy-subtle">Cihaz adresinden · @sensor.IpAddress:@sensor.Port</div></td><td>@GetSensorTypeLabel(sensor.SensorType.ToString())</td><td>Kaydedildi · izleme ayrıca başlatılır</td><td>@(sensor.ImagePositionX.HasValue ? "Görselde konumlandırıldı" : "Konumlandırılmadı")</td><td><button class="btn btn-sm btn-outline-danger" @onclick="() => RemoveWizardSensor(index)" aria-label="@($"{sensor.Name} sensörünü barajdan kaldır")">Kaldır</button></td></tr>
+                }</tbody></table></div>
+              }
+              @foreach (var source in _friendlyUdpSources) { <div class="dy-source-row"><div><strong>@(string.IsNullOrWhiteSpace(source.Name) ? source.Host : source.Name)</strong><p>Cihazdan gelen yayın · @source.Host:@source.Port</p><span class="dy-chip neutral">Kaynak tanımlı · sensörler ilk veride bulunur</span></div><button class="btn btn-outline-secondary" @onclick="() => RemoveFriendlySource(source)">Kaynağı kaldır</button></div> }
+              @if (_sourceMqtt) { <div class="dy-source-row"><div><strong>@GetEnv("DEYAS_SETUP_MQTT_NAME")</strong><p>Ölçüm sunucusundan gelen veri · @GetEnv("DEYAS_BRIDGE_SOURCE_MQTT_HOST")</p><span class="dy-chip neutral">Ortak sunucu bağlantısı · sensörler ilk veride bulunur</span></div><button class="btn btn-outline-secondary" @onclick="EditMqttSource">Düzenle</button><button class="btn btn-outline-secondary" @onclick="RemoveMqttSource">Kaynağı kaldır</button></div> }
+              @foreach (var camera in _cameraSettings.Cameras) { <div class="dy-source-row"><div><strong>@camera.Id</strong><p>Kamera · @(camera.SourceType == "usb" ? "Saha bilgisayarına takılı" : camera.SourceType == "mqtt" ? "Başka bilgisayardan" : "Ağ üzerinden")</p><span class="dy-chip neutral">Kamera ayarı kaydedilecek · görüntü ayrıca kontrol edilir</span></div><button class="btn btn-outline-secondary" @onclick="() => EditSetupCamera(camera)">Düzenle</button><button class="btn btn-outline-secondary" @onclick="() => RemoveSetupCamera(camera)">Kaldır</button></div> }
+              @if (!HasSetupSources) { <div class="dy-empty"><h3>Henüz sensör veya kamera eklemediniz</h3><p>Örneğin su seviyesi sensörü ekleyip “Cihazın adresine bağlan” seçebilirsiniz. Kamera için “Kamera görüntüsü” seçin.</p><button class="btn btn-primary" @onclick="OpenWizardSensorEditor">İlk sensörü ekle</button></div> }
+              <div class="dy-guide mt-3"><h3 class="h6">Saha dosyasını ayrıca doldurmanız gerekmez</h3><p>Burada seçtiğiniz kaynaklar saha ayarlarına ve ZIP’e otomatik yazılır. Sensörün kaydedilmesi ile gerçek veri gelmesi ayrı gösterilir.</p></div>
+              <div class="d-flex flex-wrap justify-content-between gap-2 mt-4"><button class="btn btn-outline-secondary" @onclick="BackFromStep3">← Baraj bilgileri</button><button class="btn btn-outline-secondary" @onclick="SaveFieldSetupAsync" disabled="@_setupSaving">Kaydet, sonra devam et</button><button class="btn btn-primary" @onclick="GoToDeploymentStep" disabled="@(_setupSaving || !HasSetupSources)">Kaydet ve ZIP hazırla →</button></div>
             </div>
             <div hidden="@(_wizardStep != 5)">
                     <div class="card border-success">
-                        <div class="card-header bg-success text-white"><strong>Saha Deployment Paketi</strong></div>
+                        <div class="card-header bg-success text-white"><strong>Saha kurulum paketi</strong></div>
                         <div class="card-body">
-                            <p>TCP sensörleri, UDP/MQTT ayarları, kamera ayarları ve tüm saha dosyaları tek ZIP içinde hazırlanır.</p>
+                            <h2 class="h4">Saha ZIP’ini hazırlayın</h2><p>Aşağıdaki bölümleri sırayla tamamlayın. Sensör ve kamera kaynakları hazır; tekrar girmeniz gerekmez.</p><div class="dy-chip neutral mb-3">@_setupName · @SourceCount kaynak</div>
+                            @if (_packageDownloaded) { <div class="alert alert-success">ZIP tarayıcıya gönderildi. Saha kurulumu ve veri gelişi kurulum sonrasında kontrol edilir.</div> }
+                            <div class="dy-package-step"><button class="dy-package-toggle" @onclick="() => _packageSection = 1" aria-expanded="@(_packageSection == 1)"><span>1</span><strong>Hangi bilgisayara kurulacak?</strong><small>@(_samePcDeployment ? "Başka barajla ortak bilgisayar" : "Bu baraja ayrılmış bilgisayar")</small></button><div class="p-3" hidden="@(_packageSection != 1)"><p>Bu baraj için ayrı bir bilgisayar varsa aşağıdaki seçeneği kapalı bırakın.</p>
                             <div class="form-check form-switch mb-3">
                                 <input class="form-check-input" type="checkbox" @bind="_samePcDeployment" id="samePcDeployment" />
-                                <label class="form-check-label fw-semibold" for="samePcDeployment">Aynı bilgisayarda başka yapıyla birlikte çalışacak (önerilen ortak altyapı)</label>
+                                <label class="form-check-label fw-semibold" for="samePcDeployment">Bu bilgisayarda başka bir baraj da çalışacak</label>
                             </div>
                             @if (_samePcDeployment)
                             {
                                 <div class="border rounded p-3 mb-3 bg-light">
                                     <div class="small text-success fw-semibold mb-2">Bu seçim ortak EMQX, Kafka, TimescaleDB ve Timeseries API paketi ile yalnız bu yapının Edge + Node-RED paketini üretir. Ortak altyapı portları bir kez açılır; her ek yapı için yalnız Edge ve Node-RED host portları farklı olmalıdır.</div>
                                     <div class="row g-2">
-                                        <div class="col-md-4"><label class="form-label small">Compose project adı</label><input class="form-control form-control-sm" @bind="_samePcProjectName" placeholder="saha-a" /><div class="form-text">İkinci ZIP'te farklı olmalı: <code>saha-b</code>.</div></div>
+                                        <div class="col-md-4"><label class="form-label small">Bu kurulumun kısa adı</label><input class="form-control form-control-sm" @bind="_samePcProjectName" placeholder="saha-a" /><div class="form-text">İkinci ZIP'te farklı olmalı: <code>saha-b</code>.</div></div>
                                         <div class="col-md-4"><label class="form-label small">Edge API host portu</label><input class="form-control form-control-sm" type="number" @bind="_samePcEdgePort" min="1024" max="65535" /><div class="form-text">Mevcut: <code>5080</code>. İkinci örnek: <code>5081</code>.</div></div>
                                         <div class="col-md-4"><label class="form-label small">Node-RED host portu</label><input class="form-control form-control-sm" type="number" @bind="_samePcNodeRedPort" min="1024" max="65535" /><div class="form-text">Mevcut: <code>1880</code>. İkinci örnek: <code>1881</code>.</div></div>
                                     </div>
                                     <div class="form-text mt-2">İlk ZIP'te ortak altyapıyı bir kez başlatın. Sonraki yapı ZIP'lerinde aynı ortak altyapı portlarını kullanın; yalnız <code>saha-b</code>, Edge <code>5081</code> ve Node-RED <code>1881</code> farklı olsun. Edge/Node-RED URL'si ZIP'te seçilen portla güncellenir.</div>
                                 </div>
                             }
-                            <div class="border rounded p-3 mb-3 bg-light">
-                                <h6 class="mb-2"><span class="bi bi-shield-lock me-1"></span>MQTT bağlantı hesapları — çoğu kurulumda boş bırakılır</h6>
-                                <div class="alert alert-secondary py-2 small mb-3">
-                                    <strong>Kaynak MQTT hesabı:</strong> Sensörün veya mevcut Node-RED'in veri yayımladığı harici MQTT broker kullanıcı/şifresidir.
-                                    Yalnız bu broker kimlik doğrulaması istiyorsa doldurun.<br />
-                                    <strong>Merkez MQTT hesabı:</strong> Sahadan merkez EMQX'e veri gönderirken kullanılacak hesaptır.
-                                    Standart merkez paketinde MQTT, Tailscale ağı üzerinde anonim bağlantıya açık olduğundan boş bırakılır. Merkez EMQX'te ayrıca authentication ve MQTT kullanıcısı oluşturursanız aynı hesabı buraya yazın.
-                                </div>
-                                <p class="small text-muted mb-2">Bu dört alan yalnız indirilen ZIP'in <code>.env</code> dosyasına yazılır; yapı kaydına veya merkez veritabanına kaydedilmez.</p>
-                                <div class="small text-success mb-3">
-                                    <span class="bi bi-check-circle me-1"></span>
-                                    Paket ayrıca saha PostgreSQL veritabanı ve EMQX yönetim ekranı için iki parola üretir. Bunlar servislerin kendi yönetim parolalarıdır;
-                                    sensör verisinin MQTT üzerinden taşınmasında kullanılmaz. Kurulum yöneticisi gerektiğinde ZIP içindeki <code>.env</code> dosyasından erişir.
-                                </div>
-                                <div class="row g-2">
-                                    @if (IsMqttSourceMode)
-                                    {
-                                        <div class="col-md-6"><label class="form-label small">Harici kaynak broker kullanıcı adı <span class="text-muted">(isteğe bağlı)</span></label><input class="form-control form-control-sm" @bind='_deploymentSecrets["DEYAS_BRIDGE_SOURCE_MQTT_USERNAME"]' autocomplete="off" /></div>
-                                        <div class="col-md-6"><label class="form-label small">Harici kaynak broker şifresi <span class="text-muted">(isteğe bağlı)</span></label><input type="password" class="form-control form-control-sm" @bind='_deploymentSecrets["DEYAS_BRIDGE_SOURCE_MQTT_PASSWORD"]' autocomplete="new-password" /></div>
-                                    }
-                                    <div class="col-12"><label class="form-label small">Ortak DEYAS JWT imzalama anahtarı</label><input type="password" class="form-control form-control-sm" @bind='_deploymentSecrets["DEYAS_JWT_SIGNING_KEY"]' autocomplete="new-password" /><div class="form-text">Merkezde kullanılan aynı anahtarı girin (en az 32 karakter). Yalnız ZIP içindeki .env dosyasına eklenir; merkez yapı kaydında saklanmaz. Boşsa sahada doldurun.</div></div>
-                                    <div class="col-md-6"><label class="form-label small">Merkez EMQX MQTT kullanıcı adı <span class="text-muted">(standart kurulumda boş)</span></label><input class="form-control form-control-sm" @bind='_deploymentSecrets["CENTRAL_MQTT_USERNAME"]' autocomplete="off" /></div>
-                                    <div class="col-md-6"><label class="form-label small">Merkez EMQX MQTT şifresi <span class="text-muted">(standart kurulumda boş)</span></label><input type="password" class="form-control form-control-sm" @bind='_deploymentSecrets["CENTRAL_MQTT_PASSWORD"]' autocomplete="new-password" /></div>
-                                </div>
-                            </div>
-                            <div class="d-flex gap-2">
+                            <button class="btn btn-primary" @onclick="() => _packageSection = 2">Devam: merkez bağlantısı →</button></div></div>
+                            <div class="dy-package-step"><button class="dy-package-toggle" @onclick="() => _packageSection = 2" aria-expanded="@(_packageSection == 2)"><span>2</span><strong>Merkeze nasıl bağlanacak?</strong><small>Önceden tanımlı merkez adresleri</small></button><div class="p-3" hidden="@(_packageSection != 2)"><p>Merkez adresleri hazır gelir. Kurulum sorumlusu farklı adres verdiyse değiştirin. Sensör kaynaklarını önceki adımda tanımladınız.</p><div class="row g-3">
+                            @foreach (var key in new[] { "CENTRAL_AUTH_API_BASE_URL", "CENTRAL_TIMESERIES_API_BASE_URL", "CENTRAL_MQTT_HOST" }) { <div class="col-md-6"><label class="form-label">@(key == "CENTRAL_AUTH_API_BASE_URL" ? "Merkez giriş hizmeti" : key == "CENTRAL_TIMESERIES_API_BASE_URL" ? "Merkez ölçüm hizmeti" : "Merkez veri iletim adresi")</label><input class="form-control" value="@GetEnv(key)" @onchange="e => SetEnv(key, e.Value?.ToString())" /></div> }
+                            </div><details class="dy-technical"><summary>Kurulum uzmanı için diğer saha ayarları</summary><div class="row g-3"><div class="col-md-6"><label class="form-label">Saha kontrol adresi</label><input class="form-control" @bind="_newEdgeApiUrl" /></div><div class="col-md-6"><label class="form-label">Node-RED adresi</label><input class="form-control" @bind="_newNodeRedUrl" /></div></div>
+                            @foreach (var group in EnvironmentGroups) { <details class="dy-technical"><summary>@group.Label</summary><div class="row g-3">@foreach (var field in SiteEnvironmentFields.Where(f => GetEnvironmentGroup(f.Key) == group.Key)) { <div class="col-md-6"><label class="form-label">@field.Label</label>@if (IsGeneratedSourceField(field.Key)) { <textarea class="form-control" readonly>@(field.Key == "DEYAS_BRIDGE_TCP_SOURCES" ? BuildTcpSourcesJson() : GetEnv(field.Key))</textarea> } else { <input class="form-control" value="@GetEnv(field.Key)" @onchange="e => SetEnv(field.Key, e.Value?.ToString())" /> }<div class="form-text">@field.Description</div></div> }</div></details> }</details>
+                            <button class="btn btn-primary" @onclick="() => _packageSection = 3">Devam: erişim bilgileri →</button></div></div>
+                            <div class="dy-package-step"><button class="dy-package-toggle" @onclick="() => _packageSection = 3" aria-expanded="@(_packageSection == 3)"><span>3</span><strong>Kurulum erişim bilgileri</strong><small>Kurulum sorumlusunun dolduracağı alanlar</small></button><div class="p-3" hidden="@(_packageSection != 3)"><p>Bu bilgileri bilmiyorsanız boş bırakabilirsiniz. Kurulum sorumlusu ZIP içindeki erişim dosyasını sahada tamamlayabilir.</p>
+                            <label for="package-key" class="form-label">Merkezin kurulum erişim anahtarı (biliyorsanız)</label><input id="package-key" type="password" class="form-control" @bind='_deploymentSecrets["DEYAS_JWT_SIGNING_KEY"]' autocomplete="new-password" /><div class="form-text">Merkezdeki anahtarla aynı olmalı; en az 32 karakter. Bilmiyorsanız kurulum sorumlusu sahada tamamlasın. Yalnız ZIP’e yazılır.</div>
+                            <details class="dy-technical"><summary>Merkez ek bir bağlantı hesabı istiyorsa</summary><p class="dy-subtle">Standart kurulumda boş bırakılır. Sensör kaynağının hesabı sensör ekleme ekranında girilir.</p><div class="row g-3"><div class="col-md-6"><label class="form-label">Merkez veri iletim kullanıcı adı</label><input class="form-control" @bind='_deploymentSecrets["CENTRAL_MQTT_USERNAME"]' /></div><div class="col-md-6"><label class="form-label">Merkez veri iletim parolası</label><input type="password" class="form-control" @bind='_deploymentSecrets["CENTRAL_MQTT_PASSWORD"]' /></div></div></details><p class="dy-subtle">Yerel hizmet parolaları otomatik oluşturulur. ZIP’i kurulum sorumlusuyla paylaşın.</p>
+                            <button class="btn btn-primary" @onclick="() => _packageSection = 4">Devam: kontrol et ve indir →</button></div></div>
+                            <div class="dy-package-step"><button class="dy-package-toggle" @onclick="() => _packageSection = 4" aria-expanded="@(_packageSection == 4)"><span>4</span><strong>Kontrol et ve ZIP’i indir</strong><small>@SourceCount kaynak · @_setupName</small></button><div class="p-3" hidden="@(_packageSection != 4)"><p><strong>@_setupName</strong> için @SourceCount kaynak tanımlandı. Kaynak ayarları dosyalara otomatik eklenecek.</p><p>İndirdikten sonra ZIP’i saha bilgisayarında açın ve <strong>ONCE_BUNU_OKUYUN.md</strong> dosyasını okuyun.</p>
+                            <div class="d-flex flex-wrap gap-2">
                                 <button class="btn btn-outline-secondary" @onclick="GoBackToSensorStep"><span class="bi bi-arrow-left me-1"></span>Geri: Sensör Ekle</button>
-                                <button class="btn btn-success" @onclick="DownloadDeploymentPackage"><span class="bi bi-file-earmark-zip me-1"></span>Saha deployment ZIP indir</button>
-                            </div>
+                                <button class="btn btn-primary" @onclick="DownloadDeploymentPackage" disabled="@(_packageBusy || _setupSaving)"><span class="bi bi-file-earmark-zip me-1"></span>@(_packageBusy ? "Paket hazırlanıyor…" : "Saha kurulum ZIP'ini indir")</button><a class="btn btn-outline-secondary" href="sensor-setup">Kurulum sonrası kontrol</a>
+                            </div></div></div>
                         </div>
                     </div>
             </div>
@@ -833,6 +464,7 @@
                 </div>
             </div>
             <div class="d-flex gap-2 flex-shrink-0">
+                <button class="btn btn-sm btn-outline-light" @onclick="() => EditSavedSourcesAsync(_editingStructure.Id)">Sensör kaynaklarını düzenle</button>
                 <button class="btn btn-sm btn-outline-light" @onclick="EditStructureInfo" title="Bilgileri düzenle">
                     <span class="bi bi-pencil me-1"></span>Düzenle
                 </button>
@@ -898,7 +530,7 @@
                                 <th style="width:32px"></th>
                                 <th>Sensör Adı</th>
                                 <th>Tip</th>
-                                <th>Device ID</th>
+                                <th>Teknik cihaz kimliği</th>
                                 <th>Topic</th>
                                 <th>Metrikler</th>
                                 <th style="width:40px"></th>
@@ -961,25 +593,41 @@
             <button style="background:none;border:none;color:rgba(255,255,255,0.8);font-size:20px;cursor:pointer;padding:0 4px"
                     @onclick="CloseSensorPopup">&times;</button>
         </div>
-        
+
         <div class="sensor-add-popup-body">
+            @if (_isWizardSensorMode) {
+                <div class="dy-guide"><h2 class="h5">Sensörün verisi nereden gelecek?</h2><p>Bağlantı yöntemini seçin. Yalnız bu yönteme ait bilgileri isteyeceğiz.</p></div>
+                <label for="sensor-source-kind" class="form-label">Veri kaynağı</label><select id="sensor-source-kind" class="form-select mb-3" @bind="_sensorSourceKind" @bind:after="SourceKindChanged"><option value="">Bir bağlantı yöntemi seçin</option><option value="tcp">Cihaza doğrudan bağlan (TCP / Modbus)</option><option value="udp">Titreşim ölçüm bilgisayarından al (UDP / GCF)</option><option value="mqtt">Ölçüm yayın sunucusundan al (MQTT)</option><option value="camera">Kamera görüntüsü al</option></select>
+                <details class="dy-technical mb-3"><summary>Hangi bağlantıyı seçmeliyim?</summary><p><strong>TCP / Modbus:</strong> Saha bilgisayarı ağ üzerinden cihazın IP adresine ve portuna bağlanıp ölçüm okur. USB kamera bağlantısı için kullanılmaz. Adres, port ve cihaz biçimini cihazı kuran kişiden alın.</p><p><strong>UDP / GCF:</strong> Mevcut ivmeölçer ölçüm bilgisayarının GCF yayınını saha bridge'i alır. O bilgisayarın adresini ve GCF portunu girin; sıradan her UDP mesajı bu biçimde değildir.</p><p><strong>MQTT:</strong> Cihazın ölçümleri önceden bir MQTT sunucusunda yayınlanıyorsa seçin. Sunucu adresi, port ve konu (topic) gerekir; sunucu ve cihazın yayın biçimi uyumlu olmalıdır.</p><p><strong>Kamera:</strong> Bu bilgisayara takılı USB kamera, ağdaki RTSP kamera veya başka bilgisayardaki USB kameranın yayınını seçin. Merkeze klip ve fotoğraf aktarılır.</p></details>
+                @if (_sensorSourceKind is "udp" or "mqtt") {
+                  <div class="row g-3"><div class="col-md-6"><label for="source-name" class="form-label">Kaynağa vereceğiniz ad</label><input id="source-name" class="form-control" @bind="_tcpSensorName" @bind:event="oninput" placeholder="Örn: Gövde titreşim ölçümleri" /></div><div class="col-md-6"><label for="source-measurement" class="form-label">Ne ölçülüyor?</label><select id="source-measurement" class="form-select" @bind="_tcpSensorType" @bind:after="SourceMeasurementChanged"><option value="">Ölçüm türünü seçin</option>@foreach (var type in Enum.GetValues<SensorType>().Where(t => _sensorSourceKind == "udp" ? t is SensorType.Accelerometer or SensorType.Vibration : t is not SensorType.Camera and not SensorType.Image)) { <option value="@type.ToString()">@GetSensorTypeLabel(type.ToString())</option> }</select></div>
+                  <div class="col-md-8"><label for="source-host" class="form-label">@(_sensorSourceKind == "udp" ? "Cihaz / ölçüm bilgisayarı adresi" : "Ölçüm sunucusunun adresi")</label><input id="source-host" class="form-control" @bind="_sourceHost" @bind:event="oninput" placeholder="Kurulum sorumlusundan aldığınız adres" /></div><div class="col-md-4"><label for="source-port" class="form-label">Bağlantı numarası</label><input id="source-port" type="number" min="1" max="65535" class="form-control" @bind="_sourcePort" @bind:event="oninput" /></div>
+                  @if (_sensorSourceKind == "mqtt") { <div class="col-12"><label for="source-topic" class="form-label">Verinin yayın adresi</label><input id="source-topic" class="form-control" @bind="_sourceTopic" @bind:event="oninput" placeholder="Örn: olcumler/baraj-1/#" /><div class="form-text">Kurulum sorumlusunun verdiği yayın adresini kullanın. Bu sunucu bağlantısı barajın yayınla gelen sensörleri için ortaktır.</div></div><div class="col-12"><details class="dy-technical"><summary>Veri biçimi ve erişim (kurulum uzmanı)</summary><label class="form-label">Veri biçimi</label><select class="form-select" @bind="_sourcePayloadMode"><option value="scalar">Sayısal ölçüm</option><option value="waveform">Titreşim dalga kaydı</option></select><label class="form-label mt-2">Ölçüm alanı</label><input class="form-control" @bind="_sourceMetric" /><div class="form-text">Ölçüm türünden önerilir. Cihaz farklı bir alan adı kullanıyorsa değiştirin.</div><label class="form-label mt-2">Kaynak hesabı</label><input class="form-control" @bind="_sourceUsername" /><label class="form-label mt-2">Kaynak parolası</label><input type="password" class="form-control" @bind="_sourcePassword" /><p class="form-text">Erişim bilgileri yalnız indirilen ZIP’e eklenir.</p></details></div> }
+                  </div><p class="dy-subtle mt-3">Bağlantı kaynağı tanımlanır. Sensör kayıtları ilk gerçek veri alındığında keşfedilir; bu adım veri geldiğini doğrulamaz.</p>
+                }
+                @if (_sensorSourceKind == "camera") { <CameraSettingsEditor Settings="_setupCameraDraft" AllowAdd="false" /> }
+                @if (_sensorSourceKind is "udp" or "mqtt" or "camera") {
+                  @if (!string.IsNullOrEmpty(_saveError)) { <div class="alert alert-danger" role="alert">@_saveError</div> }
+                  <div class="d-flex gap-2 mt-3"><button class="btn btn-primary" @onclick="SaveConfiguredSourceAsync" disabled="@(_setupSaving || !CanSaveConfiguredSource)">Kaynağı kaydet</button><button class="btn btn-outline-secondary" @onclick="CloseSensorPopup">Vazgeç</button></div>
+                }
+            }
             @* ── TCP/IP sensörü ekle ── *@
-            @if (_addSensorTab == "tcp")
+            @if (_addSensorTab == "tcp" && (!_isWizardSensorMode || _sensorSourceKind == "tcp"))
             {
                 <div class="alert alert-info border small mb-3 py-3">
-                    <div class="fw-semibold mb-1">TCP/IP bağlantısını önce test edin, sonra kaydedin.</div>
-                    Test, TCP erişimini ve cihazın döndürdüğü metrikleri gösterir. Kaydetme işlemi sensörü, TCP yapılandırmasını ve yapı-sensör ilişkisini merkez DB'ye yazar; ZIP üretilirken <code>DEYAS_BRIDGE_TCP_SOURCES</code> otomatik doldurulur.
+                    <div class="fw-semibold mb-1">Cihazın bağlantısını kontrol edin, sonra sensörü kaydedin.</div>
+                    Test cihazdan veri alınıp alınamadığını gösterir. Kaydetmek, sensörü bu baraja bağlar; veri toplama ayrı başlatılır.
                 </div>
 
                 <div class="alert alert-light border small d-flex align-items-center gap-2 mb-3 py-2">
                     <span class="bi bi-crosshair text-primary"></span>
-                    Konum: X=@(_pendingPos?.x.ToString("F1") ?? "—"), Y=@(_pendingPos?.y.ToString("F1") ?? "—")
+                    @(_pendingPos.HasValue ? "Görselde bir konum seçildi." : "Görsel konumu seçilmedi. Daha sonra konumlandırabilirsiniz.")
                 </div>
 
                 <div class="row g-3">
                     <div class="col-md-6">
                         <label class="form-label">Sensör Adı <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" @bind="_tcpSensorName" placeholder="Örn: Ana Transformer" />
+                        <input type="text" class="form-control" @bind="_tcpSensorName" @bind:event="oninput" placeholder="Örn: Gövde su seviyesi" />
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Sensör Tipi <span class="text-danger">*</span></label>
@@ -987,7 +635,7 @@
                             <option value="">— Seçiniz —</option>
                             @foreach (var sensorType in Enum.GetValues<SensorType>())
                             {
-                                <option value="@sensorType.ToString()">@sensorType</option>
+                                <option value="@sensorType.ToString()">@GetSensorTypeLabel(sensorType.ToString())</option>
                             }
                         </select>
                     </div>
@@ -995,18 +643,18 @@
 
                 <div class="row g-3 mt-2">
                     <div class="col-md-6">
-                        <label class="form-label">IP Adresi <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" @bind="_tcpIpAddress" placeholder="192.168.1.100" />
+                        <label class="form-label">Cihazın ağ adresi <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" @bind="_tcpIpAddress" @bind:event="oninput" placeholder="192.168.1.100" />
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label">Port <span class="text-danger">*</span></label>
-                        <input type="number" class="form-control" @bind="_tcpPort" placeholder="502" min="1" max="65535" />
+                        <label class="form-label">Bağlantı numarası <span class="text-danger">*</span></label>
+                        <input type="number" class="form-control" @bind="_tcpPort" @bind:event="oninput" placeholder="502" min="1" max="65535" />
                     </div>
                 </div>
 
-                <div class="row g-3 mt-2">
+                <details class="dy-technical"><summary>Teknik bağlantı ayrıntıları (isteğe bağlı)</summary><p class="dy-subtle">Cihazı kuran kişinin önerdiği veri biçimini kullanın. Adres veya veri biçimi değişirse bağlantı testi yenilenir.</p>                <div class="row g-3 mt-2">
                     <div class="col-md-6">
-                        <label class="form-label">Protocol</label>
+                        <label class="form-label">Cihaz veri biçimi</label>
                         <select class="form-select" @bind="_tcpProfile">
                             <option value="GenericTcp">Generic TCP</option>
                             <option value="JsonTcp">JSON TCP</option>
@@ -1016,25 +664,25 @@
                         </select>
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label">Device ID</label>
+                        <label class="form-label">Teknik cihaz kimliği</label>
                         <input type="text" class="form-control" @bind="_tcpDeviceId" placeholder="Örn: DEV001" />
                     </div>
                 </div>
 
                 <div class="row g-3 mt-2">
                     <div class="col-md-6">
-                        <label class="form-label">Timeout (ms)</label>
+                        <label class="form-label">Yanıt bekleme süresi (ms)</label>
                         <input type="number" class="form-control" @bind="_tcpTimeout" min="100" max="60000" />
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label">Polling Interval (ms)</label>
+                        <label class="form-label">Ölçüm okuma aralığı (ms)</label>
                         <input type="number" class="form-control" @bind="_tcpPollInterval" min="100" max="60000" />
                     </div>
                 </div>
 
                 <div class="row g-3 mt-2">
                     <div class="col-md-6">
-                        <label class="form-label">Encoding</label>
+                        <label class="form-label">Veri kodlaması</label>
                         <select class="form-select" @bind="_tcpEncoding">
                             <option value="utf-8">UTF-8</option>
                             <option value="ascii">ASCII</option>
@@ -1042,7 +690,7 @@
                         </select>
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label">Reconnect</label>
+                        <label class="form-label">Kesilirse yeniden bağlan</label>
                         <select class="form-select" @bind="_tcpReconnectEnabled">
                             <option value="true">Evet</option>
                             <option value="false">Hayır</option>
@@ -1055,12 +703,13 @@
                                 <textarea class="form-control" @bind="_tcpDescription" rows="2" placeholder="İsteğe bağlı notlar..."></textarea>
                             </div>
 
-                            <div class="mt-3">
-                                <label class="form-label">Mappings (JSON)</label>
+                            @if (!_isWizardSensorMode) { <div class="mt-3">
+                                <label class="form-label">Veri alanı eşlemesi (JSON)</label>
                                 <textarea class="form-control" @bind="_tcpMappingsJson" rows="4" placeholder='[{"FieldName":"temperature","SourceKey":"reg0","DataType":"float32","Scale":0.1}]'></textarea>
                                 <div class="form-text">Opsiyonel. Cihaz verisini mantıksal alanlara eşlemek için JSON dizi formatında mapping girin.</div>
-                </div>
+                </div> }
 
+                </details>
                 @if (_tcpDiscoveryResult is not null && _tcpDiscoveryResult.Count > 0)
                 {
                     <div class="alert alert-info mt-3 py-2 small">
@@ -1083,12 +732,12 @@
                 <div class="mt-3 d-flex gap-2">
                     <button class="btn btn-outline-primary" disabled="@(string.IsNullOrWhiteSpace(_tcpIpAddress) || !_tcpPort.HasValue || _isSaving)"
                             @onclick="TestTcpConnectionAsync">
-                        <span class="bi bi-plug me-1"></span>Bağlantı ve metrik testi
+                        <span class="bi bi-plug me-1"></span>Cihaz bağlantısını kontrol et
                     </button>
                     <button class="btn btn-success" disabled="@(string.IsNullOrWhiteSpace(_tcpSensorName) || string.IsNullOrWhiteSpace(_tcpSensorType) || string.IsNullOrWhiteSpace(_tcpIpAddress) || !_tcpPort.HasValue || !HasCurrentTcpConnectionTest || _isSaving)"
                             @onclick="SaveTcpSensorAsync">
                         @if (_isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
-                        <span class="bi bi-check-lg me-1"></span>TCP/IP Sensörünü Ekle
+                        <span class="bi bi-check-lg me-1"></span>Sensörü kaydet
                     </button>
                     <button class="btn btn-secondary" @onclick="CloseSensorPopup">İptal</button>
                 </div>
@@ -1308,7 +957,7 @@
                 <div class="table-responsive" style="max-height:180px;overflow-y:auto">
                     <table class="table table-sm table-bordered mb-0 small">
                         <thead class="table-secondary">
-                            <tr><th>Device ID</th><th>Sebep</th></tr>
+                            <tr><th>Teknik cihaz kimliği</th><th>Sebep</th></tr>
                         </thead>
                         <tbody>
                             @foreach (var s in _lastProdStartResult.SkippedSensors)
@@ -1416,7 +1065,7 @@
         new("DEYAS_BRIDGE_MQTT_QOS", "Yerel Hedef MQTT QoS", "Bridge → yerel EMQX yayın QoS seviyesi.", "1"),
         new("DEYAS_BRIDGE_MQTT_CLIENT_ID", "Bridge MQTT Client ID", "Yerel MQTT bağlantısının istemci kimliği.", "deyas-saha-bridge"),
         new("DEVICE_CONNECTION_WATCHDOG_ENABLED", "Device Watchdog", "Telemetry gelmeyen cihazları pasif göstermek için true.", "false"),
-        new("DEVICE_OFFLINE_TIMEOUT_MS", "Offline Timeout (ms)", "Watchdog etkinse cihazın offline sayılacağı süre.", "30000"),
+        new("DEVICE_OFFLINE_TIMEOUT_MS", "Offline Yanıt bekleme süresi (ms)", "Watchdog etkinse cihazın offline sayılacağı süre.", "30000"),
         new("EDGE_FORWARDING_ENABLED", "Merkeze İletim", "Edge telemetry'nin merkeze aktarılması.", "true"),
         new("EDGE_LOCAL_TIMESERIES_PRODUCER", "Yerel Timeseries Producer", "Saha DB telemetry yazımı.", "true"),
         new("SAHA_ENABLED_PIPELINES", "Aktif Pipeline'lar", "Virgülle ivmeolcer,kamera,lidar veya all. Kamera için media-config.json tanımını da doldurun.", "ivmeolcer"),
@@ -1922,7 +1571,7 @@
             .Where(structure => !string.IsNullOrWhiteSpace(structure.EdgeApiUrl))
             .ToList();
         var semaphore = new SemaphoreSlim(12);
-        var checks = edgeStructures.Select(async structure => 
+        var checks = edgeStructures.Select(async structure =>
         {
             await semaphore.WaitAsync();
             try
@@ -2006,9 +1655,14 @@
 
     private static string GetSensorTypeLabel(string sensorType) => sensorType.ToLowerInvariant() switch
     {
-        "vibration" or "accelerometer" or "acceleration" => "ivmeölçer",
-        "camera" or "video" => "kamera",
-        "lidar" => "lidar",
+        "vibration" => "Titreşim",
+        "accelerometer" or "acceleration" => "İvmeölçer",
+        "camera" or "video" => "Kamera",
+        "lidar" => "Lidar / mesafe",
+        "strain" => "Gerinim", "tilt" => "Eğim", "temperature" => "Sıcaklık",
+        "pressure" => "Basınç", "humidity" => "Nem", "ultrasonic" => "Ultrasonik mesafe",
+        "water" => "Su seviyesi", "wind" => "Rüzgâr", "gps" => "Konum (GPS)",
+        "image" => "Görüntü", "generic" => "Diğer ölçüm",
         _ => sensorType
     };
 
@@ -2163,6 +1817,14 @@
     // ── Wizard ────────────────────────────────────────────────────────────────
     private void ShowCreateWizard()
     {
+        _sourceTcp = _sourceUdp = _sourceMqtt = false;
+        _friendlyUdpSources = [];
+        _resumedTcpSettings.Clear();
+        _removedWizardSensorIds.Clear();
+        _setupNotice = null;
+        _saveError = null;
+        _packageDownloaded = false;
+        _newEdgeApiUrl = string.Empty;
         _showCreateWizard       = true;
         _wizardStep             = 2;
         _newType                = StructureType.Dam;
@@ -2198,6 +1860,11 @@
         _siteEnvironment.Clear();
         foreach (var field in SiteEnvironmentFields)
             _siteEnvironment[field.Key] = field.Key == "DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED" ? "true" : field.Placeholder;
+        SetEnv("DEYAS_BRIDGE_SENSOR_HOST", "");
+        SetEnv("DEYAS_BRIDGE_UDP_SOURCES", "[]");
+        SetEnv("DEYAS_BRIDGE_SOURCE_MQTT_HOST", "");
+        SetEnv("DEYAS_BRIDGE_SOURCE_MQTT_TOPIC", "");
+        _packageSection = 1;
         _newEdgeConfigJson      = EdgeConfigTemplate;
         _newAutoRegister        = false;
         _mapInitialized         = false;
@@ -2246,15 +1913,21 @@
     }
 
     // Adım 2 → 3: yapı resmini aç, sensör ekleme modu
-    private void GoToSensorStep()
+    private async Task GoToSensorStep()
     {
-        _wizardImageInitialized = false; // flag sıfırla
+        await SaveFieldSetupAsync();
+        if (!string.IsNullOrWhiteSpace(_saveError)) return;
+        _wizardImageInitialized = false;
         _wizardStep = 4;
     }
 
-    private void GoToDeploymentStep()
+    private async Task GoToDeploymentStep()
     {
-        if (IsTcpSourceMode && !HasTcpSensor) return;
+        if (_wizardStep == 2) { await SaveBasicInfoAndContinueAsync(); if (!string.IsNullOrEmpty(_saveError)) return; }
+        if (!HasSetupSources) { _saveError = "Önce en az bir sensör, veri kaynağı veya kamera ekleyin."; return; }
+        await SaveFieldSetupAsync();
+        if (!string.IsNullOrWhiteSpace(_saveError)) return;
+        _packageSection = 1;
         _wizardStep = 5;
     }
     private void GoBackToSensorStep() => _wizardStep = 4;
@@ -2277,7 +1950,7 @@
         if (_createdStructureId == Guid.Empty || _setupSaving || IsTcpSourceMode) return;
         await SaveFieldSetupAsync();
         if (string.IsNullOrEmpty(_saveError))
-            GoToDeploymentStep();
+            await GoToDeploymentStep();
     }
 
     private async Task SaveStructureAndOpenSetupAsync()
@@ -2311,11 +1984,12 @@
             _setupStructureType = created.StructureType.ToString();
             _newEdgeConfigJson = ResolveStructurePlaceholders(EdgeConfigTemplate, created);
             _simulationStatusMessage = "Baraj kaydedildi. Saha kurulumu adımına geçebilirsiniz.";
+            OpenSetupStep();
             StateHasChanged();
         }
         catch (Exception ex)
         {
-            _saveError = $"Yapı kaydı başarısız: {ex.Message}";
+            _saveError = $"Baraj kaydedilemedi. Bilgileriniz bu ekranda korunuyor. {ex.Message}";
         }
         finally { _isSaving = false; }
     }
@@ -2323,7 +1997,7 @@
     private void OpenSetupStep()
     {
         if (_createdStructureId == Guid.Empty) return;
-        _wizardStep = 3;
+        _wizardStep = 4;
         _wizardImageInitialized = false;
     }
 
@@ -2337,22 +2011,31 @@
             _cameraSettings.ToJson();
             _cameraSettings.LinuxUsbDevices();
             var structure = await StructureUC.GetByIdAsync(_createdStructureId);
-            if (structure is null) return;
+            if (structure is null) { _saveError = "Baraj kaydı bulunamadı. Listeyi yenileyip yeniden deneyin."; return; }
 
+            _sourceTcp = HasTcpSensor;
+            _sourceUdp = _friendlyUdpSources.Count > 0;
+            UpdateSourceSelection();
+            if (!_sourceTcp && !_sourceUdp && !_sourceMqtt && _cameraSettings.Cameras.Count > 0
+                && _newStructureSensors.All(sensor => sensor.SensorType is SensorType.Camera or SensorType.Image))
+                SetEnv("SAHA_ENABLED_PIPELINES", "kamera");
+            SetEnv("DEYAS_SETUP_UDP_LABELS", System.Text.Json.JsonSerializer.Serialize(_friendlyUdpSources));
+            SetEnv("DEYAS_SETUP_SHARED_PC", _samePcDeployment ? "true" : "false");
+            SetEnv("DEYAS_SETUP_PROJECT_NAME", _samePcProjectName);
+            if (_samePcDeployment) {
+                SetEnv("EDGE_API_HOST_PORT", _samePcEdgePort.ToString());
+                SetEnv("NODERED_HOST_PORT", _samePcNodeRedPort.ToString());
+            }
             structure.Name = _setupName.Trim();
             structure.NodeRedUrl = string.IsNullOrWhiteSpace(_newNodeRedUrl) ? null : _newNodeRedUrl.Trim();
             structure.EdgeApiUrl = string.IsNullOrWhiteSpace(_newEdgeApiUrl) ? null : _newEdgeApiUrl.Trim();
             structure.EdgeConfigJson = BuildEdgeConfigJson(structure);
             structure.SiteEnvironmentJson = BuildSiteEnvironmentJson();
-            await StructureUC.UpdateAsync(structure.Id, structure, structure.Sensors?.Select(sensor => sensor.SensorId).ToList() ?? []);
-            if (!string.IsNullOrWhiteSpace(structure.EdgeApiUrl))
-            {
-                await StructureSimClient.UpdateConfigAsync(structure.EdgeApiUrl, new EdgeConfigUpdateRequest(
-                    structure.Id, structure.Name, structure.Description, structure.Province, structure.District,
-                    structure.Latitude, structure.Longitude, structure.Address, structure.StructureType.ToString(),
-                    structure.NodeRedUrl, structure.EdgeApiUrl, structure.IsActive,
-                    GetEnv("CENTRAL_TIMESERIES_API_BASE_URL").Trim(), _newAutoRegister));
-            }
+            await StructureUC.UpdateAsync(structure.Id, structure, structure.Sensors?.Where(sensor => !_removedWizardSensorIds.Contains(sensor.SensorId)).Select(sensor => sensor.SensorId).ToList() ?? []);
+            _removedWizardSensorIds.Clear();
+            foreach (var sensor in _newStructureSensors.Where(x => x.ImagePositionX.HasValue && x.ImagePositionY.HasValue))
+                await StructureUC.UpdateSensorImagePositionAsync(sensor.Id, sensor.ImagePositionX!.Value, sensor.ImagePositionY!.Value);
+            _setupNotice = "Kurulum bilgileri kaydedildi. Barajlar listesinden Saha ZIP’ini indir ile paketi alabilirsiniz. Sahada veri toplama başlatılmadı.";
             _simulationStatusMessage = "Saha kurulum ayarları merkeze kaydedildi.";
             await LoadStructuresAsync();
             await RefreshDiscoveredSensorsAsync();
@@ -2402,6 +2085,22 @@
 
     private async Task DownloadDeploymentPackage()
     {
+        if (_createdStructureId == Guid.Empty || _packageBusy) return;
+        _saveError = null;
+        if (!ValidatePackageInputs()) return;
+        _packageBusy = true;
+        try
+        {
+            await SaveFieldSetupAsync();
+            if (!string.IsNullOrEmpty(_saveError)) return;
+            await DownloadDeploymentPackageCoreAsync();
+        }
+        catch (Exception ex) { _saveError = $"Paket hazırlanamadı. Kayıtlarınız korunuyor; tekrar deneyin. {ex.Message}"; }
+        finally { _packageBusy = false; }
+    }
+
+    private async Task DownloadDeploymentPackageCoreAsync()
+    {
         if (_createdStructureId == Guid.Empty) return;
 
         _saveError = null;
@@ -2422,32 +2121,27 @@
             if (_samePcDeployment)
                 AddDeploymentTemplateEntry(archive, "docker-compose.shared-services.yml");
             AddDeploymentTemplateEntry(archive, "init-databases.sql");
-            AddDeploymentTemplateEntry(archive, "README.md");
-            AddDeploymentTemplateEntry(archive, "AKIS_VE_ENV_REHBERI.md");
+            var scenarioPath = Path.Combine(AppContext.BaseDirectory, "DeploymentTemplates", "saha-deployment", "SENARYOLAR.md");
+            AddPackageEntry(archive, "ONCE_BUNU_OKUYUN.md", BuildFriendlyInstallGuide() + "\n\n" + (File.Exists(scenarioPath) ? File.ReadAllText(scenarioPath) : ""));
             AddPackageEntry(archive, "edge-config.json", edgeConfig);
             AddPackageEntry(archive, ".env", environment);
             AddPackageEntry(archive, "media-config.json", NormalizeMediaConfigJson());
             foreach (var camera in _cameraSettings.Cameras.Where(camera => camera.SourceType == "mqtt" && !string.IsNullOrWhiteSpace(camera.Device)))
                 AddPackageEntry(archive, $"publishers/{camera.Id}/media-config.json", _cameraSettings.PublisherJson(camera, _createdStructureId));
-            if (IsCameraPipelineSelected)
-                AddPackageEntry(archive, "KAMERA_KURULUM.txt", BuildCameraGuide());
-            if (_samePcDeployment)
+            if (_cameraSettings.Cameras.Any(camera => camera.SourceType == "mqtt" && !string.IsNullOrWhiteSpace(camera.Device)))
             {
-                AddPackageEntry(archive, "AYNI_PC_KURULUM.md", BuildSamePcDeploymentGuide());
+                AddDeploymentTemplateEntry(archive, "publisher/saha_media_bridge.py");
+                AddDeploymentTemplateEntry(archive, "publisher/requirements.txt");
             }
-            AddPackageEntry(archive, "README.txt",
-                $"Saha kurulumu\n\nYapi: {_setupName}\nStructureId: {_createdStructureId}\n\n" +
-                "1. ZIP'i saha bilgisayarında bir klasöre açın.\n" +
-                (_samePcDeployment
-                    ? $"2. İlk yapıysa docker compose -f docker-compose.shared-services.yml up -d; sonra docker compose -p {_samePcProjectName} -f docker-compose.structure.yml up -d komutunu çalıştırın.\n"
-                    : "2. docker compose pull && docker compose up -d komutunu çalıştırın.\n") +
-                "3. Provisioning ilk saha keşfi için true bırakılır; bridge sensörleri merkeze aktarır.\n");
+
         }
 
         var base64 = Convert.ToBase64String(output.ToArray());
         await JS.InvokeVoidAsync("panelDownloadBase64",
             $"saha-deployment-{_createdStructureId:N}.zip", "application/zip", base64);
-        _simulationStatusMessage = "Saha deployment paketi indirildi. Manuel olarak saha makinesine kurabilirsiniz.";
+        _packageDownloaded = true;
+        _setupNotice = "Kurulum ZIP paketi hazırlandı ve tarayıcıya gönderildi. Sahaya kurulduğu veya veri geldiği henüz doğrulanmadı. Paket içindeki ONCE_BUNU_OKUYUN.md ile devam edin.";
+        _simulationStatusMessage = _setupNotice;
     }
 
     private string BuildCameraGuide() =>
@@ -2548,6 +2242,7 @@
     private async Task RemoveWizardSensor(int idx)
     {
         if (idx < 0 || idx >= _newStructureSensors.Count) return;
+        _removedWizardSensorIds.Add(_newStructureSensors[idx].Id);
         _newStructureSensors.RemoveAt(idx);
         // Marker'ları resim üzerinde de yenile
         if (_newType.HasValue)
@@ -3228,18 +2923,7 @@
                 private string NormalizeMediaConfigJson() => _cameraSettings.ToJson();
 
                 private string BuildTcpSourcesJson() => System.Text.Json.JsonSerializer.Serialize(
-                    _newStructureSensors
-                        .Where(sensor => IsTcpSensor(sensor) && !string.IsNullOrWhiteSpace(sensor.IpAddress) && sensor.Port.HasValue)
-                        .Select(sensor => new
-                        {
-                            host = sensor.IpAddress,
-                            port = sensor.Port,
-                            deviceId = sensor.DeviceId,
-                            profile = string.IsNullOrWhiteSpace(sensor.ProtocolType) ? "GenericTcp" : sensor.ProtocolType,
-                            timeoutMs = sensor.TimeoutMs ?? 5000,
-                            pollingIntervalMs = sensor.PollingIntervalMs,
-                            encoding = "utf-8"
-                        }).ToList());
+                    _newStructureSensors.Where(sensor => IsTcpSensor(sensor) && !string.IsNullOrWhiteSpace(sensor.IpAddress) && sensor.Port.HasValue).Select(BuildTcpSource).ToList());
 
                 private static bool IsTcpSensor(Sensor sensor) => sensor.ProtocolType.Contains("tcp", StringComparison.OrdinalIgnoreCase)
                     || sensor.ProtocolType.Contains("modbus", StringComparison.OrdinalIgnoreCase);
@@ -3357,7 +3041,7 @@
 
     private async Task SaveTcpSensorAsync()
     {
-        if (string.IsNullOrWhiteSpace(_tcpSensorName) || 
+        if (string.IsNullOrWhiteSpace(_tcpSensorName) ||
             string.IsNullOrWhiteSpace(_tcpSensorType) ||
             string.IsNullOrWhiteSpace(_tcpIpAddress) ||
             !_tcpPort.HasValue)
@@ -3366,7 +3050,6 @@
             return;
         }
 
-        if (_pendingPos == null) return;
         if (!HasCurrentTcpConnectionTest)
         {
             _saveError = "Bu IP/port/profil için önce bağlantı ve metrik testi yapın.";
@@ -3408,6 +3091,7 @@
                     Name = request.Name,
                     DeviceId = request.DeviceId,
                     SensorType = request.SensorType,
+                    Unit = defaultUnit,
                     Description = request.Description,
                     SensorLabel = request.Name,
                     SensorOrder = _newStructureSensors.Count,
@@ -3419,6 +3103,10 @@
                     PollingIntervalMs = request.PollingIntervalMs,
                     ReconnectEnabled = request.ReconnectEnabled
                 });
+                _resumedTcpSettings[connected.DeviceId] = System.Text.Json.JsonSerializer.SerializeToElement(new {
+                    host = request.IpAddress, port = request.Port, deviceId = connected.DeviceId, profile = request.Profile,
+                    timeoutMs = request.TimeoutMs, pollingIntervalMs = request.PollingIntervalMs, encoding = request.Encoding
+                });
                 _newStructureSensors.Add(new Sensor
                 {
                     Id = connected.SensorId, Name = connected.Name, DeviceId = connected.DeviceId,
@@ -3427,7 +3115,10 @@
                     PollingIntervalMs = request.PollingIntervalMs, ImagePositionX = _pendingPos?.x,
                     ImagePositionY = _pendingPos?.y, Unit = defaultUnit, Metrics = defaultMetrics
                 });
+                _sourceTcp = true;
+                UpdateSourceSelection();
                 SetEnv("DEYAS_BRIDGE_TCP_SOURCES", BuildTcpSourcesJson());
+                await SaveFieldSetupAsync();
                 CloseSensorPopup();
                 return;
             }

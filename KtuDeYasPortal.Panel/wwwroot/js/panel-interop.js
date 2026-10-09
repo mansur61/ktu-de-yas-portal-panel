@@ -370,3 +370,5 @@ function leaveStructureGroup(structureId) {
 function disconnectSensorHub() {
     if (signalRConn) { signalRConn.stop(); signalRConn = null; }
 }
+
+function refreshSetupMap() { if (mapInstance) setTimeout(() => mapInstance.invalidateSize(), 0); }

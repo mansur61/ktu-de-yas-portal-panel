@@ -1,0 +1,21 @@
+@page "/settings"
+@rendermode InteractiveServer
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+<KtuDeYasPortal.Panel.Components.Shared.SettingsNavigation />
+<PageTitle>Genel Ayarlar · DE-YAS</PageTitle>
+<div class="dy-heading"><div><div class="dy-eyebrow">Sistem yönetimi</div><h1>Genel Ayarlar</h1><p>Erişim, bildirim ve teknik hizmetleri tek yerden yönetin.</p></div></div>
+<div class="dy-tiles">
+@foreach (var item in Items) {
+<a class="dy-tile" href="@item.Path"><span class="bi @item.Icon" aria-hidden="true"></span><h2>@item.Title</h2><p>@item.Description</p><span class="dy-tile-link">Ayarları aç →</span></a>
+}
+</div>
+<div class="dy-guide mt-4"><h2>Günlük izleme için ayar değiştirmeniz gerekmez</h2><p>Barajın ölçümleri, kameraları ve alarmları İzleme bölümündedir. Teknik hizmetlerde değişiklik için ilgili yetki gerekir.</p></div>
+@code {
+private static readonly (string Path,string Icon,string Title,string Description)[] Items = [
+("permissions","bi-people","Üyeler ve erişim","Kimin hangi barajı görebileceğini ve yönetebileceğini belirleyin."),
+("menu-permissions","bi-list-check","Menü yetkileri","Kullanıcıların erişebileceği ekranları seçin."),
+("workspaces","bi-box-seam","Çalışma alanları","Baraja ait analiz ve araştırma ortamlarını yönetin."),
+("node-red-config","bi-diagram-3","Veri akışları (Node-RED)","Sensör verisini işleyen teknik akışları yapılandırın."),
+("alert-rules","bi-bell","Alarm kuralları","Ölçüm koşullarını ve alarm bildirimlerini düzenleyin."),
+("alert-contacts","bi-person-lines-fill","Bildirim kişileri","Alarm veya incelemenin hangi kişilere iletileceğini belirleyin.")];
+}

@@ -4,11 +4,11 @@
 @using System.Text.Json
 @inject KtuDeYasPortal.Panel.Infrastructure.Persistence.PanelApiClients HttpFactory
 
-<PageTitle>Baraj–Sensör İlişkilendir</PageTitle>
+<PageTitle>Sensör envanteri</PageTitle>
 
 <div class="d-flex align-items-center justify-content-between mb-3">
     <div>
-        <h3 class="mb-0">Baraj–Sensör İlişkilendir</h3>
+        <h3 class="mb-0">Sensör envanteri</h3>
         <small class="text-muted">Sensörlerin baraj bağlantı durumunu yönetin; bağlantıyı kaldırmak sensör kaydını silmez.</small>
     </div>
     <button class="btn btn-outline-secondary" @onclick="LoadAsync"><span class="bi bi-arrow-clockwise"></span> Yenile</button>
@@ -29,7 +29,7 @@ else if (_sensors.Count == 0) { <div class="alert alert-info">Sensör kaydı yok
 else
 {
     <div class="card shadow-sm"><div class="table-responsive"><table class="table table-hover mb-0">
-        <thead class="table-light"><tr><th>Sensör</th><th>Tip</th><th>Device / Konum</th><th>Baraj durumu</th><th>Kanallar</th><th class="text-end">İşlem</th></tr></thead>
+        <thead class="table-light"><tr><th>Sensör</th><th>Tip</th><th>Cihaz / Konum</th><th>Baraj durumu</th><th>Kanallar</th><th class="text-end">İşlem</th></tr></thead>
         <tbody>
         @foreach (var sensor in _sensors)
         {

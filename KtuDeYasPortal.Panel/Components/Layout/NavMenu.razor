@@ -1,106 +1,25 @@
-﻿@implements IDisposable
+@implements IDisposable
 @inject AlertState AlertState
-
-<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">DSİ Baraj İzleme Paneli</a>
-        <button title="Navigation menu" class="navbar-toggler" />
-    </div>
-</div>
-
-<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
-    <nav class="flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill me-2" aria-hidden="true"></span> Ana Sayfa
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="structures">
-                <span class="bi bi-building me-2" aria-hidden="true"></span> Baraj Yönetimi
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="sensor-assignment">
-                <span class="bi bi-diagram-3 me-2" aria-hidden="true"></span> Baraj–Sensör İlişkilendir
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="permissions">
-                <span class="bi bi-people me-2" aria-hidden="true"></span> Üyeler ve Yetkiler
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="menu-permissions">
-                <span class="bi bi-list-check me-2" aria-hidden="true"></span> Menü Yetkileri
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="workspaces">
-                <span class="bi bi-box-seam me-2" aria-hidden="true"></span> Workspace Yönetimi
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="node-red-config">
-                <span class="bi bi-diagram-3 me-2" aria-hidden="true"></span> Node-RED Konfigürasyon
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="sensor-dashboard">
-                <span class="bi bi-activity me-2" aria-hidden="true"></span> Sensör Dashboard
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="sensor-setup">
-                <span class="bi bi-shield-check me-2" aria-hidden="true"></span> Sensör Kurulum Durumu
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="alert-rules">
-                <span class="bi bi-bell-fill me-2 text-danger" aria-hidden="true"></span> Alert Kuralları
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="stakeholder-alerts">
-                <span class="bi bi-people-fill me-2 text-primary" aria-hidden="true"></span> Paydaş Alertleri
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="field-alerts">
-                <span class="bi bi-broadcast-pin me-2 text-danger" aria-hidden="true"></span> Saha Alertleri
-                @if (AlertState.FieldAlertCount > 0)
-                {
-                    <span class="badge rounded-pill bg-danger ms-1">@AlertState.FieldAlertCount</span>
-                }
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="alert-contacts">
-                <span class="bi bi-person-lines-fill me-2 text-primary" aria-hidden="true"></span> Bildirim Kişileri
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="media-dashboard">
-                <span class="bi bi-camera-video me-2" aria-hidden="true"></span> Video / Image
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="login">
-                <span class="bi bi-shield-lock me-2" aria-hidden="true"></span> Giriş
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <a class="nav-link" href="http://localhost:5050" target="_blank">
-                <span class="bi bi-globe me-2" aria-hidden="true"></span> Kullanıcı Portalı
-            </a>
-        </div>
-    </nav>
-</div>
-
+<a class="dy-brand" href="/"><span class="dy-brand-symbol" aria-hidden="true">≋</span><span><strong>DE-YAS</strong><small>YÖNETİM PANELİ</small></span></a>
+<button class="dy-mobile-toggle" @onclick="() => _expanded = !_expanded" aria-expanded="@_expanded" aria-label="Gezinme menüsünü aç veya kapat">Menü</button>
+<nav class="dy-nav @(_expanded ? "" : "collapsed")" aria-label="Ana gezinme">
+    <div class="dy-nav-label">BAŞLANGIÇ</div>
+    <NavLink href="" Match="NavLinkMatch.All"><span class="bi bi-house" aria-hidden="true"></span>Genel bakış</NavLink>
+    <div class="dy-nav-label">BARAJ VE SENSÖR YÖNETİMİ</div>
+    <NavLink href="structures"><span class="bi bi-building" aria-hidden="true"></span>Barajlar ve saha kurulumu</NavLink>
+    <NavLink href="sensor-assignment"><span class="bi bi-diagram-3" aria-hidden="true"></span>Sensör envanteri</NavLink>
+    <NavLink href="sensor-setup"><span class="bi bi-check2-circle" aria-hidden="true"></span>Bağlantı ve kurulum kontrolü</NavLink>
+    <div class="dy-nav-label">İZLEME</div>
+    <NavLink href="sensor-dashboard"><span class="bi bi-activity" aria-hidden="true"></span>Ölçümler ve grafikler</NavLink>
+    <NavLink href="media-dashboard"><span class="bi bi-camera-video" aria-hidden="true"></span>Kameralar ve kayıtlar</NavLink>
+    <NavLink href="field-alerts"><span class="bi bi-bell" aria-hidden="true"></span>Sahadan gelen alarmlar @if (AlertState.FieldAlertCount > 0) { <span class="badge bg-warning text-dark">@AlertState.FieldAlertCount</span> }</NavLink>
+    <NavLink href="stakeholder-alerts"><span class="bi bi-chat-square-text" aria-hidden="true"></span>İletilen incelemeler</NavLink>
+    <div class="dy-nav-label">AYARLAR</div>
+    <NavLink href="settings"><span class="bi bi-gear" aria-hidden="true"></span>Genel Ayarlar</NavLink>
+</nav>
 @code {
+    private bool _expanded = true;
     protected override void OnInitialized() => AlertState.OnFieldAlertReceived += HandleAlert;
-
     private void HandleAlert(FieldAlert alert) => _ = InvokeAsync(StateHasChanged);
-
     public void Dispose() => AlertState.OnFieldAlertReceived -= HandleAlert;
 }

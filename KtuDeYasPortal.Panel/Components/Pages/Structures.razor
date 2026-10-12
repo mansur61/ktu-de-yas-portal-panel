@@ -384,16 +384,26 @@
 
             <div hidden="@(_wizardStep != 4)">
               <div class="dy-heading"><div><h2 class="dy-form-heading">Hangi sensörleri izleyeceksiniz?</h2><p>Sensör ekleyin. Ne ölçtüğünü ve verinin nereden alınacağını aynı ekranda seçin.</p></div><button class="btn btn-primary" @onclick="OpenWizardSensorEditor">+ Sensör veya kamera ekle</button></div>
-              <details class="dy-technical"><summary>Görsel üzerinde sensör konumu seç (isteğe bağlı)</summary><p class="dy-subtle">Görsele tıklayarak sensör ekleyebilirsiniz. Gerçek konumu bilinmeyen sensör listede konumlandırılmamış olarak kalır.</p><div class="wizard-image-wrapper" id="wizard-image"></div></details>
+              <div class="d-flex gap-2 mb-3"><button class="btn btn-outline-secondary" @onclick="RefreshDiscoveredSensorsAsync">Sensör listesini yenile</button><button class="btn btn-outline-secondary" @onclick="OpenConnectionEditor">+ Kaynak bağlantısı ekle</button><button class="btn btn-outline-secondary" @onclick="BackFromStep3">Barajın harita konumunu düzenle</button></div>
+              <p class="dy-subtle">Kaynak, veri gelen bağlantıdır; sensör ise bu bağlantı içindeki cihaz/kanaldır. Kayıtlı ve sahadan keşfedilen sensörler aşağıda görünür. Veri gelmeyen kayıtlar canlı kabul edilmez.</p>
+              <details id="wizard-placement" class="dy-technical"><summary>Görsel üzerinde sensör konumu seç (isteğe bağlı)</summary><p class="dy-subtle">Mevcut sensörü yerleştirmek için satırındaki “Görselde yerleştir” düğmesini kullanın. Boş bir noktaya tıklamak yeni sensör için temiz kaynak seçimini açar.</p>@if(_wizardPlacingSensorId.HasValue){<div class="alert alert-info">Seçilen sensörün konumu için görsele tıklayın. <button class="btn btn-sm btn-outline-secondary" @onclick="()=>_wizardPlacingSensorId=null">Yerleştirmeyi iptal et</button></div>}<div class="wizard-image-wrapper" id="wizard-image"></div></details>
               @if (_newStructureSensors.Any()) {
-                <div class="table-responsive"><table class="table"><thead><tr><th>Sensör</th><th>Ölçüm türü</th><th>Bağlantı</th><th>Konum</th><th></th></tr></thead><tbody>
+                <div class="table-responsive"><table class="table"><thead><tr><th>Sensör</th><th>Ölçüm türü</th><th>Kayıt durumu</th><th>Konum</th><th></th></tr></thead><tbody>
                 @for (var i = 0; i < _newStructureSensors.Count; i++) { var index = i; var sensor = _newStructureSensors[i];
-                  <tr><td><strong>@sensor.Name</strong><div class="dy-subtle">Cihaz adresinden · @sensor.IpAddress:@sensor.Port</div></td><td>@GetSensorTypeLabel(sensor.SensorType.ToString())</td><td>Kaydedildi · izleme ayrıca başlatılır</td><td>@(sensor.ImagePositionX.HasValue ? "Görselde konumlandırıldı" : "Konumlandırılmadı")</td><td><button class="btn btn-sm btn-outline-danger" @onclick="() => RemoveWizardSensor(index)" aria-label="@($"{sensor.Name} sensörünü barajdan kaldır")">Kaldır</button></td></tr>
+                  <tr><td><strong>@sensor.Name</strong><div class="dy-subtle">@SensorSourceLabel(sensor)</div></td><td>@GetSensorTypeLabel(sensor.SensorType.ToString())</td><td>Sensör kaydı hazır · canlı veri durumunu izleme ekranında kontrol edin</td><td>@(sensor.ImagePositionX.HasValue ? "Görselde konumlandırıldı" : "Görsel konumu seçilmedi (isteğe bağlı)")<div class="dy-subtle">@(SensorGeo(sensor.Id) is not null ? "Harita konumu kayıtlı" : "Harita konumu girilmedi")</div></td><td><button class="btn btn-sm btn-outline-primary me-1" @onclick="() => PlaceWizardSensorAsync(sensor)">Görselde yerleştir</button><button class="btn btn-sm btn-outline-primary me-1" @onclick="() => OpenSensorMap(sensor)">Haritada konumlandır</button><button class="btn btn-sm btn-outline-danger" @onclick="() => RemoveWizardSensor(index)" aria-label="@($"{sensor.Name} sensörünü barajdan kaldır")">Kaldır</button></td></tr>
                 }</tbody></table></div>
               }
+              @if(_mapSensor is not null) {
+                <div class="card my-3"><div class="card-body"><h3 class="h5">@_mapSensor.Name · Harita konumu</h3><p>Haritaya tıklayın veya koordinatları girin. Bu sensöre ait gerçek konumu kaydeder.</p>
+                <DeYas.DigitalTwin.GeoPointEditor Latitude="_sensorLatitude" Longitude="_sensorLongitude" CenterLatitude="_newLat" CenterLongitude="_newLng" Changed="SensorPointChanged" />
+                <button class="btn btn-primary mt-3" disabled="@(!_sensorLatitude.HasValue || !_sensorLongitude.HasValue || _setupSaving)" @onclick="SaveSensorMapAsync">Konumu kaydet</button><button class="btn btn-outline-secondary mt-3 ms-2" @onclick="()=>_mapSensor=null">Kapat</button></div></div>
+              }
               @foreach (var source in _friendlyUdpSources) { <div class="dy-source-row"><div><strong>@(string.IsNullOrWhiteSpace(source.Name) ? source.Host : source.Name)</strong><p>Cihazdan gelen yayın · @source.Host:@source.Port</p><span class="dy-chip neutral">Kaynak tanımlı · sensörler ilk veride bulunur</span></div><button class="btn btn-outline-secondary" @onclick="() => RemoveFriendlySource(source)">Kaynağı kaldır</button></div> }
-              @if (_sourceMqtt) { <div class="dy-source-row"><div><strong>@GetEnv("DEYAS_SETUP_MQTT_NAME")</strong><p>Ölçüm sunucusundan gelen veri · @GetEnv("DEYAS_BRIDGE_SOURCE_MQTT_HOST")</p><span class="dy-chip neutral">Ortak sunucu bağlantısı · sensörler ilk veride bulunur</span></div><button class="btn btn-outline-secondary" @onclick="EditMqttSource">Düzenle</button><button class="btn btn-outline-secondary" @onclick="RemoveMqttSource">Kaynağı kaldır</button></div> }
+              @foreach(var source in MqttConnections()) { <div class="dy-source-row"><div><strong>@source.Name</strong><p>MQTT · @source.Host:@source.Port · @source.Topic</p><span class="dy-chip neutral">@source.ScalarMetric · bağlı sensörler yukarıda listelenir</span></div><button class="btn btn-outline-secondary" @onclick="()=>EditMqttConnection(source)">Düzenle</button><button class="btn btn-outline-secondary" @onclick="()=>RemoveMqttConnection(source)">Kaynağı kaldır</button></div> }
               @foreach (var camera in _cameraSettings.Cameras) { <div class="dy-source-row"><div><strong>@camera.Id</strong><p>Kamera · @(camera.SourceType == "usb" ? "Saha bilgisayarına takılı" : camera.SourceType == "mqtt" ? "Başka bilgisayardan" : "Ağ üzerinden")</p><span class="dy-chip neutral">Kamera ayarı kaydedilecek · görüntü ayrıca kontrol edilir</span></div><button class="btn btn-outline-secondary" @onclick="() => EditSetupCamera(camera)">Düzenle</button><button class="btn btn-outline-secondary" @onclick="() => RemoveSetupCamera(camera)">Kaldır</button></div> }
+              @if (!_newStructureSensors.Any() && HasSetupSources) {
+                <div class="alert alert-info" role="status"><h3 class="h6">Kaynak bağlantısı hazır; henüz sensör kaydı yok</h3><p>Yukarıdaki bağlantılar ölçüm bilgisayarına nasıl ulaşılacağını belirtir. Bir bağlantıdan birçok sensör gelebilir; bu yüzden kaynak eklemek tek başına sensör oluşturmaz.</p><ol><li>“Kaydet ve ZIP hazırla” ile paketi indirin ve saha bilgisayarında başlatın.</li><li>Uyumlu ilk veri geldiğinde sensörler otomatik kaydedilir. Bu liste düzenli yenilenir; “Sensör listesini yenile” ile de kontrol edebilirsiniz.</li><li>Sensörler listelendiğinde isterseniz “Görselde yerleştir” veya “Haritada konumlandır” seçin.</li></ol><p class="mb-0">Cihaz ve kanal kodunu biliyorsanız beklemeden <strong>“Sensör veya kamera ekle”</strong> ile sensör kaydı oluşturabilirsiniz. Görsel yüklemek veya konum seçmek zorunlu değildir.</p></div>
+              }
               @if (!HasSetupSources) { <div class="dy-empty"><h3>Henüz sensör veya kamera eklemediniz</h3><p>Örneğin su seviyesi sensörü ekleyip “Cihazın adresine bağlan” seçebilirsiniz. Kamera için “Kamera görüntüsü” seçin.</p><button class="btn btn-primary" @onclick="OpenWizardSensorEditor">İlk sensörü ekle</button></div> }
               <div class="dy-guide mt-3"><h3 class="h6">Saha dosyasını ayrıca doldurmanız gerekmez</h3><p>Burada seçtiğiniz kaynaklar saha ayarlarına ve ZIP’e otomatik yazılır. Sensörün kaydedilmesi ile gerçek veri gelmesi ayrı gösterilir.</p></div>
               <div class="d-flex flex-wrap justify-content-between gap-2 mt-4"><button class="btn btn-outline-secondary" @onclick="BackFromStep3">← Baraj bilgileri</button><button class="btn btn-outline-secondary" @onclick="SaveFieldSetupAsync" disabled="@_setupSaving">Kaydet, sonra devam et</button><button class="btn btn-primary" @onclick="GoToDeploymentStep" disabled="@(_setupSaving || !HasSetupSources)">Kaydet ve ZIP hazırla →</button></div>
@@ -464,8 +474,9 @@
                 </div>
             </div>
             <div class="d-flex gap-2 flex-shrink-0">
-                <button class="btn btn-sm btn-outline-light" @onclick="() => EditSavedSourcesAsync(_editingStructure.Id)">Sensör kaynaklarını düzenle</button>
-                <button class="btn btn-sm btn-outline-light" @onclick="EditStructureInfo" title="Bilgileri düzenle">
+                <button class="btn btn-sm btn-outline-light" @onclick="() => EditSavedSourcesAsync(_editingStructure.Id)">Sensörleri ve kaynakları düzenle</button>
+                <button class="btn btn-sm btn-light" @onclick="() => AddSensorToExistingAsync(_editingStructure.Id)">Yeni sensör ekle</button>
+                <button class="btn btn-sm btn-outline-light" @onclick="() => EditSavedSourcesAsync(_editingStructure.Id)" title="Barajı ve sensörlerini düzenle">
                     <span class="bi bi-pencil me-1"></span>Düzenle
                 </button>
                 <button class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmDelete(_editingStructure.Id)" title="Sil">
@@ -589,30 +600,31 @@
     <div class="popup-overlay" @onclick="CloseSensorPopup"></div>
     <div class="sensor-add-popup">
         <div class="sensor-add-popup-header">
-            <span><span class="bi bi-plus-circle me-2"></span>Yeni Sensör Ekle</span>
+            <span><span class="bi bi-plus-circle me-2"></span>@(_registerSourceSensor ? "Yeni Sensör Ekle" : "Kaynak bağlantısını yapılandır")</span>
             <button style="background:none;border:none;color:rgba(255,255,255,0.8);font-size:20px;cursor:pointer;padding:0 4px"
                     @onclick="CloseSensorPopup">&times;</button>
         </div>
 
         <div class="sensor-add-popup-body">
             @if (_isWizardSensorMode) {
-                <div class="dy-guide"><h2 class="h5">Sahada hangi bağlantılar kullanılacak?</h2><p>UDP, MQTT ve kamera aynı sahada birlikte çalışabilir. Bağlantı yöntemi cihazın markası veya ölçüm türü değildir.</p></div>
+                <div class="dy-guide"><h2 class="h5">@(_registerSourceSensor ? "Bu sensörün verisi nereden gelecek?" : "Sahada hangi bağlantılar kullanılacak?")</h2><p>@(_registerSourceSensor ? "Her yeni sensör için bağlantısını yeniden seçin. Aynı kaynak adresini birden fazla sensör kullanabilir. Görsel ve harita konumunu daha sonra ekleyebilirsiniz." : "Burada yalnız bağlantı ayarlanır. Sensörler saha kurulup ilk veri geldiğinde bulunur; ardından konumlandırabilirsiniz.")</p></div>
                 @if (string.IsNullOrEmpty(_sensorSourceKind)) {
-                    <fieldset class="mb-3"><legend class="h6">Veri kaynakları — birden fazla seçebilirsiniz</legend>
+                    <fieldset class="mb-3"><legend class="h6">@(_registerSourceSensor ? "Bu sensörün bağlantı yöntemi" : "Veri kaynakları — birden fazla seçebilirsiniz")</legend>
                     @foreach(var choice in SourceChoices) {
-                        <div class="form-check my-2"><input id="source-choice-@choice.Kind" class="form-check-input" type="checkbox" checked="@_selectedSourceKinds.Contains(choice.Kind)" @onchange="e=>ToggleSourceKind(choice.Kind,e)" /><label class="form-check-label" for="source-choice-@choice.Kind">@choice.Label</label></div>
+                        <div class="form-check my-2"><input id="source-choice-@choice.Kind" class="form-check-input" type="@(_registerSourceSensor ? "radio" : "checkbox")" name="source-choice" checked="@_selectedSourceKinds.Contains(choice.Kind)" @onchange="e=>ToggleSourceKind(choice.Kind,e)" /><label class="form-check-label" for="source-choice-@choice.Kind">@choice.Label</label></div>
                     }
                     </fieldset>
-                    <button class="btn btn-primary mb-3" disabled="@(_selectedSourceKinds.Count==0)" @onclick="StartSourceBatch">Seçilen bağlantıları yapılandır</button>
+                    <button class="btn btn-primary mb-3" disabled="@(_selectedSourceKinds.Count==0)" @onclick="StartSourceBatch">@(_registerSourceSensor ? "Sensör bilgilerine devam et" : "Seçilen bağlantıları yapılandır")</button>
                 } else {
                     <div class="alert alert-info"><strong>@SourceChoices.First(c=>c.Kind==_sensorSourceKind).Label</strong><div>Bu bağlantıyı kaydedin.@(_pendingSourceKinds.Count>0 ? $" Ardından {_pendingSourceKinds.Count} bağlantıyı daha yapılandıracağız." : " İsterseniz daha sonra başka kaynaklar da ekleyebilirsiniz.")</div></div>
                 }
                 <details class="dy-technical mb-3"><summary>Hangi bağlantıyı seçmeliyim?</summary><p><strong>UDP:</strong> Ölçüm bilgisayarının adresini ve veri verdiği portu kullanır. Aynı porttan birden fazla sensör gelebilir; farklı adres veya portlar için ayrıca UDP kaynağı eklenebilir.</p><p><strong>MQTT:</strong> Ölçüm bilgisayarındaki yayın sunucusuna bağlanır. Sunucu adresi, MQTT portu ve dinlenecek konu (topic) gerekir. Aynı bilgisayar hem UDP hem MQTT sağlayabilir; ikisini de seçebilirsiniz. MQTT host alanı UDP bağlantısını ayarlamaz.</p><p><strong>Kamera:</strong> Ölçüm bağlantılarının yanına USB veya ağ kamerası ekleyebilirsiniz. Kamera adresi/USB aygıtı ayrıca tanımlanır; UDP ve MQTT kaynakları korunur.</p><p><strong>TCP / Modbus:</strong> Cihazın adresine bağlanarak ölçüm okur. İvmeölçer, LiDAR veya başka bir cihaz için cihazın sunduğu bağlantıyı seçin; ardından ölçüm türünü belirtin.</p><p class="small text-muted">Adresler kayıtlı saha bilgilerinden veya kurulum varsayılanlarından önerilir; bu sahaya uygunluğunu kontrol edin. Bağlantı yöntemi tek başına her cihazın veri biçimini desteklediği anlamına gelmez. Cihazın mesaj biçimi kurulu okuyucuyla uyumlu olmalıdır. Aynı ölçümü hem UDP hem MQTT’den gönderirseniz iki kez işlenebilir.</p></details>
                 @if (_sensorSourceKind is "udp" or "mqtt") {
-                  <div class="row g-3"><div class="col-md-6"><label for="source-name" class="form-label">Kaynağa vereceğiniz ad</label><input id="source-name" class="form-control" @bind="_tcpSensorName" @bind:event="oninput" placeholder="Örn: Gövde titreşim ölçümleri" /></div><div class="col-md-6"><label for="source-measurement" class="form-label">Ne ölçülüyor?</label><select id="source-measurement" class="form-select" @bind="_tcpSensorType" @bind:after="SourceMeasurementChanged"><option value="">Ölçüm türünü seçin</option>@foreach (var type in Enum.GetValues<SensorType>().Where(t => t is not SensorType.Camera and not SensorType.Image)) { <option value="@type.ToString()">@GetSensorTypeLabel(type.ToString())</option> }</select></div>
+                  <div class="row g-3"><div class="col-md-6"><label for="source-name" class="form-label">@(_registerSourceSensor ? "Sensöre vereceğiniz ad" : "Kaynağa vereceğiniz ad")</label><input id="source-name" class="form-control" @bind="_tcpSensorName" @bind:event="oninput" placeholder="Örn: Gövde titreşim ölçümleri" /></div><div class="col-md-6"><label for="source-measurement" class="form-label">Ne ölçülüyor?</label><select id="source-measurement" class="form-select" @bind="_tcpSensorType" @bind:after="SourceMeasurementChanged"><option value="">Ölçüm türünü seçin</option>@foreach (var type in Enum.GetValues<SensorType>().Where(t => t is not SensorType.Camera and not SensorType.Image)) { <option value="@type.ToString()">@GetSensorTypeLabel(type.ToString())</option> }</select></div>
                   <div class="col-md-8"><label for="source-host" class="form-label">@(_sensorSourceKind == "udp" ? "Ölçüm bilgisayarının adresi (IP)" : "MQTT sunucusunun adresi (IP)")</label><input id="source-host" class="form-control" @bind="_sourceHost" @bind:event="oninput" placeholder="Kurulum sorumlusundan aldığınız adres" /></div><div class="col-md-4"><label for="source-port" class="form-label">@(_sensorSourceKind == "udp" ? "UDP veri portu" : "MQTT portu")</label><input id="source-port" type="number" min="1" max="65535" class="form-control" @bind="_sourcePort" @bind:event="oninput" /></div>
-                  @if (_sensorSourceKind == "mqtt") { <div class="col-12"><label for="source-topic" class="form-label">Verinin yayın adresi</label><input id="source-topic" class="form-control" @bind="_sourceTopic" @bind:event="oninput" placeholder="Örn: olcumler/baraj-1/#" /><div class="form-text">Kurulum sorumlusunun verdiği yayın adresini kullanın. Bu sunucu bağlantısı barajın yayınla gelen sensörleri için ortaktır.</div></div><div class="col-12"><details class="dy-technical"><summary>Veri biçimi ve erişim (kurulum uzmanı)</summary><label class="form-label">Veri biçimi</label><select class="form-select" @bind="_sourcePayloadMode"><option value="scalar">Sayısal ölçüm</option><option value="waveform">Titreşim dalga kaydı</option></select><label class="form-label mt-2">Ölçüm alanı</label><input class="form-control" @bind="_sourceMetric" /><div class="form-text">Ölçüm türünden önerilir. Cihaz farklı bir alan adı kullanıyorsa değiştirin.</div><label class="form-label mt-2">Kaynak hesabı</label><input class="form-control" @bind="_sourceUsername" /><label class="form-label mt-2">Kaynak parolası</label><input type="password" class="form-control" @bind="_sourcePassword" /><p class="form-text">Erişim bilgileri yalnız indirilen ZIP’e eklenir.</p></details></div> }
-                  </div><p class="dy-subtle mt-3">Bağlantı kaynağı tanımlanır. Sensör kayıtları ilk gerçek veri alındığında keşfedilir; bu adım veri geldiğini doğrulamaz.</p>
+                  @if (_sensorSourceKind == "mqtt") { <div class="col-12"><label for="source-topic" class="form-label">Verinin yayın adresi</label><input id="source-topic" class="form-control" @bind="_sourceTopic" @bind:event="oninput" placeholder="Örn: olcumler/baraj-1/#" /><div class="form-text">Kurulum sorumlusunun verdiği yayın adresini kullanın. Her sensör farklı bir sunucu veya yayın adresi kullanabilir.</div></div><div class="col-12"><details class="dy-technical"><summary>Veri biçimi ve erişim (kurulum uzmanı)</summary><label class="form-label">Veri biçimi</label><select class="form-select" @bind="_sourcePayloadMode"><option value="scalar">Sayısal ölçüm</option><option value="waveform">Titreşim dalga kaydı</option></select><label class="form-label mt-2">Ölçüm alanı</label><input class="form-control" @bind="_sourceMetric" /><div class="form-text">Ölçüm türünden önerilir. Cihaz farklı bir alan adı kullanıyorsa değiştirin.</div><label class="form-label mt-2">Kaynak hesabı</label><input class="form-control" @bind="_sourceUsername" /><label class="form-label mt-2">Kaynak parolası</label><input type="password" class="form-control" @bind="_sourcePassword" /><p class="form-text">Erişim bilgileri yalnız indirilen ZIP’e eklenir.</p></details></div> }
+                  @if(_registerSourceSensor) { <div class="col-md-6"><label for="binding-device" class="form-label">Sistemdeki cihaz kimliği</label><input id="binding-device" class="form-control" @bind="_bindingDeviceId" @bind:event="oninput" placeholder="Örn: govde-ivme-1" /></div><div class="col-md-6"><label for="binding-stream" class="form-label">Yayındaki sensör / kanal kodu</label><input id="binding-stream" class="form-control" @bind="_bindingStreamKey" @bind:event="oninput" placeholder="Örn: 004563/MARIE2 veya mqtt/temperature" /><div class="form-text">Cihazın yayınındaki sistem/kanal kodu. MQTT sayısal yayında mqtt/topic-son-bölümü kullanılır. Bu kod aynı bağlantıdaki farklı sensörleri ayırır.</div></div> }
+                  </div><p class="dy-subtle mt-3">@(_registerSourceSensor ? "Sensör kaydı ve kaynak eşlemesi birlikte kaydedilir. Gerçek ölçüm gelene kadar veri bekleniyor olarak görünür." : "Bağlantı kaynağı tanımlanır. Sensörler gerçek veri geldikçe keşfedilir.")</p>
                 }
                 @if (_sensorSourceKind == "camera") { <CameraSettingsEditor Settings="_setupCameraDraft" AllowAdd="false" /> }
                 @if (_sensorSourceKind is "udp" or "mqtt" or "camera") {
@@ -1058,6 +1070,7 @@
         new("DEYAS_BRIDGE_UDP_LOCAL_PORT", "UDP Local Port", "Bridge'in sabit kaynak portu; cihaz tarafı port hafızalıysa değiştirmeyin.", "58431"),
         new("DEYAS_BRIDGE_TCP_SOURCES", "TCP Sources", "3. adımda eklenen TCP/IP sensörlerinden otomatik üretilir; UDP kaynaklarıyla karıştırmayın.", "[]"),
         new("DEYAS_BRIDGE_SOURCE_MODE", "Kaynak Modu", "Varsayılan both, yapılandırılmış UDP ve MQTT kaynaklarını birlikte destekler; boş bırakılan kaynak atlanır. udp/mqtt yalnız o protokolü, all ise yapılandırılmış UDP+MQTT+TCP kaynaklarını açar. Aynı cihaz iki kaynaktan aynı deviceId ile gelirse çift telemetry oluşur.", "both"),
+        new("DEYAS_BRIDGE_MQTT_SOURCES", "MQTT bağlantıları", "Sensörlerin ayrı sunucu/topic bağlantıları otomatik hazırlanır.", "[]"),
         new("DEYAS_BRIDGE_SOURCE_MQTT_HOST", "Kaynak MQTT Broker Host", "Sensör veya mevcut Node-RED'in ham veriyi yayımladığı MQTT sunucusudur; saha paketinin kendi yerel EMQX'i ve Node-RED editör URL'si değildir. MQTT kaynağı kullanmıyorsanız boş bırakın.", ""),
         new("DEYAS_BRIDGE_SOURCE_MQTT_PORT", "Kaynak MQTT Port", "Sensör kaynağı MQTT portu.", "1883"),
         new("DEYAS_BRIDGE_SOURCE_MQTT_TOPIC", "Kaynak MQTT Topic / Abonelik Filtresi", "Bridge'in kaynak broker'da dinleyeceği MQTT adresidir; metrik adı değildir. Tek JSON içinde temperature ve humidity birlikte geliyorsa örn. shm/gumushane-baca/environment yazın. # yalnız sensör farklı alt topic'lere yayın yapıyorsa kullanılır. MQTT kullanmıyorsanız boş bırakın.", ""),
@@ -1445,7 +1458,7 @@
                     name = s.Name, sensorType = s.SensorType.ToString(),
                     unit = s.Unit, topic = s.Topic,
                     imagePositionX = s.ImagePositionX, imagePositionY = s.ImagePositionY,
-                    status = s.IsActive ? "Online" : "Offline",
+                    status = "Offline",
                     lastValue = (double?)null,
                     lastUpdated = (DateTime?)null, alertMessage = (string?)null
                 }).ToList();
@@ -1485,6 +1498,10 @@
                     await LoadEdgeLifecycleStatesAsync();
                     StateHasChanged();
                 });
+            }
+            if(_showCreateWizard&&_wizardStep==4&&!_showSensorPopup&&!_setupSaving&&DateTime.UtcNow-_lastSensorRefresh>TimeSpan.FromSeconds(10)) {
+                _lastSensorRefresh=DateTime.UtcNow;
+                await InvokeAsync(async()=>{try{await RefreshDiscoveredSensorsAsync();StateHasChanged();}catch{_setupNotice="Sensör listesi yenilenemedi; yeniden deneyin.";}});
             }
             // Mevcut yapı detay sayfasında sensör ekle
             if (_editingStructure != null && !_showSensorPopup)
@@ -2057,9 +2074,22 @@
     {
         if (_createdStructureId == Guid.Empty) return;
         var structure = await StructureUC.GetByIdAsync(_createdStructureId);
-        _discoveredSensors = structure?.Sensors
-            .Where(sensor => sensor.IsActive && sensor.Description.StartsWith("Saha bridge keşfi:", StringComparison.OrdinalIgnoreCase))
-            .ToList() ?? new();
+        _discoveredSensors = structure?.Sensors.Where(sensor => sensor.IsActive).ToList() ?? [];
+        if(structure is null)return;
+        var definitions=await StructureUC.GetAllSensorsAsync();
+        var attached=structure.Sensors.Select(item=>item.SensorId).ToHashSet();
+        foreach(var sensor in definitions.Where(item=>attached.Contains(item.Id)&&!_removedWizardSensorIds.Contains(item.Id))) {
+            var existing=_newStructureSensors.FirstOrDefault(item=>item.Id==sensor.Id);
+            if(existing is null) _newStructureSensors.Add(sensor);
+            else {
+                existing.Name=sensor.Name; existing.DeviceId=sensor.DeviceId;
+                existing.ProtocolType=sensor.ProtocolType; existing.IpAddress=sensor.IpAddress; existing.Port=sensor.Port;
+                existing.Topic=sensor.Topic; existing.SensorType=sensor.SensorType;
+                existing.ImagePositionX=sensor.ImagePositionX; existing.ImagePositionY=sensor.ImagePositionY;
+            }
+        }
+        _wizardImageInitialized=false;
+
     }
 
     private async Task ConfirmDiscoveredSensorsAsync()
@@ -2251,7 +2281,17 @@
     private async Task RemoveWizardSensor(int idx)
     {
         if (idx < 0 || idx >= _newStructureSensors.Count) return;
-        _removedWizardSensorIds.Add(_newStructureSensors[idx].Id);
+        var removedId=_newStructureSensors[idx].Id;
+        var bindings=ReadSensorBindings();
+        if(bindings.Remove(removedId,out var binding)) {
+            SetEnv("DEYAS_SETUP_SENSOR_BINDINGS",System.Text.Json.JsonSerializer.Serialize(bindings,SourceJson));
+            foreach(var key in new[]{"DEYAS_BRIDGE_DEVICE_MAP","DEYAS_BRIDGE_SENSOR_ID_MAP"}) {
+                var map=System.Text.Json.JsonSerializer.Deserialize<Dictionary<string,string>>(string.IsNullOrWhiteSpace(GetEnv(key))?"{}":GetEnv(key))??[];
+                map.Remove(binding.SourceKey+"/"+binding.StreamKey);SetEnv(key,System.Text.Json.JsonSerializer.Serialize(map));
+            }
+        }
+        var points=SensorLocations();points.Remove(removedId);SetEnv("DEYAS_SETUP_SENSOR_LOCATIONS",System.Text.Json.JsonSerializer.Serialize(points,SourceJson));
+        _removedWizardSensorIds.Add(removedId);
         _newStructureSensors.RemoveAt(idx);
         // Marker'ları resim üzerinde de yenile
         if (_newType.HasValue)
@@ -2456,7 +2496,7 @@
             imagePositionX = ss.ImagePositionX,
             imagePositionY = ss.ImagePositionY,
             // is_active=true ise Çevrimiçi, değilse Çevrimdışı — SignalR ile gerçek zamanlı güncellenecek
-            status         = ss.IsActive ? "Online" : "Offline",
+            status         = "Offline",
             lastValue      = (double?)null,
             lastUpdated    = (DateTime?)null,
             alertMessage   = (string?)null
@@ -2510,18 +2550,9 @@
                 await OpenStructureDetail(_editingStructure.Id);
                 return;
             }
-            _isWizardSensorMode    = false;
-            _pendingPos            = (x, y);
-            _sensorFormDeviceId    = $"sensor-{DateTime.UtcNow:yyMMddHHmmss}";
-            _sensorFormName        = $"{_editingStructure?.Name ?? ""} Sensör";
-            _sensorFormLabel       = "";
-            _sensorFormDescription = "";
-            _sensorFormProtocol    = "MQTT";
-            _sensorFormTelemetryIntervalSec  = 5;
-            _sensorFormTelemetryBatchSize    = 1;
-            _saveError             = null;
-            ResetSensorTypeDefaults("Generic");
-            _showSensorPopup = true;
+            if (_editingStructure is null) return;
+            await AddSensorToExistingAsync(_editingStructure.Id);
+            _pendingPos = (x, y);
             StateHasChanged();
         }
         catch { }
@@ -2535,18 +2566,19 @@
             double x = await JS.InvokeAsync<double>("getPendingClickPositionX");
             double y = await JS.InvokeAsync<double>("getPendingClickPositionY");
             await JS.InvokeVoidAsync("clearPendingClickPosition");
-            _isWizardSensorMode    = true;
-            _pendingPos            = (x, y);
-            _sensorFormDeviceId    = $"sensor-{DateTime.UtcNow:yyMMddHHmmss}";
-            _sensorFormName        = $"{_newName} Sensör {_newStructureSensors.Count + 1}";
-            _sensorFormLabel       = "";
-            _sensorFormDescription = "";
-            _sensorFormProtocol    = "MQTT";
-            _sensorFormTelemetryIntervalSec  = 5;
-            _sensorFormTelemetryBatchSize    = 1;
-            _saveError             = null;
-            ResetSensorTypeDefaults("Generic");
-            _showSensorPopup = true;
+            if (_wizardPlacingSensorId is Guid existingId) {
+                var sensor = _newStructureSensors.FirstOrDefault(item=>item.Id==existingId);
+                if(sensor is not null) {
+                    await StructureUC.UpdateSensorImagePositionAsync(existingId,x,y);
+                    sensor.ImagePositionX=x; sensor.ImagePositionY=y;
+                    _setupNotice=$"{sensor.Name} görselde konumlandırıldı.";
+                }
+                _wizardPlacingSensorId=null; _wizardImageInitialized=false;
+            } else {
+                OpenWizardSensorEditor();
+                _registerSourceSensor=true;
+                _pendingPos=(x,y);
+            }
             StateHasChanged();
         }
         catch { }
@@ -2818,6 +2850,8 @@
             values.Remove("CENTRAL_MQTT_USERNAME");
             values.Remove("CENTRAL_MQTT_PASSWORD");
             values.Remove("DEYAS_JWT_SIGNING_KEY");
+            values.Remove("DEYAS_BRIDGE_MQTT_CREDENTIALS");
+            foreach (var key in values.Keys.Where(key => key.StartsWith("DEYAS_SOURCE_", StringComparison.Ordinal)).ToList()) values.Remove(key);
             return System.Text.Json.JsonSerializer.Serialize(values, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
         }
         catch (System.Text.Json.JsonException) { return value; }
@@ -2883,6 +2917,8 @@
                     foreach (var field in SiteEnvironmentFields)
                         values[field.Key] = field.Key == "DEYAS_BRIDGE_TCP_SOURCES" ? BuildTcpSourcesJson() : GetEnv(field.Key);
 
+                    values["DEYAS_BRIDGE_MQTT_CREDENTIALS"]=System.Text.Json.JsonSerializer.Serialize(MqttConnections().ToDictionary(source=>source.Id,source=>new {username=_deploymentSecrets.GetValueOrDefault(source.UsernameEnv,""),password=_deploymentSecrets.GetValueOrDefault(source.PasswordEnv,"")}),SourceJson);
+                    values["DEYAS_BRIDGE_MQTT_CREDENTIALS"] = "'" + values["DEYAS_BRIDGE_MQTT_CREDENTIALS"] + "'";
                     foreach (var camera in _cameraSettings.Cameras.Where(camera => camera.SourceType == "rtsp"))
                         values[camera.SourceEnvironment] = "'" + camera.SourceValue.Replace("'", "\\'") + "'";
                     foreach (var (key, value) in _deploymentSecrets)

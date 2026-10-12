@@ -34,6 +34,8 @@ public sealed class PanelTwinSource : IDigitalTwinSource, IDisposable
                 sensors.Add(new(attached.SensorId,chosen.Id,attached.DeviceId,definition?.Name??attached.Name,definition?.SensorType.ToString()??attached.SensorType,definition?.Unit??attached.Unit,definition?.IsEnabled??attached.IsActive,definition?.ImagePositionX??attached.ImagePositionX,definition?.ImagePositionY??attached.ImagePositionY,definition?.CreatedAt??DateTime.MinValue));
             }
         }
+        var locations=TwinLocations.FromEnvironment(chosen?.SiteEnvironmentJson);
+        sensors=sensors.Select(s=>locations.TryGetValue(s.Id,out var p)?s with {Latitude=p.Latitude,Longitude=p.Longitude}:s).ToList();
         var samples=new System.Collections.Concurrent.ConcurrentBag<TwinSample>();
         var http=_clients.CreateClient("timeseries-api");
         await Parallel.ForEachAsync(sensors,new ParallelOptions{MaxDegreeOfParallelism=4,CancellationToken=ct},async(sensor,token)=>{

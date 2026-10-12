@@ -372,3 +372,8 @@ function disconnectSensorHub() {
 }
 
 function refreshSetupMap() { if (mapInstance) setTimeout(() => mapInstance.invalidateSize(), 0); }
+
+function openWizardPlacement() {
+    const details = document.getElementById('wizard-placement');
+    if (details) { details.open = true; details.scrollIntoView({block:'center',behavior:'smooth'}); }
+}

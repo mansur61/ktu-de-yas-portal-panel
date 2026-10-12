@@ -32,12 +32,13 @@ public partial class Structures
         if (!_sourceMqtt) { SetEnv("DEYAS_BRIDGE_SOURCE_MQTT_HOST", ""); SetEnv("DEYAS_BRIDGE_SOURCE_MQTT_TOPIC", ""); }
     }
     private void AddFriendlySource() { _friendlyUdpSources.Add(new()); SyncFriendlySources(); }
-    private void RemoveFriendlySource(FriendlyUdpSource source) { _friendlyUdpSources.Remove(source); SyncFriendlySources(); }
+    private void RemoveFriendlySource(FriendlyUdpSource source) { if(ReadSensorBindings().Values.Any(b=>b.Kind=="udp"&&b.Host==source.Host&&b.Port==source.Port)){_saveError="Önce bu kaynağa bağlı sensörleri barajdan kaldırın.";return;} _friendlyUdpSources.Remove(source); SyncFriendlySources(); }
     private void SyncFriendlySources() => SetEnv("DEYAS_BRIDGE_UDP_SOURCES", JsonSerializer.Serialize(
         _friendlyUdpSources.Where(s => !string.IsNullOrWhiteSpace(s.Host)).Select(s => new { host = s.Host.Trim(), port = s.Port })));
 
     private void OpenWizardSensorEditor()
     {
+        _registerSourceSensor=true; _bindingDeviceId=""; _bindingStreamKey=""; _editingMqttConnectionId=null;
         _sensorSourceKind = "";
         _selectedSourceKinds.Clear();
         _pendingSourceKinds.Clear();
@@ -154,6 +155,7 @@ public partial class Structures
                     if (label is not null) { source.Name = label.Name; source.SensorType = label.SensorType; }
                 }
             }
+            await RefreshDiscoveredSensorsAsync();
             _wizardStep = 4;
             _setupNotice = "Kayıtlı kurulum açıldı. Baraj kimliği ve sensör ilişkileri korunur. Şifreleri gerektiğinde paket adımında yeniden girin.";
         }
@@ -225,12 +227,13 @@ public partial class Structures
     }
     private string? _editingCameraId;
     private CameraDeploymentSettings _setupCameraDraft = new();
-    private bool HasSetupSources => SourceCount > 0;
-    private int SourceCount => _newStructureSensors.Count + _friendlyUdpSources.Count + (_sourceMqtt ? 1 : 0) + _cameraSettings.Cameras.Count;
+    private bool HasSetupSources => SourceCount > 0 || _newStructureSensors.Count > 0;
+    private int SourceCount => _newStructureSensors.Count(IsTcpSensor) + _friendlyUdpSources.Count + MqttConnections().Count + _cameraSettings.Cameras.Count;
     private bool CanSaveConfiguredSource => _sensorSourceKind == "camera" ? _setupCameraDraft.Cameras.Count == 1
         : !string.IsNullOrWhiteSpace(_tcpSensorName) && !string.IsNullOrWhiteSpace(_tcpSensorType)
             && !string.IsNullOrWhiteSpace(_sourceHost) && _sourcePort is > 0 and <= 65535
-            && (_sensorSourceKind != "mqtt" || !string.IsNullOrWhiteSpace(_sourceTopic));
+            && (_sensorSourceKind != "mqtt" || !string.IsNullOrWhiteSpace(_sourceTopic))
+            && (!_registerSourceSensor || ValidSensorBinding);
     private static bool IsGeneratedSourceField(string key) => key is "SAHA_ENABLED_PIPELINES" or "DEYAS_BRIDGE_SOURCE_MODE" or "DEYAS_BRIDGE_UDP_SOURCES" or "DEYAS_BRIDGE_TCP_SOURCES" or "DEYAS_BRIDGE_SOURCE_MQTT_HOST" or "DEYAS_BRIDGE_SOURCE_MQTT_PORT" or "DEYAS_BRIDGE_SOURCE_MQTT_TOPIC";
     private static readonly (string Kind, string Label)[] SourceChoices = [
         ("udp", "UDP — Bilgisayarın portundan ölçüm al"),
@@ -240,7 +243,7 @@ public partial class Structures
     private readonly HashSet<string> _selectedSourceKinds = [];
     private readonly Queue<string> _pendingSourceKinds = new();
     private void ToggleSourceKind(string kind, ChangeEventArgs args)
-    { if(args.Value is true) _selectedSourceKinds.Add(kind); else _selectedSourceKinds.Remove(kind); }
+    { if (_registerSourceSensor) { _selectedSourceKinds.Clear(); _selectedSourceKinds.Add(kind); } else if(args.Value is true) _selectedSourceKinds.Add(kind); else _selectedSourceKinds.Remove(kind); }
     private void StartSourceBatch()
     {
         _pendingSourceKinds.Clear();
@@ -251,12 +254,13 @@ public partial class Structures
     {
         if(_pendingSourceKinds.Count==0) { CloseSensorPopup(); return; }
         ResetTcpSensorForm();
+        _bindingDeviceId=""; _bindingStreamKey="";
         _sourceHost=_sourceTopic=_sourceMetric="";
-        _editingCameraId=null;
+        _editingCameraId=null; _editingMqttConnectionId=null;
         _sensorSourceKind=_pendingSourceKinds.Dequeue();
         SourceKindChanged();
     }
-    private string SourceSaveLabel => _pendingSourceKinds.Count>0 ? "Kaydet ve sonraki bağlantıya geç" : "Kaynağı kaydet";
+    private string SourceSaveLabel => _pendingSourceKinds.Count>0 ? "Kaydet ve sonraki bağlantıya geç" : _registerSourceSensor ? "Sensörü kaydet" : "Kaynağı kaydet";
     private string SourceDefault(string envKey,string configKey) =>
         !string.IsNullOrWhiteSpace(GetEnv(envKey)) ? GetEnv(envKey) : Configuration["FieldSourceDefaults:"+configKey] ?? "";
     private void SourceKindChanged()
@@ -290,11 +294,11 @@ public partial class Structures
         _sourceMetric = GetEnv("DEYAS_BRIDGE_SOURCE_MQTT_SCALAR_METRIC");
         _sourcePayloadMode = GetEnv("DEYAS_BRIDGE_SOURCE_MQTT_PAYLOAD_MODE") == "waveform" ? "waveform" : "scalar";
     }
-    private void EditMqttSource() { OpenWizardSensorEditor(); _sensorSourceKind = "mqtt"; LoadMqttForm(); }
+    private void EditMqttSource() { OpenConnectionEditor(); _sensorSourceKind = "mqtt"; LoadMqttForm(); }
     private void RemoveMqttSource() { _sourceMqtt = false; UpdateSourceSelection(); }
     private void EditSetupCamera(CameraDeploymentEntry camera)
     {
-        OpenWizardSensorEditor(); _sensorSourceKind = "camera"; _editingCameraId = camera.Id;
+        OpenConnectionEditor(); _sensorSourceKind = "camera"; _editingCameraId = camera.Id;
         _setupCameraDraft = CameraDeploymentSettings.FromJson(new CameraDeploymentSettings { Cameras = [camera] }.ToJson());
         _setupCameraDraft.Cameras[0].SourceValue = camera.SourceValue;
     }
@@ -316,11 +320,11 @@ public partial class Structures
                 if (!IsPipelineSelected("kamera")) TogglePipeline("kamera");
             } else {
                 if (_sensorSourceKind == "udp") {
-                    if (_friendlyUdpSources.Any(s => s.Host == _sourceHost.Trim() && s.Port == _sourcePort)) { _saveError = "Bu cihaz adresi ve bağlantı numarası zaten eklenmiş."; return; }
-                    _friendlyUdpSources.Add(new() { Name = _tcpSensorName.Trim(), SensorType = _tcpSensorType, Host = _sourceHost.Trim(), Port = _sourcePort });
+                    if (!_friendlyUdpSources.Any(s => s.Host == _sourceHost.Trim() && s.Port == _sourcePort)) _friendlyUdpSources.Add(new() { Name = _tcpSensorName.Trim(), SensorType = _tcpSensorType, Host = _sourceHost.Trim(), Port = _sourcePort });
                     _sourceUdp = true;
                     SetEnv("DEYAS_SETUP_UDP_LABELS", JsonSerializer.Serialize(_friendlyUdpSources));
                 } else {
+                    AddMqttConnection();
                     _sourceMqtt = true;
                     _deploymentSecrets["DEYAS_BRIDGE_SOURCE_MQTT_USERNAME"] = _sourceUsername;
                     _deploymentSecrets["DEYAS_BRIDGE_SOURCE_MQTT_PASSWORD"] = _sourcePassword;
@@ -333,8 +337,11 @@ public partial class Structures
                 if (!IsPipelineSelected(pipeline)) TogglePipeline(pipeline);
                 UpdateSourceSelection();
             }
+            if(_registerSourceSensor) await RegisterSourceSensorAsync();
             await SaveFieldSetupAsync();
             if (!string.IsNullOrEmpty(_saveError)) throw new InvalidOperationException(_saveError);
+            _setupNotice = _registerSourceSensor ? "Sensör kaydı hazır. Veri gelişi izleme ekranında kontrol edilir; konumu şimdi veya daha sonra seçebilirsiniz." : "Kaynak bağlantısı kaydedildi. Sensörler saha kurulup ilk veri geldiğinde listelenir. Konumlandırma daha sonra yapılabilir.";
+            _pendingPos=null;
             AdvanceSourceBatch();
         } catch (Exception ex) {
             foreach (var secret in oldSecrets) _deploymentSecrets[secret.Key] = secret.Value;

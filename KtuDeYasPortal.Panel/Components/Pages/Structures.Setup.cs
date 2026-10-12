@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Components;
 using DeYas.Contracts.Authorization;
 using System.Text.Json;
 using KtuDeYasPortal.Panel.Application.Settings;
@@ -38,6 +39,8 @@ public partial class Structures
     private void OpenWizardSensorEditor()
     {
         _sensorSourceKind = "";
+        _selectedSourceKinds.Clear();
+        _pendingSourceKinds.Clear();
         _sourceHost = _sourceTopic = _sourceMetric = "";
         _sourcePayloadMode = "scalar";
         _sourceUsername = _deploymentSecrets["DEYAS_BRIDGE_SOURCE_MQTT_USERNAME"];
@@ -229,11 +232,47 @@ public partial class Structures
             && !string.IsNullOrWhiteSpace(_sourceHost) && _sourcePort is > 0 and <= 65535
             && (_sensorSourceKind != "mqtt" || !string.IsNullOrWhiteSpace(_sourceTopic));
     private static bool IsGeneratedSourceField(string key) => key is "SAHA_ENABLED_PIPELINES" or "DEYAS_BRIDGE_SOURCE_MODE" or "DEYAS_BRIDGE_UDP_SOURCES" or "DEYAS_BRIDGE_TCP_SOURCES" or "DEYAS_BRIDGE_SOURCE_MQTT_HOST" or "DEYAS_BRIDGE_SOURCE_MQTT_PORT" or "DEYAS_BRIDGE_SOURCE_MQTT_TOPIC";
+    private static readonly (string Kind, string Label)[] SourceChoices = [
+        ("udp", "UDP — Bilgisayarın portundan ölçüm al"),
+        ("mqtt", "MQTT — Yayın sunucusundan ölçüm al"),
+        ("camera", "Kamera — USB veya ağ kamerası ekle"),
+        ("tcp", "TCP / Modbus — Cihaza bağlanarak ölçüm oku")];
+    private readonly HashSet<string> _selectedSourceKinds = [];
+    private readonly Queue<string> _pendingSourceKinds = new();
+    private void ToggleSourceKind(string kind, ChangeEventArgs args)
+    { if(args.Value is true) _selectedSourceKinds.Add(kind); else _selectedSourceKinds.Remove(kind); }
+    private void StartSourceBatch()
+    {
+        _pendingSourceKinds.Clear();
+        foreach(var choice in SourceChoices.Where(c=>_selectedSourceKinds.Contains(c.Kind))) _pendingSourceKinds.Enqueue(choice.Kind);
+        AdvanceSourceBatch();
+    }
+    private void AdvanceSourceBatch()
+    {
+        if(_pendingSourceKinds.Count==0) { CloseSensorPopup(); return; }
+        ResetTcpSensorForm();
+        _sourceHost=_sourceTopic=_sourceMetric="";
+        _editingCameraId=null;
+        _sensorSourceKind=_pendingSourceKinds.Dequeue();
+        SourceKindChanged();
+    }
+    private string SourceSaveLabel => _pendingSourceKinds.Count>0 ? "Kaydet ve sonraki bağlantıya geç" : "Kaynağı kaydet";
+    private string SourceDefault(string envKey,string configKey) =>
+        !string.IsNullOrWhiteSpace(GetEnv(envKey)) ? GetEnv(envKey) : Configuration["FieldSourceDefaults:"+configKey] ?? "";
     private void SourceKindChanged()
     {
         _saveError = null;
         _sourcePort = _sensorSourceKind == "mqtt" ? 1883 : 1572;
-        if (_sensorSourceKind == "mqtt" && _sourceMqtt) LoadMqttForm();
+        if (_sensorSourceKind == "mqtt") LoadMqttForm();
+        if (_sensorSourceKind == "udp") {
+            _sourceHost=SourceDefault("DEYAS_BRIDGE_SENSOR_HOST","UdpHost");
+            _sourcePort=int.TryParse(SourceDefault("DEYAS_BRIDGE_SENSOR_PORT","UdpPort"),out var port)?port:1572;
+            // Reuse this site's source computer before proposing installation defaults.
+            var saved=_friendlyUdpSources.FirstOrDefault();
+            if(saved is not null) { _sourceHost=saved.Host; _sourcePort=saved.Port; }
+            _tcpSensorName="UDP ölçüm kaynağı";
+            _tcpSensorType="Accelerometer";
+        }
         if (_sensorSourceKind == "camera") {
             var index = 1;
             while (_cameraSettings.Cameras.Any(c => c.Id == $"kamera-{index}")) index++;
@@ -245,9 +284,9 @@ public partial class Structures
         _tcpSensorName = GetEnv("DEYAS_SETUP_MQTT_NAME");
         if (string.IsNullOrWhiteSpace(_tcpSensorName)) _tcpSensorName = "Mevcut ölçüm sunucusu";
         _tcpSensorType = string.IsNullOrWhiteSpace(GetEnv("DEYAS_SETUP_MQTT_TYPE")) ? "Generic" : GetEnv("DEYAS_SETUP_MQTT_TYPE");
-        _sourceHost = GetEnv("DEYAS_BRIDGE_SOURCE_MQTT_HOST");
-        _sourcePort = int.TryParse(GetEnv("DEYAS_BRIDGE_SOURCE_MQTT_PORT"), out var port) ? port : 1883;
-        _sourceTopic = GetEnv("DEYAS_BRIDGE_SOURCE_MQTT_TOPIC");
+        _sourceHost = SourceDefault("DEYAS_BRIDGE_SOURCE_MQTT_HOST", "MqttHost");
+        _sourcePort = int.TryParse(SourceDefault("DEYAS_BRIDGE_SOURCE_MQTT_PORT", "MqttPort"), out var port) ? port : 1883;
+        _sourceTopic = SourceDefault("DEYAS_BRIDGE_SOURCE_MQTT_TOPIC", "MqttTopic");
         _sourceMetric = GetEnv("DEYAS_BRIDGE_SOURCE_MQTT_SCALAR_METRIC");
         _sourcePayloadMode = GetEnv("DEYAS_BRIDGE_SOURCE_MQTT_PAYLOAD_MODE") == "waveform" ? "waveform" : "scalar";
     }
@@ -296,7 +335,7 @@ public partial class Structures
             }
             await SaveFieldSetupAsync();
             if (!string.IsNullOrEmpty(_saveError)) throw new InvalidOperationException(_saveError);
-            CloseSensorPopup();
+            AdvanceSourceBatch();
         } catch (Exception ex) {
             foreach (var secret in oldSecrets) _deploymentSecrets[secret.Key] = secret.Value;
             _siteEnvironment.Clear(); foreach (var value in oldEnvironment) _siteEnvironment[value.Key] = value.Value;

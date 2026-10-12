@@ -276,7 +276,7 @@
                         <label class="form-label fw-semibold">Durum</label>
                         <div class="form-check mt-2">
                             <input class="form-check-input" type="checkbox" @bind="_newIsActive" id="chkActive" />
-                            <label class="form-check-label" for="chkActive">Envanterde kullanılsın</label>
+                            <label class="form-check-label" for="chkActive">Aktif baraj kaydı</label><div class="form-text">Aktif kayıt, merkezi veri toplama servislerinin baraj listesine dahil edilir. Kapatmak kaydı silmez. Veri toplamayı başlatmak veya durdurmak baraj kartından ayrıca yapılır.</div>
                         </div>
                     </div>
                     <div class="col-12">
@@ -596,19 +596,28 @@
 
         <div class="sensor-add-popup-body">
             @if (_isWizardSensorMode) {
-                <div class="dy-guide"><h2 class="h5">Sensörün verisi nereden gelecek?</h2><p>Bağlantı yöntemini seçin. Yalnız bu yönteme ait bilgileri isteyeceğiz.</p></div>
-                <label for="sensor-source-kind" class="form-label">Veri kaynağı</label><select id="sensor-source-kind" class="form-select mb-3" @bind="_sensorSourceKind" @bind:after="SourceKindChanged"><option value="">Bir bağlantı yöntemi seçin</option><option value="tcp">Cihaza doğrudan bağlan (TCP / Modbus)</option><option value="udp">Titreşim ölçüm bilgisayarından al (UDP / GCF)</option><option value="mqtt">Ölçüm yayın sunucusundan al (MQTT)</option><option value="camera">Kamera görüntüsü al</option></select>
-                <details class="dy-technical mb-3"><summary>Hangi bağlantıyı seçmeliyim?</summary><p><strong>TCP / Modbus:</strong> Saha bilgisayarı ağ üzerinden cihazın IP adresine ve portuna bağlanıp ölçüm okur. USB kamera bağlantısı için kullanılmaz. Adres, port ve cihaz biçimini cihazı kuran kişiden alın.</p><p><strong>UDP / GCF:</strong> Mevcut ivmeölçer ölçüm bilgisayarının GCF yayınını saha bridge'i alır. O bilgisayarın adresini ve GCF portunu girin; sıradan her UDP mesajı bu biçimde değildir.</p><p><strong>MQTT:</strong> Cihazın ölçümleri önceden bir MQTT sunucusunda yayınlanıyorsa seçin. Sunucu adresi, port ve konu (topic) gerekir; sunucu ve cihazın yayın biçimi uyumlu olmalıdır.</p><p><strong>Kamera:</strong> Bu bilgisayara takılı USB kamera, ağdaki RTSP kamera veya başka bilgisayardaki USB kameranın yayınını seçin. Merkeze klip ve fotoğraf aktarılır.</p></details>
+                <div class="dy-guide"><h2 class="h5">Sahada hangi bağlantılar kullanılacak?</h2><p>UDP, MQTT ve kamera aynı sahada birlikte çalışabilir. Bağlantı yöntemi cihazın markası veya ölçüm türü değildir.</p></div>
+                @if (string.IsNullOrEmpty(_sensorSourceKind)) {
+                    <fieldset class="mb-3"><legend class="h6">Veri kaynakları — birden fazla seçebilirsiniz</legend>
+                    @foreach(var choice in SourceChoices) {
+                        <div class="form-check my-2"><input id="source-choice-@choice.Kind" class="form-check-input" type="checkbox" checked="@_selectedSourceKinds.Contains(choice.Kind)" @onchange="e=>ToggleSourceKind(choice.Kind,e)" /><label class="form-check-label" for="source-choice-@choice.Kind">@choice.Label</label></div>
+                    }
+                    </fieldset>
+                    <button class="btn btn-primary mb-3" disabled="@(_selectedSourceKinds.Count==0)" @onclick="StartSourceBatch">Seçilen bağlantıları yapılandır</button>
+                } else {
+                    <div class="alert alert-info"><strong>@SourceChoices.First(c=>c.Kind==_sensorSourceKind).Label</strong><div>Bu bağlantıyı kaydedin.@(_pendingSourceKinds.Count>0 ? $" Ardından {_pendingSourceKinds.Count} bağlantıyı daha yapılandıracağız." : " İsterseniz daha sonra başka kaynaklar da ekleyebilirsiniz.")</div></div>
+                }
+                <details class="dy-technical mb-3"><summary>Hangi bağlantıyı seçmeliyim?</summary><p><strong>UDP:</strong> Ölçüm bilgisayarının adresini ve veri verdiği portu kullanır. Aynı porttan birden fazla sensör gelebilir; farklı adres veya portlar için ayrıca UDP kaynağı eklenebilir.</p><p><strong>MQTT:</strong> Ölçüm bilgisayarındaki yayın sunucusuna bağlanır. Sunucu adresi, MQTT portu ve dinlenecek konu (topic) gerekir. Aynı bilgisayar hem UDP hem MQTT sağlayabilir; ikisini de seçebilirsiniz. MQTT host alanı UDP bağlantısını ayarlamaz.</p><p><strong>Kamera:</strong> Ölçüm bağlantılarının yanına USB veya ağ kamerası ekleyebilirsiniz. Kamera adresi/USB aygıtı ayrıca tanımlanır; UDP ve MQTT kaynakları korunur.</p><p><strong>TCP / Modbus:</strong> Cihazın adresine bağlanarak ölçüm okur. İvmeölçer, LiDAR veya başka bir cihaz için cihazın sunduğu bağlantıyı seçin; ardından ölçüm türünü belirtin.</p><p class="small text-muted">Adresler kayıtlı saha bilgilerinden veya kurulum varsayılanlarından önerilir; bu sahaya uygunluğunu kontrol edin. Bağlantı yöntemi tek başına her cihazın veri biçimini desteklediği anlamına gelmez. Cihazın mesaj biçimi kurulu okuyucuyla uyumlu olmalıdır. Aynı ölçümü hem UDP hem MQTT’den gönderirseniz iki kez işlenebilir.</p></details>
                 @if (_sensorSourceKind is "udp" or "mqtt") {
-                  <div class="row g-3"><div class="col-md-6"><label for="source-name" class="form-label">Kaynağa vereceğiniz ad</label><input id="source-name" class="form-control" @bind="_tcpSensorName" @bind:event="oninput" placeholder="Örn: Gövde titreşim ölçümleri" /></div><div class="col-md-6"><label for="source-measurement" class="form-label">Ne ölçülüyor?</label><select id="source-measurement" class="form-select" @bind="_tcpSensorType" @bind:after="SourceMeasurementChanged"><option value="">Ölçüm türünü seçin</option>@foreach (var type in Enum.GetValues<SensorType>().Where(t => _sensorSourceKind == "udp" ? t is SensorType.Accelerometer or SensorType.Vibration : t is not SensorType.Camera and not SensorType.Image)) { <option value="@type.ToString()">@GetSensorTypeLabel(type.ToString())</option> }</select></div>
-                  <div class="col-md-8"><label for="source-host" class="form-label">@(_sensorSourceKind == "udp" ? "Cihaz / ölçüm bilgisayarı adresi" : "Ölçüm sunucusunun adresi")</label><input id="source-host" class="form-control" @bind="_sourceHost" @bind:event="oninput" placeholder="Kurulum sorumlusundan aldığınız adres" /></div><div class="col-md-4"><label for="source-port" class="form-label">Bağlantı numarası</label><input id="source-port" type="number" min="1" max="65535" class="form-control" @bind="_sourcePort" @bind:event="oninput" /></div>
+                  <div class="row g-3"><div class="col-md-6"><label for="source-name" class="form-label">Kaynağa vereceğiniz ad</label><input id="source-name" class="form-control" @bind="_tcpSensorName" @bind:event="oninput" placeholder="Örn: Gövde titreşim ölçümleri" /></div><div class="col-md-6"><label for="source-measurement" class="form-label">Ne ölçülüyor?</label><select id="source-measurement" class="form-select" @bind="_tcpSensorType" @bind:after="SourceMeasurementChanged"><option value="">Ölçüm türünü seçin</option>@foreach (var type in Enum.GetValues<SensorType>().Where(t => t is not SensorType.Camera and not SensorType.Image)) { <option value="@type.ToString()">@GetSensorTypeLabel(type.ToString())</option> }</select></div>
+                  <div class="col-md-8"><label for="source-host" class="form-label">@(_sensorSourceKind == "udp" ? "Ölçüm bilgisayarının adresi (IP)" : "MQTT sunucusunun adresi (IP)")</label><input id="source-host" class="form-control" @bind="_sourceHost" @bind:event="oninput" placeholder="Kurulum sorumlusundan aldığınız adres" /></div><div class="col-md-4"><label for="source-port" class="form-label">@(_sensorSourceKind == "udp" ? "UDP veri portu" : "MQTT portu")</label><input id="source-port" type="number" min="1" max="65535" class="form-control" @bind="_sourcePort" @bind:event="oninput" /></div>
                   @if (_sensorSourceKind == "mqtt") { <div class="col-12"><label for="source-topic" class="form-label">Verinin yayın adresi</label><input id="source-topic" class="form-control" @bind="_sourceTopic" @bind:event="oninput" placeholder="Örn: olcumler/baraj-1/#" /><div class="form-text">Kurulum sorumlusunun verdiği yayın adresini kullanın. Bu sunucu bağlantısı barajın yayınla gelen sensörleri için ortaktır.</div></div><div class="col-12"><details class="dy-technical"><summary>Veri biçimi ve erişim (kurulum uzmanı)</summary><label class="form-label">Veri biçimi</label><select class="form-select" @bind="_sourcePayloadMode"><option value="scalar">Sayısal ölçüm</option><option value="waveform">Titreşim dalga kaydı</option></select><label class="form-label mt-2">Ölçüm alanı</label><input class="form-control" @bind="_sourceMetric" /><div class="form-text">Ölçüm türünden önerilir. Cihaz farklı bir alan adı kullanıyorsa değiştirin.</div><label class="form-label mt-2">Kaynak hesabı</label><input class="form-control" @bind="_sourceUsername" /><label class="form-label mt-2">Kaynak parolası</label><input type="password" class="form-control" @bind="_sourcePassword" /><p class="form-text">Erişim bilgileri yalnız indirilen ZIP’e eklenir.</p></details></div> }
                   </div><p class="dy-subtle mt-3">Bağlantı kaynağı tanımlanır. Sensör kayıtları ilk gerçek veri alındığında keşfedilir; bu adım veri geldiğini doğrulamaz.</p>
                 }
                 @if (_sensorSourceKind == "camera") { <CameraSettingsEditor Settings="_setupCameraDraft" AllowAdd="false" /> }
                 @if (_sensorSourceKind is "udp" or "mqtt" or "camera") {
                   @if (!string.IsNullOrEmpty(_saveError)) { <div class="alert alert-danger" role="alert">@_saveError</div> }
-                  <div class="d-flex gap-2 mt-3"><button class="btn btn-primary" @onclick="SaveConfiguredSourceAsync" disabled="@(_setupSaving || !CanSaveConfiguredSource)">Kaynağı kaydet</button><button class="btn btn-outline-secondary" @onclick="CloseSensorPopup">Vazgeç</button></div>
+                  <div class="d-flex gap-2 mt-3"><button class="btn btn-primary" @onclick="SaveConfiguredSourceAsync" disabled="@(_setupSaving || !CanSaveConfiguredSource)">@SourceSaveLabel</button><button class="btn btn-outline-secondary" @onclick="CloseSensorPopup">Vazgeç</button></div>
                 }
             }
             @* ── TCP/IP sensörü ekle ── *@
@@ -1043,7 +1052,7 @@
     private static readonly SiteEnvironmentField[] SiteEnvironmentFields =
     [
         new("DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED", "Sensör provisioning", "İlk keşifte true yapın; sensörler merkeze aktarılır."),
-        new("DEYAS_BRIDGE_UDP_SOURCES", "UDP Sensör Kaynakları", "Sahadaki UDP/GCF veri sunucularını tek JSON listesinde yazın. Tek kaynak: [{\"host\":\"192.168.1.51\",\"port\":1572}]. Birden çok kaynak için listeye yeni host/port nesnesi ekleyin. UDP kullanmıyorsanız [] bırakın; both modu MQTT ile çalışmaya devam eder. Eski pakette Kaynak Sensör Host doluysa ve bu liste boşsa bridge eski host/port değerini otomatik kullanır.", "[]"),
+        new("DEYAS_BRIDGE_UDP_SOURCES", "UDP Sensör Kaynakları", "Sahadaki UDP veri kaynaklarını tek JSON listesinde yazın. Tek kaynak: [{\"host\":\"192.168.1.51\",\"port\":1572}]. Birden çok kaynak için listeye yeni host/port nesnesi ekleyin. UDP kullanmıyorsanız [] bırakın; both modu MQTT ile çalışmaya devam eder. Eski pakette Kaynak Sensör Host doluysa ve bu liste boşsa bridge eski host/port değerini otomatik kullanır.", "[]"),
         new("DEYAS_BRIDGE_SENSOR_HOST", "Eski Tekil UDP Host", "Yalnız eski paketlerle geriye uyumluluk içindir; yeni kurulumlarda UDP Sensör Kaynakları kullanılır.", ""),
         new("DEYAS_BRIDGE_SENSOR_PORT", "Eski Tekil UDP Port", "Yalnız eski paketlerle geriye uyumluluk içindir.", "1572"),
         new("DEYAS_BRIDGE_UDP_LOCAL_PORT", "UDP Local Port", "Bridge'in sabit kaynak portu; cihaz tarafı port hafızalıysa değiştirmeyin.", "58431"),
@@ -3119,7 +3128,7 @@
                 UpdateSourceSelection();
                 SetEnv("DEYAS_BRIDGE_TCP_SOURCES", BuildTcpSourcesJson());
                 await SaveFieldSetupAsync();
-                CloseSensorPopup();
+                if (string.IsNullOrEmpty(_saveError)) AdvanceSourceBatch();
                 return;
             }
 

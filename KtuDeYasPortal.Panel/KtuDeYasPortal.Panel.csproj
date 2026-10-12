@@ -25,4 +25,5 @@
     <Content Include="..\..\ktu-de-yas\infra\compose\saha-deployment\ONCE_BUNU_OKUYUN.md" Link="DeploymentTemplates\saha-deployment\SENARYOLAR.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <ItemGroup><ProjectReference Include="../../ktu-de-yas-shared/src/DeYas.DigitalTwin/DeYas.DigitalTwin.csproj" /></ItemGroup>
 </Project>

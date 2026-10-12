@@ -11,7 +11,8 @@ public sealed record FieldAlert(
     DateTime Timestamp,
     string? Metric,
     double? Value,
-    double? Threshold);
+    double? Threshold,
+    bool IsActive = true);
 
 /// <summary>Portal kullanıcılarının "Merkeze İlet" ile gönderdiği escalation DTO.</summary>
 public sealed record PortalEscalation(
@@ -37,7 +38,7 @@ public sealed class AlertState
     public event Action<FieldAlert>?        OnFieldAlertReceived;
     public event Action<PortalEscalation>?  OnEscalationReceived;
 
-    public int FieldAlertCount => _alerts.Count;
+    public int FieldAlertCount => _alerts.Values.Count(a=>a.IsActive);
 
     public IReadOnlyList<FieldAlert> FieldAlerts => _alerts.Values
         .OrderByDescending(alert => alert.Timestamp)
@@ -46,6 +47,7 @@ public sealed class AlertState
 
     public void UpsertFieldAlert(FieldAlert alert)
     {
+        if (!alert.IsActive && _alerts.TryGetValue(alert.AlarmId,out var previous)) alert=previous with {IsActive=false, Timestamp=alert.Timestamp};
         _alerts[alert.AlarmId] = alert;
         OnFieldAlertReceived?.Invoke(alert);
     }

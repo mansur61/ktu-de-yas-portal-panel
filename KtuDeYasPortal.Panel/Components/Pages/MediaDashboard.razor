@@ -59,6 +59,8 @@ else { <div class="row g-3">
 }
 
 @code {
+    [SupplyParameterFromQuery(Name="structureId")] public Guid? QueryStructureId { get; set; }
+    [SupplyParameterFromQuery(Name="deviceId")] public string? QueryDeviceId { get; set; }
     private bool _capturing;
     private string? _captureNotice;
     private Structure? SelectedStructure => _structures.FirstOrDefault(s => s.Id.ToString() == _structureId);
@@ -79,7 +81,7 @@ else { <div class="row g-3">
     private DateTime? _from = DateTime.Now.AddHours(-24), _to = DateTime.Now;
     private bool _loading, _previewLoading; private string? _error, _previewUrl; private MediaAsset? _selected;
     private IEnumerable<StructureSensor> Cameras => _structures.Where(s => string.IsNullOrWhiteSpace(_structureId) || s.Id.ToString() == _structureId).SelectMany(s => s.Sensors).Where(s => s.SensorType.Equals("Camera", StringComparison.OrdinalIgnoreCase));
-    protected override async Task OnInitializedAsync() { var allowed = await Access.GetAsync(BarajPermissions.Media, PortalMenuPermissions.Media); _manageAccess = await Access.GetAsync(BarajPermissions.Manage, PortalMenuPermissions.Media); _structures = (await StructureUC.GetAllAsync()).Where(s => allowed.IsAdmin || allowed.StructureIds.Contains(s.Id)).ToList(); foreach (var s in _structures) { var detail = await StructureUC.GetByIdAsync(s.Id); if (detail is not null) s.Sensors = detail.Sensors; } await LoadAsync(); }
+    protected override async Task OnInitializedAsync() { var allowed = await Access.GetAsync(BarajPermissions.Media, PortalMenuPermissions.Media); _manageAccess = await Access.GetAsync(BarajPermissions.Manage, PortalMenuPermissions.Media); _structures = (await StructureUC.GetAllAsync()).Where(s => allowed.IsAdmin || allowed.StructureIds.Contains(s.Id)).ToList(); foreach (var s in _structures) { var detail = await StructureUC.GetByIdAsync(s.Id); if (detail is not null) s.Sensors = detail.Sensors; } if(_structures.Any(s=>s.Id==QueryStructureId)) { _structureId=QueryStructureId!.Value.ToString(); if(Cameras.Any(c=>c.DeviceId==QueryDeviceId))_deviceId=QueryDeviceId!; } await LoadAsync(); }
     private async Task LoadAsync() { _loading = true; _error = null; try { _assets = (await MediaArchive.ListAsync(_structureId, _deviceId, _from?.ToUniversalTime(), _to?.ToUniversalTime())).ToList(); } catch (Exception ex) { _error = $"Medya arşivi okunamadı: {ex.Message}"; } finally { _loading = false; } }
     private async Task OpenAsync(MediaAsset asset) { _selected = asset; _previewUrl = null; _previewLoading = true; try { _previewUrl = await MediaArchive.GetPresignedUrlAsync(asset.Bucket, asset.ObjectKey); } finally { _previewLoading = false; } }
     private bool CanProtect(MediaAsset asset) => _manageAccess.IsAdmin || _structures.Any(s => _manageAccess.StructureIds.Contains(s.Id) && s.Sensors.Any(c => c.DeviceId == asset.DeviceId));

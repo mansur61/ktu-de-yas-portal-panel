@@ -5,6 +5,8 @@
 @inject SensorDataState SensorDataState
 @inject IOptions<GrafanaOptions> GrafanaOpts
 @inject IJSRuntime JS
+@inject PanelAccess Access
+@using DeYas.Contracts.Authorization
 
 <PageTitle>Baraj Bazlı Sensör İzleme</PageTitle>
 
@@ -506,6 +508,8 @@ else
 }
 
 @code {
+    [SupplyParameterFromQuery(Name="structureId")] public Guid? QueryStructureId { get; set; }
+    [SupplyParameterFromQuery(Name="deviceId")] public string? QueryDeviceId { get; set; }
     // ── State ──────────────────────────────────────────────────────────────────
     private bool   _loading = true;
     private List<Domain.Entities.Structure>? _structures;
@@ -548,11 +552,13 @@ else
         _loading = true;
         try
         {
-            _structures = await DashboardUC.GetAllStructuresAsync();
+            var scope=await Access.GetAsync(BarajPermissions.Dashboard,PortalMenuPermissions.Dashboard);
+            _structures = (await DashboardUC.GetAllStructuresAsync()).Where(s=>scope.IsAdmin||scope.StructureIds.Contains(s.Id)).ToList();
             if (_structures.Count > 0 && _selectedStructureId == Guid.Empty)
             {
-                _selectedStructureId = _structures[0].Id;
-                await LoadStructureDetailAsync(_structures[0].Id);
+                _selectedStructureId = _structures.FirstOrDefault(s=>s.Id==QueryStructureId)?.Id??_structures[0].Id;
+                await LoadStructureDetailAsync(_selectedStructureId);
+                _selectedSensorId=_structureSensors.FirstOrDefault(s=>s.DeviceId==QueryDeviceId)?.SensorId;
             }
         }
         finally { _loading = false; }

@@ -1,20 +1,19 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Components.Forms
 @inherits LayoutComponentBase
+@inject NavigationManager Navigation
 
 <a class="dy-skip" href="#main-content">İçeriğe geç</a>
-    <div class="page dy-shell">
+    <div class="page dy-shell @(IsTwin ? "dt-shell" : "") @(_menuOpen ? "dt-menu-open" : "")">
     <div class="sidebar">
         <NavMenu />
     </div>
 
     <main>
         <div class="top-row px-4">
-            <span class="dy-top-label">DE-YAS · Baraj ve sensör yönetimi</span>
-            <AuthorizeView><Authorized Context="session">
-                <span class="ms-3">@session.User.Identity?.Name</span>
-                <form method="post" action="/session/logout" class="d-inline ms-3"><AntiforgeryToken /><button class="btn btn-sm btn-outline-secondary" type="submit">Çıkış</button></form>
-            </Authorized></AuthorizeView>
+            @if (IsTwin) { <button class="dt-menu-button" @onclick="() => _menuOpen = !_menuOpen" aria-expanded="@_menuOpen">☰ Menü</button> }
+                <span class="dy-top-label">DE-YAS · Baraj ve sensör yönetimi</span>
+            <span class="ms-auto small">Yönetim Paneli</span>
         </div>
 
         <article class="content px-4" id="main-content">
@@ -28,3 +27,8 @@
     <a href="." class="reload">Yenile</a>
     <span class="dismiss">🗙</span>
 </div>
+
+@code {
+    private bool _menuOpen;
+    private bool IsTwin => Navigation.ToBaseRelativePath(Navigation.Uri).Split('?')[0].Trim('/') is "" or "digital-twin";
+}

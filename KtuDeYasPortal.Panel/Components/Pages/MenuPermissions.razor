@@ -37,10 +37,10 @@
                 {
                     <select class="form-select" @bind="_userId" @bind:after="LoadMenuAsync">
                         <option value="">-- Kullanıcı seçin --</option>
-                        @foreach (var user in _users)
+                        @foreach (var user in _users.Where(u=>u.Role != "panel.service"))
                         {
                             <option value="@user.UserId">
-                                @user.UserName@(user.OrganizationName is not null ? $" · {user.OrganizationName}" : "")
+                                @user.UserName · @(user.Role == "panel.service" ? "Panel servis hesabı" : user.IsPanelAdmin ? "Yönetici" : "Portal kullanıcısı")@(user.OrganizationName is not null ? $" · {user.OrganizationName}" : "")
                             </option>
                         }
                     </select>
@@ -97,7 +97,7 @@
         (PortalMenuPermissions.Alerts,      "Alertler",        "Alert kuralları ve akışını açar."),
         (PortalMenuPermissions.Media,       "Görüntüleme",     "Video ve medya ekranlarını açar."),
         (PortalMenuPermissions.Historical,  "Geçmiş veriler",  "Geçmiş veri ekranını açar."),
-        (PortalMenuPermissions.DigitalTwin, "Digital Twin",    "Digital Twin ekranını açar."),
+        (PortalMenuPermissions.DigitalTwin, "Dijital İkiz",    "Dijital ikizi açar. Görünecek barajlar için ayrıca baraj izleme yetkisi verin."),
         (PortalMenuPermissions.Workspace,   "Workspace Yönetimi", "Workspace yönetim ekranını açar."),
         (PortalMenuPermissions.NodeRed,     "Node-RED Konfigürasyonu", "Node-RED konfigürasyon ekranını açar.")
     ];
@@ -195,5 +195,6 @@
         public string UserName { get; set; } = string.Empty;
         public string? OrganizationName { get; set; }
         public string Role { get; set; } = string.Empty;
+        public bool IsPanelAdmin { get; set; }
     }
 }

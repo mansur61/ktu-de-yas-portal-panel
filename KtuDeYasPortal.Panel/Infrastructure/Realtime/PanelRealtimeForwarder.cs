@@ -42,8 +42,8 @@ public sealed class PanelRealtimeForwarder : IRealtimeMessageHandler
     {
         try
         {
-            if (channel == RealtimeChannels.FieldAlertCreated)
-                await HandleFieldAlertCreatedAsync(message);
+            if (channel == RealtimeChannels.FieldAlertCreated || channel == RealtimeChannels.AlarmCreated || channel == RealtimeChannels.AlarmResolved)
+                await HandleFieldAlertCreatedAsync(message, channel == RealtimeChannels.AlarmResolved);
             else if (channel == RealtimeChannels.TimeseriesUpdated || channel == RealtimeChannels.SensorUpdated)
                 await HandleTimeseriesAsync(message);
             else if (channel == RealtimeChannels.StakeholderAlertEscalated)
@@ -55,7 +55,7 @@ public sealed class PanelRealtimeForwarder : IRealtimeMessageHandler
         }
     }
 
-    private Task HandleFieldAlertCreatedAsync(string json)
+    private Task HandleFieldAlertCreatedAsync(string json, bool resolved = false)
     {
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
@@ -72,7 +72,8 @@ public sealed class PanelRealtimeForwarder : IRealtimeMessageHandler
             Timestamp: payload.TryGetDateTime(),
             Metric: payload.TryGetString("metric") ?? root.TryGetString("metric"),
             Value: payload.TryGetNumber("value"),
-            Threshold: payload.TryGetNumber("threshold"));
+            Threshold: payload.TryGetNumber("threshold"),
+            IsActive: !resolved && (!payload.TryGetPropertyIgnoreCase("isActive",out var active) || active.ValueKind == JsonValueKind.True));
 
         _alertState.UpsertFieldAlert(alert);
         _logger.LogInformation("[panel-forwarder] Field alert received alarm={AlarmId} device={DeviceId}", alarmId, deviceId);

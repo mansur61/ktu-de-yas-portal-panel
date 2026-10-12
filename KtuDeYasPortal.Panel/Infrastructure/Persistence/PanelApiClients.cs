@@ -5,15 +5,9 @@ using DeYas.Contracts.Authorization;
 namespace KtuDeYasPortal.Panel.Infrastructure.Persistence;
 
 // Scoped to the Blazor circuit. Never put a user's bearer token in a pooled handler.
-public sealed class PanelApiClients(IHttpClientFactory factory, IHttpContextAccessor accessor)
+public sealed class PanelApiClients(IHttpClientFactory factory)
 {
-    private readonly string? _token = accessor.HttpContext?.User.FindFirstValue("access_token");
-    public HttpClient CreateClient(string name)
-    {
-        var client = factory.CreateClient(name);
-        if (!string.IsNullOrWhiteSpace(_token)) client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _token);
-        return client;
-    }
+    public HttpClient CreateClient(string name) => factory.CreateClient(name);
 }
 
 public sealed record PanelAccessSnapshot(bool IsAdmin, Guid[] StructureIds);

@@ -650,6 +650,18 @@
                     var mt = root.TryGetProperty("DEYAS_BRIDGE_SOURCE_MQTT_TOPIC", out var mtv) ? mtv.GetString() ?? "" : "";
                     detailSources.Add(("MQTT", $"MQTT · {mh}:{mp}", mt));
                 }
+                // Çoklu MQTT kaynakları (yeni format)
+                if (root.TryGetProperty("DEYAS_BRIDGE_MQTT_SOURCES", out var mqttSources)) {
+                    using var mqttDoc = System.Text.Json.JsonDocument.Parse(mqttSources.GetString() ?? "[]");
+                    foreach (var s in mqttDoc.RootElement.EnumerateArray()) {
+                        var h = s.TryGetProperty("host", out var hv) ? hv.GetString() ?? "" : "";
+                        var p = s.TryGetProperty("port", out var pv) ? pv.GetInt32() : 1883;
+                        var t = s.TryGetProperty("topic", out var tv) ? tv.GetString() ?? "" : "";
+                        var n = s.TryGetProperty("name", out var nv) ? nv.GetString() ?? "" : "";
+                        if (!string.IsNullOrEmpty(h) && !detailSources.Any(x => x.Kind == "MQTT" && x.Endpoint == t))
+                            detailSources.Add(("MQTT", $"MQTT · {(string.IsNullOrEmpty(n) ? h : n)} · {h}:{p}", t));
+                    }
+                }
             } catch { /* JSON parse hatası — sessizce atla */ }
         }
 

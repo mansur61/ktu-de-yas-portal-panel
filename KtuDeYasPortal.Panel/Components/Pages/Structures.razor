@@ -387,39 +387,108 @@
               <div class="dy-heading"><div><h2 class="dy-form-heading">Hangi sensörleri izleyeceksiniz?</h2><p>TCP cihaz bağlantısıyla sensörü hemen ekleyin ya da UDP/MQTT kaynağını tanımlayın; sensörler saha kurulumu sonrası otomatik bulunur.</p></div><button class="btn btn-primary" @onclick="OpenWizardSensorEditor">+ Sensör ekle</button></div>
               <details id="wizard-placement" class="dy-technical" open><summary>Görsel üzerinde sensör konumu seç (isteğe bağlı)</summary><p class="dy-subtle">Mevcut sensörü yerleştirmek için satırındaki "Görselde yerleştir" düğmesini kullanın. Boş bir noktaya tıklamak yeni sensör için temiz kaynak seçimini açar.</p>@if(_wizardPlacingSensorId.HasValue){<div class="alert alert-info">Seçilen sensörün konumu için görsele tıklayın. <button class="btn btn-sm btn-outline-secondary" @onclick="()=>_wizardPlacingSensorId=null">Yerleştirmeyi iptal et</button></div>}@if(!_newStructureSensors.Any() && hasPassiveSources){<div class="alert alert-light border small py-2 mb-2"><span class="bi bi-info-circle me-1 text-secondary"></span>Yalnız UDP/MQTT kaynağı tanımlı. Saha kurulumu sonrası sensörler bu yapıya kaydedildiğinde yapı kartına tıklayarak görselde konumlandırabilirsiniz.</div>}<div class="wizard-image-wrapper" id="wizard-image"></div></details>
 
-              @* ── KAYITLI SENSÖRLER (TCP / doğrudan eklenen) ── *@
-              @if (_newStructureSensors.Any()) {
-                <div class="mt-3 mb-1 d-flex align-items-center gap-2">
-                  <h3 class="h6 mb-0">Kayıtlı sensörler</h3>
-                  <span class="badge bg-primary">@_newStructureSensors.Count</span>
-                  <small class="text-muted">— bağlantı testi yapılmış, sensör DB'ye yazılmış</small>
-                </div>
-                <div class="table-responsive"><table class="table"><thead><tr><th>Sensör</th><th>Ölçüm türü</th><th>Kayıt durumu</th><th>Görsel konumu</th><th></th></tr></thead><tbody>
-                @for (var i = 0; i < _newStructureSensors.Count; i++) { var index = i; var sensor = _newStructureSensors[i];
-                  <tr><td><strong>@sensor.Name</strong><div class="dy-subtle">@SensorSourceLabel(sensor)</div></td><td>@GetSensorTypeLabel(sensor.SensorType.ToString())</td><td>Sensör kaydı hazır · canlı veri durumunu izleme ekranında kontrol edin</td><td>@(sensor.ImagePositionX.HasValue ? "Görselde konumlandırıldı" : "Görsel konumu seçilmedi (isteğe bağlı)")</td><td><button class="btn btn-sm btn-outline-primary me-1" @onclick="() => PlaceWizardSensorAsync(sensor)">Görselde yerleştir</button><button class="btn btn-sm btn-outline-danger" @onclick="() => RemoveWizardSensor(index)" aria-label="@($"{sensor.Name} sensörünü barajdan kaldır")">Kaldır</button></td></tr>
-                }</tbody></table></div>
+              @* ── KAYITLI SENSÖRLER (TCP / doğrudan eklenen) — Tab + Arama + Pagination ── *@
+              @{
+                var wizFiltered = string.IsNullOrWhiteSpace(_wizSensorSearch)
+                    ? _newStructureSensors
+                    : _newStructureSensors.Where(s =>
+                        s.Name.Contains(_wizSensorSearch, StringComparison.OrdinalIgnoreCase) ||
+                        s.DeviceId.Contains(_wizSensorSearch, StringComparison.OrdinalIgnoreCase) ||
+                        s.SensorType.ToString().Contains(_wizSensorSearch, StringComparison.OrdinalIgnoreCase)).ToList();
+                var wizTotalPages = (int)Math.Ceiling(wizFiltered.Count / 10.0);
+                if (_wizSensorPage >= wizTotalPages) _wizSensorPage = Math.Max(0, wizTotalPages - 1);
+                var wizPaged = wizFiltered.Skip(_wizSensorPage * 10).Take(10).ToList();
               }
 
-              @* ── VERİ KAYNAKLARI (UDP / MQTT / Kamera — sensör otomatik bulunur) ── *@
-              @if (hasPassiveSources) {
-                <div class="mt-3 mb-1 d-flex align-items-center gap-2">
-                  <h3 class="h6 mb-0">Veri kaynakları</h3>
-                  <span class="badge bg-secondary">@(_friendlyUdpSources.Count + MqttConnections().Count + _cameraSettings.Cameras.Count)</span>
-                </div>
-                <div class="alert alert-warning py-2 small d-flex align-items-start gap-2 mb-2">
-                  <span class="bi bi-info-circle-fill mt-1 flex-shrink-0"></span>
-                  <span>Bu bağlantılar <strong>sensör değildir</strong>. Saha kurulumu tamamlanıp veri gelmeye başladığında sensörler <strong>bu yapıya otomatik kaydedilir</strong>; yapı kartına tıklayarak listeyebilir ve görselde konumlandırabilirsiniz. Tek bir UDP portu veya MQTT topic'inden birden fazla sensör gelebilir.</span>
-                </div>
-              }
-              @foreach (var source in _friendlyUdpSources) { <div class="dy-source-row"><div><strong>@(string.IsNullOrWhiteSpace(source.Name) ? source.Host : source.Name)</strong><p class="mb-0">UDP · @source.Host:@source.Port</p><span class="dy-chip neutral">Saha başlatılınca sensörler otomatik bulunur</span></div><button class="btn btn-outline-secondary btn-sm" @onclick="() => RemoveFriendlySource(source)">Kaynağı kaldır</button></div> }
-              @foreach(var source in MqttConnections()) { <div class="dy-source-row"><div><strong>@source.Name</strong><p class="mb-0">MQTT · @source.Host:@source.Port · @source.Topic</p><span class="dy-chip neutral">@source.ScalarMetric · Saha başlatılınca sensörler otomatik bulunur</span></div><button class="btn btn-outline-secondary btn-sm" @onclick="()=>EditMqttConnection(source)">Düzenle</button><button class="btn btn-outline-secondary btn-sm ms-1" @onclick="()=>RemoveMqttConnection(source)">Kaynağı kaldır</button></div> }
-              @foreach (var camera in _cameraSettings.Cameras) { <div class="dy-source-row"><div><strong>@camera.Id</strong><p class="mb-0">Kamera · @(camera.SourceType == "usb" ? "Saha bilgisayarına takılı" : camera.SourceType == "mqtt" ? "Başka bilgisayardan" : "Ağ üzerinden")</p><span class="dy-chip neutral">Kamera ayarı kaydedilecek · görüntü ayrıca kontrol edilir</span></div><button class="btn btn-outline-secondary btn-sm" @onclick="() => EditSetupCamera(camera)">Düzenle</button><button class="btn btn-outline-secondary btn-sm ms-1" @onclick="() => RemoveSetupCamera(camera)">Kaldır</button></div> }
+              @* Tab başlıkları *@
+              <div class="mt-3">
+                <ul class="nav nav-tabs border-0" role="tablist">
+                  <li class="nav-item">
+                    <button class="nav-link @(_wizTab == "sensors" ? "active" : "")" @onclick='() => _wizTab = "sensors"'>
+                      <span class="bi bi-cpu me-1"></span>Kayıtlı sensörler
+                      <span class="badge @(_wizTab == "sensors" ? "bg-primary" : "bg-secondary") ms-1">@_newStructureSensors.Count</span>
+                    </button>
+                  </li>
+                  <li class="nav-item">
+                    <button class="nav-link @(_wizTab == "sources" ? "active" : "")" @onclick='() => _wizTab = "sources"'>
+                      <span class="bi bi-broadcast me-1"></span>Veri kaynakları
+                      @if (hasPassiveSources) {
+                        <span class="badge @(_wizTab == "sources" ? "bg-primary" : "bg-secondary") ms-1">@(_friendlyUdpSources.Count + MqttConnections().Count + _cameraSettings.Cameras.Count)</span>
+                      }
+                    </button>
+                  </li>
+                </ul>
+              </div>
 
-              @if (!_newStructureSensors.Any() && !hasPassiveSources) {
-                <div class="alert alert-info mt-3" role="status">
-                  <h3 class="h6">Henüz sensör veya kaynak eklenmedi</h3>
-                  <p class="mb-0"><strong>"+ Sensör ekle"</strong> butonuyla başlayın. TCP cihazınız varsa bağlantıyı test edip sensörü hemen oluşturabilirsiniz. UDP/MQTT kullanıyorsanız kaynak bağlantısını tanımlayın; sensörler saha kurulumu sonrası otomatik listelenir.</p>
-                </div>
+              @* ── Tab: Sensörler ── *@
+              @if (_wizTab == "sensors") {
+                @if (_newStructureSensors.Count > 0) {
+                  <div class="d-flex align-items-center gap-2 py-2">
+                    <div class="input-group input-group-sm" style="max-width:280px">
+                      <span class="input-group-text"><span class="bi bi-search"></span></span>
+                      <input class="form-control" placeholder="Ara: ad, tip, cihaz kimliği…"
+                             @bind="_wizSensorSearch" @bind:event="oninput"
+                             @bind:after="() => _wizSensorPage = 0" />
+                      @if (!string.IsNullOrEmpty(_wizSensorSearch)) {
+                        <button class="btn btn-outline-secondary" @onclick="() => { _wizSensorSearch = string.Empty; _wizSensorPage = 0; }"><span class="bi bi-x"></span></button>
+                      }
+                    </div>
+                    <small class="text-muted">@wizFiltered.Count / @_newStructureSensors.Count sensör</small>
+                    <small class="text-muted ms-1">— bağlantı testi yapılmış, DB'ye yazılmış</small>
+                  </div>
+                  <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Sensör</th><th>Ölçüm türü</th><th>Görsel konumu</th><th></th></tr></thead><tbody>
+                  @foreach (var sensor in wizPaged) {
+                    var wizIdx = _newStructureSensors.IndexOf(sensor);
+                    <tr>
+                      <td><strong>@sensor.Name</strong><div class="dy-subtle small">@SensorSourceLabel(sensor)</div></td>
+                      <td>@GetSensorTypeLabel(sensor.SensorType.ToString())</td>
+                      <td><span class="@(sensor.ImagePositionX.HasValue ? "text-success" : "text-muted") small">@(sensor.ImagePositionX.HasValue ? "✓ Konumlandırıldı" : "Seçilmedi (isteğe bağlı)")</span></td>
+                      <td class="text-nowrap">
+                        <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => PlaceWizardSensorAsync(sensor)">Görselde yerleştir</button>
+                        <button class="btn btn-sm btn-outline-danger" @onclick="() => RemoveWizardSensor(wizIdx)" aria-label="@($"{sensor.Name} sensörünü barajdan kaldır")">Kaldır</button>
+                      </td>
+                    </tr>
+                  }
+                  </tbody></table></div>
+                  @if (wizTotalPages > 1) {
+                    <div class="d-flex align-items-center justify-content-between pb-1">
+                      <small class="text-muted">Sayfa @(_wizSensorPage + 1) / @wizTotalPages</small>
+                      <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-secondary" disabled="@(_wizSensorPage == 0)" @onclick="() => _wizSensorPage--"><span class="bi bi-chevron-left"></span></button>
+                        @for (var pi = 0; pi < wizTotalPages; pi++) { var pageIdx = pi;
+                          <button class="btn @(_wizSensorPage == pageIdx ? "btn-primary" : "btn-outline-secondary")" @onclick="() => _wizSensorPage = pageIdx">@(pageIdx + 1)</button>
+                        }
+                        <button class="btn btn-outline-secondary" disabled="@(_wizSensorPage >= wizTotalPages - 1)" @onclick="() => _wizSensorPage++"><span class="bi bi-chevron-right"></span></button>
+                      </div>
+                    </div>
+                  }
+                } else if (!hasPassiveSources) {
+                  <div class="alert alert-info mt-2" role="status">
+                    <h3 class="h6">Henüz sensör veya kaynak eklenmedi</h3>
+                    <p class="mb-0"><strong>"+ Sensör ekle"</strong> butonuyla başlayın. TCP cihazınız varsa bağlantıyı test edip sensörü hemen oluşturabilirsiniz. UDP/MQTT kullanıyorsanız "Veri kaynakları" sekmesinden kaynak ekleyin.</p>
+                  </div>
+                } else {
+                  <div class="alert alert-light py-2 small mt-2 d-flex align-items-center gap-2">
+                    <span class="bi bi-info-circle text-secondary"></span>
+                    <span>Yalnız UDP/MQTT kaynağı tanımlı. Saha kurulumu sonrası sensörler otomatik kaydedildiğinde buraya gelecek.</span>
+                  </div>
+                }
+              }
+
+              @* ── Tab: Veri kaynakları ── *@
+              @if (_wizTab == "sources") {
+                @if (hasPassiveSources) {
+                  <div class="alert alert-warning py-2 small d-flex align-items-start gap-2 mt-2 mb-2">
+                    <span class="bi bi-info-circle-fill mt-1 flex-shrink-0"></span>
+                    <span>Bu bağlantılar <strong>sensör değildir</strong>. Saha kurulumu tamamlanıp veri gelmeye başladığında sensörler <strong>bu yapıya otomatik kaydedilir</strong>. Tek bir UDP portu veya MQTT topic'inden birden fazla sensör gelebilir.</span>
+                  </div>
+                }
+                @foreach (var source in _friendlyUdpSources) { <div class="dy-source-row"><div><strong>@(string.IsNullOrWhiteSpace(source.Name) ? source.Host : source.Name)</strong><p class="mb-0">UDP · @source.Host:@source.Port</p><span class="dy-chip neutral">Saha başlatılınca sensörler otomatik bulunur</span></div><button class="btn btn-outline-secondary btn-sm" @onclick="() => RemoveFriendlySource(source)">Kaynağı kaldır</button></div> }
+                @foreach(var source in MqttConnections()) { <div class="dy-source-row"><div><strong>@source.Name</strong><p class="mb-0">MQTT · @source.Host:@source.Port · @source.Topic</p><span class="dy-chip neutral">@source.ScalarMetric · Saha başlatılınca sensörler otomatik bulunur</span></div><button class="btn btn-outline-secondary btn-sm" @onclick="()=>EditMqttConnection(source)">Düzenle</button><button class="btn btn-outline-secondary btn-sm ms-1" @onclick="()=>RemoveMqttConnection(source)">Kaynağı kaldır</button></div> }
+                @foreach (var camera in _cameraSettings.Cameras) { <div class="dy-source-row"><div><strong>@camera.Id</strong><p class="mb-0">Kamera · @(camera.SourceType == "usb" ? "Saha bilgisayarına takılı" : camera.SourceType == "mqtt" ? "Başka bilgisayardan" : "Ağ üzerinden")</p><span class="dy-chip neutral">Kamera ayarı kaydedilecek · görüntü ayrıca kontrol edilir</span></div><button class="btn btn-outline-secondary btn-sm" @onclick="() => EditSetupCamera(camera)">Düzenle</button><button class="btn btn-outline-secondary btn-sm ms-1" @onclick="() => RemoveSetupCamera(camera)">Kaldır</button></div> }
+                @if (!hasPassiveSources) {
+                  <div class="alert alert-light py-2 small mt-2">Kayıtlı UDP/MQTT kaynağı yok. "+ Sensör ekle" butonundan UDP veya MQTT kaynak ekleyebilirsiniz.</div>
+                }
               }
               <div class="dy-guide mt-3"><h3 class="h6">Saha dosyasını ayrıca doldurmanız gerekmez</h3><p>Burada seçtiğiniz kaynaklar saha ayarlarına ve ZIP'e otomatik yazılır. Sensörün kaydedilmesi ile gerçek veri gelmesi ayrı gösterilir.</p></div>
               <div class="d-flex flex-wrap justify-content-between gap-2 mt-4"><button class="btn btn-outline-secondary" @onclick="BackFromStep3">← Baraj bilgileri</button><button class="btn btn-outline-secondary" @onclick="SaveFieldSetupAsync" disabled="@_setupSaving">Kaydet, sonra devam et</button><button class="btn btn-primary" @onclick="GoToDeploymentStep" disabled="@(_setupSaving || !HasSetupSources)">Kaydet ve ZIP hazırla →</button></div>
@@ -2006,6 +2075,9 @@
         _newEdgeApiUrl = string.Empty;
         _showCreateWizard       = true;
         _wizardStep             = 2;
+        _wizTab                 = "sensors";
+        _wizSensorSearch        = string.Empty;
+        _wizSensorPage          = 0;
         _newType                = StructureType.Dam;
         _newName                = "";
         _newDescription         = "";
@@ -2692,6 +2764,9 @@
     private string _detailTab          = "sensors";
     private string _detailSensorSearch = string.Empty;
     private int    _detailSensorPage   = 0;
+    private string _wizTab             = "sensors";
+    private string _wizSensorSearch    = string.Empty;
+    private int    _wizSensorPage      = 0;
 
     private async Task CheckPendingClickAsync()
     {

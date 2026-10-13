@@ -233,7 +233,7 @@ public partial class Structures
         : !string.IsNullOrWhiteSpace(_tcpSensorName) && !string.IsNullOrWhiteSpace(_tcpSensorType)
             && !string.IsNullOrWhiteSpace(_sourceHost) && _sourcePort is > 0 and <= 65535
             && (_sensorSourceKind != "mqtt" || !string.IsNullOrWhiteSpace(_sourceTopic))
-            && (!_registerSourceSensor || ValidSensorBinding);
+            && (!_registerSourceSensor || !HasManualSensorBinding || ValidSensorBinding);
     private static bool IsGeneratedSourceField(string key) => key is "SAHA_ENABLED_PIPELINES" or "DEYAS_BRIDGE_SOURCE_MODE" or "DEYAS_BRIDGE_UDP_SOURCES" or "DEYAS_BRIDGE_TCP_SOURCES" or "DEYAS_BRIDGE_SOURCE_MQTT_HOST" or "DEYAS_BRIDGE_SOURCE_MQTT_PORT" or "DEYAS_BRIDGE_SOURCE_MQTT_TOPIC";
     private static readonly (string Kind, string Label)[] SourceChoices = [
         ("udp", "UDP — Bilgisayarın portundan ölçüm al"),
@@ -243,7 +243,7 @@ public partial class Structures
     private readonly HashSet<string> _selectedSourceKinds = [];
     private readonly Queue<string> _pendingSourceKinds = new();
     private void ToggleSourceKind(string kind, ChangeEventArgs args)
-    { if (_registerSourceSensor) { _selectedSourceKinds.Clear(); _selectedSourceKinds.Add(kind); } else if(args.Value is true) _selectedSourceKinds.Add(kind); else _selectedSourceKinds.Remove(kind); }
+    { if(args.Value is true) _selectedSourceKinds.Add(kind); else _selectedSourceKinds.Remove(kind); }
     private void StartSourceBatch()
     {
         _pendingSourceKinds.Clear();
@@ -260,7 +260,7 @@ public partial class Structures
         _sensorSourceKind=_pendingSourceKinds.Dequeue();
         SourceKindChanged();
     }
-    private string SourceSaveLabel => _pendingSourceKinds.Count>0 ? "Kaydet ve sonraki bağlantıya geç" : _registerSourceSensor ? "Sensörü kaydet" : "Kaynağı kaydet";
+    private string SourceSaveLabel => _pendingSourceKinds.Count>0 ? "Kaydet ve sonraki bağlantıya geç" : ShouldRegisterSourceSensor ? "Sensörü kaydet" : "Bağlantıyı kaydet";
     private string SourceDefault(string envKey,string configKey) =>
         !string.IsNullOrWhiteSpace(GetEnv(envKey)) ? GetEnv(envKey) : Configuration["FieldSourceDefaults:"+configKey] ?? "";
     private void SourceKindChanged()
@@ -337,10 +337,10 @@ public partial class Structures
                 if (!IsPipelineSelected(pipeline)) TogglePipeline(pipeline);
                 UpdateSourceSelection();
             }
-            if(_registerSourceSensor) await RegisterSourceSensorAsync();
+            if(ShouldRegisterSourceSensor) await RegisterSourceSensorAsync();
             await SaveFieldSetupAsync();
             if (!string.IsNullOrEmpty(_saveError)) throw new InvalidOperationException(_saveError);
-            _setupNotice = _registerSourceSensor ? "Sensör kaydı hazır. Veri gelişi izleme ekranında kontrol edilir; konumu şimdi veya daha sonra seçebilirsiniz." : "Kaynak bağlantısı kaydedildi. Sensörler saha kurulup ilk veri geldiğinde listelenir. Konumlandırma daha sonra yapılabilir.";
+            _setupNotice = ShouldRegisterSourceSensor ? "Sensör kaydı hazır. Veri gelişi izleme ekranında kontrol edilir; konumu şimdi veya daha sonra seçebilirsiniz." : "Veri bağlantısı kaydedildi. Bu bağlantı tek bir sensör değildir; sahadan gelen cihazlar/kanallar ayrı ayrı bulunup listelenecek. Daha sonra her sensörü görselde yerleştirebilirsiniz.";
             _pendingPos=null;
             AdvanceSourceBatch();
         } catch (Exception ex) {

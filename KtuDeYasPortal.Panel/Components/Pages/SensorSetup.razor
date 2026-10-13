@@ -76,14 +76,25 @@ else
             <table class="table mb-0"><thead><tr><th>Sensör</th><th>Kaydı</th><th>Bağlantı</th><th>Veri okuma</th><th>Örnek ölçüm</th><th>İşlem</th></tr></thead><tbody>
             @foreach (var sensor in VisibleSensors) {
                 var ready = _readiness.GetValueOrDefault(sensor.SensorId);
-                var direct = !string.IsNullOrWhiteSpace(sensor.IpAddress) && sensor.Port.HasValue;
+                var isTcp = sensor.SourceKind.Equals("tcp", StringComparison.OrdinalIgnoreCase)
+                            || (string.IsNullOrEmpty(sensor.SourceKind)
+                                && (!string.IsNullOrWhiteSpace(sensor.IpAddress) && sensor.Port.HasValue));
                 <tr><td><strong>@sensor.Name</strong><details><summary class="dy-subtle">Teknik bilgiler</summary><small>@GetSourceType(sensor) · @GetEndpoint(sensor)<br />@sensor.DeviceId</small></details></td>
                 <td><span class="dy-chip neutral">Kaydedildi</span><small class="d-block">@(ready is null ? "Çalışma durumu alınamadı" : LifecycleLabel(ready.LifecycleStatus))</small></td>
-                <td>@(ready is null ? "Bilinmiyor" : ready.ConnectionValid ? "✓ Doğrulandı" : "○ Kontrol gerekiyor")</td>
-                <td>@(ready is null ? "Bilinmiyor" : ready.ParserValid ? "✓ Okunabiliyor" : "○ Doğrulanmadı")</td>
-                <td>@(ready is null ? "Bilinmiyor" : ready.MetricPreviewValid ? "✓ Kontrol edildi" : "○ Kontrol gerekiyor")</td>
-                <td>@if (direct) { <div class="d-flex flex-wrap gap-2"><button class="btn btn-sm btn-outline-primary" disabled="@(_activeSensorId is not null || _readinessLoading)" @onclick="() => RunConnectionTestAsync(sensor)">1. Bağlantıyı kontrol et</button><button class="btn btn-sm btn-outline-primary" disabled="@(_activeSensorId is not null || ready?.ConnectionValid != true)" @onclick="() => RunParserValidationAsync(sensor)">2. Veriyi doğrula</button><button class="btn btn-sm btn-outline-primary" disabled="@(_activeSensorId is not null || ready?.ParserValid != true)" @onclick="() => GenerateMetricPreviewAsync(sensor)">3. Ölçümü kontrol et</button></div> }
-                else { <a href="sensor-dashboard" class="btn btn-sm btn-outline-secondary">Gelen ölçümleri kontrol et</a><small class="d-block text-muted">Yayın veya kamera kaynağı; canlı veri / görüntü ayrıca doğrulanır.</small> }</td></tr>
+                @if (isTcp) {
+                    <td>@(ready is null ? "Bilinmiyor" : ready.ConnectionValid ? "✓ Doğrulandı" : "○ Kontrol gerekiyor")</td>
+                    <td>@(ready is null ? "Bilinmiyor" : ready.ParserValid ? "✓ Okunabiliyor" : "○ Doğrulanmadı")</td>
+                    <td>@(ready is null ? "Bilinmiyor" : ready.MetricPreviewValid ? "✓ Kontrol edildi" : "○ Kontrol gerekiyor")</td>
+                    <td><div class="d-flex flex-wrap gap-2">
+                        <button class="btn btn-sm btn-outline-primary" disabled="@(_activeSensorId is not null || _readinessLoading)" @onclick="() => RunConnectionTestAsync(sensor)">1. Bağlantıyı kontrol et</button>
+                        <button class="btn btn-sm btn-outline-primary" disabled="@(_activeSensorId is not null || ready?.ConnectionValid != true)" @onclick="() => RunParserValidationAsync(sensor)">2. Veriyi doğrula</button>
+                        <button class="btn btn-sm btn-outline-primary" disabled="@(_activeSensorId is not null || ready?.ParserValid != true)" @onclick="() => GenerateMetricPreviewAsync(sensor)">3. Ölçümü kontrol et</button>
+                    </div></td>
+                } else {
+                    <td colspan="3"><span class="dy-chip neutral">Push — cihaz veri gönderir</span></td>
+                    <td><a href="sensor-dashboard" class="btn btn-sm btn-outline-secondary">Ölçümleri izle</a><small class="d-block text-muted mt-1">UDP/MQTT kaynağı. Bağlantı testi uygulanamaz; gelen veriyi izleme ekranından doğrulayın.</small></td>
+                }
+                </tr>
             }
             </tbody></table>
             @if (!VisibleSensors.Any()) { <div class="dy-empty"><p>Bu barajda kayıtlı sensör yok. Barajlar ve saha kurulumu ekranından ekleyin.</p></div> }

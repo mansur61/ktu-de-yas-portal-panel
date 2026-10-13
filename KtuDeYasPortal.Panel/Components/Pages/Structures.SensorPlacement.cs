@@ -12,10 +12,10 @@ public partial class Structures
     private bool _registerSourceSensor;
     private string _bindingDeviceId="", _bindingStreamKey="";
     private Guid? _wizardPlacingSensorId;
-    private Sensor? _mapSensor;
-    private double? _sensorLatitude, _sensorLongitude;
     private DateTime _lastSensorRefresh;
     private string? _editingMqttConnectionId;
+    private bool HasManualSensorBinding => !string.IsNullOrWhiteSpace(_bindingDeviceId) || !string.IsNullOrWhiteSpace(_bindingStreamKey);
+    private bool ShouldRegisterSourceSensor => _registerSourceSensor && (_sensorSourceKind == "camera" || HasManualSensorBinding);
     private bool ValidSensorBinding => !string.IsNullOrWhiteSpace(_bindingDeviceId)
         && _bindingStreamKey.Split('/').Length==2 && _bindingStreamKey.Split('/').All(x=>!string.IsNullOrWhiteSpace(x))
         && (_sensorSourceKind!="mqtt" || (!_sourceTopic.Contains('#')&&!_sourceTopic.Contains('+')));
@@ -80,20 +80,6 @@ public partial class Structures
         await JS.InvokeVoidAsync("openWizardPlacement");
     }
     private Dictionary<Guid,GeoPoint> SensorLocations()=>TwinLocations.Read(GetEnv("DEYAS_SETUP_SENSOR_LOCATIONS"));
-    private GeoPoint? SensorGeo(Guid id)=>SensorLocations().GetValueOrDefault(id);
-    private void OpenSensorMap(Sensor sensor) {
-        _mapSensor=sensor;var location=SensorGeo(sensor.Id);_sensorLatitude=location?.Latitude;_sensorLongitude=location?.Longitude;
-    }
-    private void SensorPointChanged(GeoPoint point) {_sensorLatitude=point.Latitude;_sensorLongitude=point.Longitude;}
-    private async Task SaveSensorMapAsync() {
-        if(_mapSensor is null||_sensorLatitude is null||_sensorLongitude is null)return;
-        var point=new GeoPoint(_sensorLatitude.Value,_sensorLongitude.Value);
-        if(!point.IsValid){_saveError="Geçerli enlem (-90–90) ve boylam (-180–180) girin.";return;}
-        var locations=SensorLocations();locations[_mapSensor.Id]=point;
-        SetEnv("DEYAS_SETUP_SENSOR_LOCATIONS",JsonSerializer.Serialize(locations,SourceJson));
-        await SaveFieldSetupAsync();if(string.IsNullOrEmpty(_saveError))_mapSensor=null;
-    }
-
     private sealed class MqttConnection {
         public string Id {get;set;}=Guid.NewGuid().ToString("N");
         public string Name {get;set;}="MQTT kaynağı";

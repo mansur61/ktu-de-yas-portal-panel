@@ -52,10 +52,12 @@ else
                     @if (sensorAssignment is not null)
                     {
                         <button class="btn btn-sm btn-outline-warning me-1" title="Baraj bağlantısını kaldır (sensör korunur)" aria-label="Baraj bağlantısını kaldır" @onclick="() => RemoveAssignmentAsync(sensor.Id, sensorAssignment.Id)"><span class="bi bi-link-45deg"></span></button>
-                        <button class="btn btn-sm btn-outline-danger me-1" title="Sensörü ve tüm bağlantı/tcp ayarlarını sil" aria-label="Sensörü sil" @onclick="() => DeleteSensorAsync(sensor.Id)"><span class="bi bi-trash"></span></button>
                     }
                     else
-                    { <button class="btn btn-sm btn-primary me-1" @onclick="() => OpenAssign(sensor)">Baraja bağla</button> }
+                    {
+                        <button class="btn btn-sm btn-primary me-1" @onclick="() => OpenAssign(sensor)">Baraja bağla</button>
+                    }
+                    <button class="btn btn-sm btn-outline-danger me-1" title="Sensörü ve tüm bağlantı/tcp ayarlarını sil" aria-label="Sensörü sil" @onclick="() => ConfirmDeleteSensorAsync(sensor.Id, sensor.Name)"><span class="bi bi-trash"></span></button>
                     <button class="btn btn-sm btn-outline-secondary" @onclick="() => OpenChannel(sensor)">Port / Serial ekle</button>
                     <button class="btn btn-sm btn-outline-info ms-1" @onclick="() => _expandedSensorId = _expandedSensorId == sensor.Id ? null : sensor.Id">Kanalları test et</button>
                 </td>
@@ -72,6 +74,11 @@ else
         }
         </tbody>
     </table></div></div>
+}
+
+@if (_deletingId is not null)
+{
+    <div class="modal fade show d-block" style="background:#0008"><div class="modal-dialog modal-sm"><div class="modal-content"><div class="modal-header bg-danger text-white py-2"><h6 class="mb-0"><span class="bi bi-exclamation-triangle me-1"></span>Sensörü sil</h6><button class="btn-close btn-close-white" @onclick="CancelDelete"></button></div><div class="modal-body"><p><strong>@_deletingName</strong> adlı sensör ve tüm TCP/bağlantı ayarları <strong>kalıcı olarak silinecek</strong>.</p><p class="text-muted small mb-0">Bu işlem geri alınamaz. Baraj bağlantısını yalnızca kaldırmak için önceki sayfada turuncu bağlantı butonunu kullanın.</p></div><div class="modal-footer py-2"><button class="btn btn-secondary btn-sm" @onclick="CancelDelete">Vazgeç</button><button class="btn btn-danger btn-sm" @onclick="CommitDeleteSensorAsync">Kalıcı olarak sil</button></div></div></div></div>
 }
 
 @if (_selected is not null && _mode == "assign")
@@ -99,6 +106,7 @@ else
     private bool _loading; private string? _error; private string? _mode; private string _structureId = ""; private Guid? _expandedSensorId; private string? _testResult;
     private string _assignmentFilter = "unassigned";
     private ChannelDto _channel = new();
+    private Guid? _deletingId; private string _deletingName = "";
     protected override Task OnInitializedAsync() => LoadAsync();
     private HttpClient Api => HttpFactory.CreateClient("timeseries-api");
     private async Task LoadAsync(){ _loading=true; _error=null; try { var sensorEndpoint=_assignmentFilter == "assigned" ? "api/sensors/assigned" : _assignmentFilter == "all" ? "api/sensors" : "api/sensors/unassigned"; _sensors=await Api.GetFromJsonAsync<List<SensorDto>>(sensorEndpoint,_json)??[]; _structures=(await Api.GetFromJsonAsync<List<StructureDto>>("api/structures",_json)??[]).Where(x=>x.IsActive).ToList(); _assignments=_structures.SelectMany(s=>s.SensorIds.Select(sensorId=>new {sensorId, structure=s})).GroupBy(x=>x.sensorId).ToDictionary(x=>x.Key,x=>x.First().structure); } catch(Exception e){_error=e.Message;} finally {_loading=false;} }
@@ -110,6 +118,9 @@ else
     private async Task AssignAsync(){if(_selected is null||!Guid.TryParse(_structureId,out var id))return; await Api.PostAsync($"api/sensors/{_selected.Id}/structures/{id}",null); Close(); await LoadAsync();}
     private async Task RemoveAssignmentAsync(Guid sensorId, Guid structureId){ var response=await Api.DeleteAsync($"api/sensors/{sensorId}/structures/{structureId}"); if(!response.IsSuccessStatusCode){_error=await response.Content.ReadAsStringAsync();return;} await LoadAsync(); }
     private async Task DeleteSensorAsync(Guid sensorId){ var response=await Api.DeleteAsync($"api/sensors/{sensorId}"); if(!response.IsSuccessStatusCode){_error=await response.Content.ReadAsStringAsync();return;} await LoadAsync(); }
+    private void ConfirmDeleteSensorAsync(Guid id, string name) { _deletingId = id; _deletingName = name; }
+    private void CancelDelete() { _deletingId = null; _deletingName = ""; }
+    private async Task CommitDeleteSensorAsync() { if (_deletingId is null) return; var id = _deletingId.Value; CancelDelete(); var response = await Api.DeleteAsync($"api/sensors/{id}"); if (!response.IsSuccessStatusCode) { _error = await response.Content.ReadAsStringAsync(); return; } await LoadAsync(); }
     private async Task AddChannelAsync(){if(_selected is null)return; var r=await Api.PostAsJsonAsync($"api/sensors/{_selected.Id}/tcp-configurations",_channel,_json); if(!r.IsSuccessStatusCode){_error=await r.Content.ReadAsStringAsync();return;} Close(); await LoadAsync();}
     private async Task TestChannelAsync(ChannelDto c){ var r=await Api.PostAsJsonAsync("api/tcp-sensors/test-connection",new { ipAddress=c.IpAddress, port=c.Port??0, connectionMode="Client", profile=c.Profile, timeoutMs=5000, encoding=c.Encoding, reconnectEnabled=c.ReconnectEnabled },_json);_testResult=await r.Content.ReadAsStringAsync();}
     private sealed class SensorDto { public Guid Id{get;set;} public string Name{get;set;}=""; public string DeviceId{get;set;}=""; public string LocationId{get;set;}=""; public string SensorType{get;set;}=""; public List<ChannelDto> TcpConfigurations{get;set;}=[]; }

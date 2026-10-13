@@ -22,4 +22,6 @@ public class StructureSensor
     public double? ImagePositionX { get; set; }
     public double? ImagePositionY { get; set; }
     public bool    IsActive       { get; set; }
+    /// <summary>"tcp" | "udp" | "mqtt" | "" — lifecycle adımlarının uygulanıp uygulanmayacağını belirler.</summary>
+    public string  SourceKind     { get; set; } = string.Empty;
 }

@@ -311,7 +311,7 @@
                         <input id="address-input" class="form-control" @bind="_newAddress" placeholder="Cadde / mahalle" />
                     </div>
                     @* ── Harita ── *@
-                    <div class="col-12"><details class="dy-technical" ontoggle="if(this.open && window.refreshSetupMap) window.refreshSetupMap()"><summary>Haritada konum seç (isteğe bağlı)</summary>
+                    <div class="col-12"><details class="dy-technical" ontoggle="if(this.open && window.refreshSetupMap) window.refreshSetupMap()" open><summary>Haritada konum seç (isteğe bağlı)</summary>
                         <label class="form-label">
                             <span class="bi bi-map me-1"></span>Konum Seç
                             <small class="text-muted fw-normal"> — Haritaya tıklayın ya da marker'ı sürükleyin</small>
@@ -3185,6 +3185,14 @@
                     var templatePath = Path.Combine(AppContext.BaseDirectory, "DeploymentTemplates", "saha-deployment", ".env.template");
                     var lines = File.Exists(templatePath) ? File.ReadAllLines(templatePath).ToList() : [];
                     var emitted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    // MQTT_CREDENTIALS template'de yorum satırı olarak bulunur;
+                    // panel dolduruyor ama sona düz değer olarak eklenmemeli.
+                    emitted.Add("DEYAS_BRIDGE_MQTT_CREDENTIALS");
+                    // Saha compose'unda kullanılmayan gereksiz image key'leri
+                    foreach (var unusedKey in new[] { "PANEL_IMAGE","PORTAL_IMAGE","AUTH_IMAGE","VIDEO_SERVICE_IMAGE",
+                        "MEDIA_UPLOAD_IMAGE","MEDIA_PROCESSING_IMAGE","RETENTION_IMAGE",
+                        "ALERT_EVALUATOR_IMAGE","ALERT_NOTIFICATION_IMAGE" })
+                        emitted.Add(unusedKey);
                     for (var index = 0; index < lines.Count; index++)
                     {
                         var separator = lines[index].IndexOf('=');

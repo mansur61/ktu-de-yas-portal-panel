@@ -547,10 +547,84 @@
             </span>
         </div>
 
-        @* ── Kayıtlı Sensör Listesi ── *@
-        @if (_editingStructure.Sensors?.Any() == true)
-        {
-            <div class="px-3 pb-3">
+        @* ── Tab: Sensörler / Kaynaklar ── *@
+        @{
+            var allDetailSensors   = _editingStructure.Sensors ?? [];
+            var filteredSensors    = string.IsNullOrWhiteSpace(_detailSensorSearch)
+                ? allDetailSensors
+                : allDetailSensors.Where(s =>
+                    s.Name.Contains(_detailSensorSearch, StringComparison.OrdinalIgnoreCase) ||
+                    s.DeviceId.Contains(_detailSensorSearch, StringComparison.OrdinalIgnoreCase) ||
+                    s.SensorType.Contains(_detailSensorSearch, StringComparison.OrdinalIgnoreCase)).ToList();
+            var totalPages         = (int)Math.Ceiling(filteredSensors.Count / (double)10);
+            if (_detailSensorPage >= totalPages) _detailSensorPage = Math.Max(0, totalPages - 1);
+            var pagedSensors       = filteredSensors.Skip(_detailSensorPage * 10).Take(10).ToList();
+
+            // Kaynaklar tab'ı için saha env'den kaynak bilgilerini oku
+            var detailEnvJson = _editingStructure.SiteEnvironmentJson ?? "{}";
+            List<(string Kind, string Label, string Endpoint)> detailSources = [];
+            try {
+                using var doc = System.Text.Json.JsonDocument.Parse(detailEnvJson);
+                var root = doc.RootElement;
+                if (root.TryGetProperty("DEYAS_BRIDGE_UDP_SOURCES", out var udpEl)) {
+                    using var udpDoc = System.Text.Json.JsonDocument.Parse(udpEl.GetString() ?? "[]");
+                    foreach (var s in udpDoc.RootElement.EnumerateArray()) {
+                        var h = s.TryGetProperty("host", out var hv) ? hv.GetString() ?? "" : "";
+                        var p = s.TryGetProperty("port", out var pv) ? pv.GetInt32() : 0;
+                        if (!string.IsNullOrEmpty(h)) detailSources.Add(("UDP", $"UDP · {h}:{p}", $"{h}:{p}"));
+                    }
+                }
+                if (root.TryGetProperty("DEYAS_BRIDGE_SOURCE_MQTT_HOST", out var mqttHost) &&
+                    !string.IsNullOrWhiteSpace(mqttHost.GetString())) {
+                    var mh = mqttHost.GetString() ?? "";
+                    var mp = root.TryGetProperty("DEYAS_BRIDGE_SOURCE_MQTT_PORT", out var mpv) ? mpv.GetString() ?? "1883" : "1883";
+                    var mt = root.TryGetProperty("DEYAS_BRIDGE_SOURCE_MQTT_TOPIC", out var mtv) ? mtv.GetString() ?? "" : "";
+                    detailSources.Add(("MQTT", $"MQTT · {mh}:{mp}", mt));
+                }
+            } catch { /* JSON parse hatası — sessizce atla */ }
+        }
+
+        <div class="px-3 pt-2 pb-0">
+            <ul class="nav nav-tabs nav-tabs-sm border-0" role="tablist">
+                <li class="nav-item">
+                    <button class="nav-link @(_detailTab == "sensors" ? "active" : "")"
+                            @onclick='() => _detailTab = "sensors"'>
+                        <span class="bi bi-cpu me-1"></span>Sensörler
+                        <span class="badge @(_detailTab == "sensors" ? "bg-primary" : "bg-secondary") ms-1">@allDetailSensors.Count</span>
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link @(_detailTab == "sources" ? "active" : "")"
+                            @onclick='() => _detailTab = "sources"'>
+                        <span class="bi bi-broadcast me-1"></span>Veri kaynakları
+                        @if (detailSources.Count > 0) {
+                            <span class="badge @(_detailTab == "sources" ? "bg-primary" : "bg-secondary") ms-1">@detailSources.Count</span>
+                        }
+                    </button>
+                </li>
+            </ul>
+        </div>
+
+        @* ── Tab içeriği: Sensörler ── *@
+        @if (_detailTab == "sensors") {
+        <div class="px-3 pb-3">
+            @if (allDetailSensors.Count > 0) {
+                <div class="d-flex align-items-center gap-2 py-2">
+                    <div class="input-group input-group-sm" style="max-width:280px">
+                        <span class="input-group-text"><span class="bi bi-search"></span></span>
+                        <input class="form-control" placeholder="Ara: ad, tip, cihaz kimliği…"
+                               @bind="_detailSensorSearch" @bind:event="oninput"
+                               @bind:after="() => _detailSensorPage = 0" />
+                        @if (!string.IsNullOrEmpty(_detailSensorSearch)) {
+                            <button class="btn btn-outline-secondary" @onclick="() => { _detailSensorSearch = string.Empty; _detailSensorPage = 0; }">
+                                <span class="bi bi-x"></span>
+                            </button>
+                        }
+                    </div>
+                    <small class="text-muted">@filteredSensors.Count / @allDetailSensors.Count sensör</small>
+                </div>
+            }
+            @if (pagedSensors.Count > 0) {
                 <div class="table-responsive">
                     <table class="table table-sm table-hover mb-0" style="font-size:0.83rem">
                         <thead class="table-light">
@@ -558,43 +632,39 @@
                                 <th style="width:32px"></th>
                                 <th>Sensör Adı</th>
                                 <th>Tip</th>
-                                <th>Teknik cihaz kimliği</th>
-                                <th>Topic</th>
+                                <th>Cihaz kimliği</th>
                                 <th>Metrikler</th>
                                 <th style="width:40px"></th>
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var ss in _editingStructure.Sensors)
+                            @foreach (var ss in pagedSensors)
                             {
                                 var icon = GetSensorEmoji(ss.SensorType);
+                                var metricsCsv = !string.IsNullOrWhiteSpace(ss.Metrics) ? ss.Metrics : ss.Description;
                                 <tr>
                                     <td class="text-center">@icon</td>
-                                    <td>@ss.Name</td>
+                                    <td>
+                                        @ss.Name
+                                        @if (!string.IsNullOrEmpty(ss.SourceKind)) {
+                                            <span class="badge bg-light text-muted border ms-1" style="font-size:0.6rem">@ss.SourceKind.ToUpperInvariant()</span>
+                                        }
+                                    </td>
                                     <td><span class="badge bg-secondary">@ss.SensorType</span></td>
                                     <td><code style="font-size:0.75rem">@ss.DeviceId</code></td>
-                                    <td><small class="font-monospace" title="@ss.Topic" style="font-size:0.72rem">@(ss.Topic.Length > 32 ? ss.Topic[..30] + "…" : ss.Topic)</small></td>
                                     <td>
-                                        @{
-                                            // Metrics field (new) takes priority; fall back to Description (legacy)
-                                            var metricsCsv = !string.IsNullOrWhiteSpace(ss.Metrics) ? ss.Metrics : ss.Description;
-                                        }
                                         @if (!string.IsNullOrEmpty(metricsCsv))
                                         {
-                                            @foreach (var m in metricsCsv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-                                            {
-                                                <span class="badge bg-info text-dark me-1" style="font-size:0.65rem">@m</span>
-                                            }
+                                            @foreach (var m in metricsCsv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Take(4))
+                                            { <span class="badge bg-info text-dark me-1" style="font-size:0.65rem">@m</span> }
+                                            @if (metricsCsv.Split(',').Length > 4) { <span class="badge bg-light text-muted border" style="font-size:0.65rem">+@(metricsCsv.Split(',').Length - 4)</span> }
                                         }
-                                        else
-                                        {
-                                            <small class="text-muted">-</small>
-                                        }
+                                        else { <small class="text-muted">-</small> }
                                     </td>
                                     <td>
                                         <button class="btn btn-outline-danger btn-sm py-0 px-1"
                                                 style="font-size:0.7rem;line-height:1.5"
-                                                title="Sensörü sil"
+                                                title="Sensörü bu yapıdan kaldır"
                                                 @onclick="() => RemoveSensorFromStructureAsync(ss.SensorId)">
                                             <span class="bi bi-trash"></span>
                                         </button>
@@ -604,8 +674,59 @@
                         </tbody>
                     </table>
                 </div>
-            </div>
+                @if (totalPages > 1) {
+                    <div class="d-flex align-items-center justify-content-between pt-2">
+                        <small class="text-muted">Sayfa @(_detailSensorPage + 1) / @totalPages</small>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-secondary" disabled="@(_detailSensorPage == 0)"
+                                    @onclick="() => _detailSensorPage--">
+                                <span class="bi bi-chevron-left"></span>
+                            </button>
+                            @for (var pi = 0; pi < totalPages; pi++) {
+                                var pageIdx = pi;
+                                <button class="btn @(_detailSensorPage == pageIdx ? "btn-primary" : "btn-outline-secondary")"
+                                        @onclick="() => _detailSensorPage = pageIdx">@(pageIdx + 1)</button>
+                            }
+                            <button class="btn btn-outline-secondary" disabled="@(_detailSensorPage >= totalPages - 1)"
+                                    @onclick="() => _detailSensorPage++">
+                                <span class="bi bi-chevron-right"></span>
+                            </button>
+                        </div>
+                    </div>
+                }
+            } else if (allDetailSensors.Count > 0) {
+                <div class="alert alert-info py-2 small mt-2">Arama sonucu bulunamadı.</div>
+            } else {
+                <div class="alert alert-light py-2 small mt-2">Bu yapıda kayıtlı sensör yok. Sensör eklemek için "Yeni sensör ekle" butonunu kullanın.</div>
+            }
+        </div>
         }
+
+        @* ── Tab içeriği: Veri kaynakları ── *@
+        @if (_detailTab == "sources") {
+        <div class="px-3 pb-3 pt-2">
+            @if (detailSources.Count > 0) {
+                @foreach (var src in detailSources) {
+                    <div class="dy-source-row">
+                        <div>
+                            <strong>@src.Label</strong>
+                            @if (!string.IsNullOrEmpty(src.Endpoint)) {
+                                <p class="mb-0 text-muted small">@src.Endpoint</p>
+                            }
+                            <span class="dy-chip neutral">Saha başlatılınca sensörler otomatik kaydedilir</span>
+                        </div>
+                    </div>
+                }
+                <div class="alert alert-warning py-2 small d-flex align-items-start gap-2 mt-2">
+                    <span class="bi bi-info-circle-fill mt-1 flex-shrink-0 text-warning"></span>
+                    <span>Bu bağlantılar sensör değildir. Veri geldiğinde sensörler bu yapıya otomatik kaydedilir; Sensörler sekmesinden görüntüleyebilirsiniz.</span>
+                </div>
+            } else {
+                <div class="alert alert-light py-2 small mt-2">Kayıtlı UDP/MQTT kaynağı yok. Kaynakları yapı kurulum sihirbazından ekleyin.</div>
+            }
+        </div>
+        }
+
     </div>
 }
 
@@ -2508,6 +2629,9 @@
         _detailImageInitialized = false; // yeniden render etsin
         _placingSensorId = null;
         _editingStructure = s;
+        _detailTab = "sensors";
+        _detailSensorSearch = string.Empty;
+        _detailSensorPage = 0;
         StateHasChanged();
         try { await JS.InvokeVoidAsync("connectSensorHub"); await JS.InvokeVoidAsync("joinStructureGroup", id.ToString()); }
         catch { }
@@ -2564,7 +2688,10 @@
 
     // ── Sensör ekleme ─────────────────────────────────────────────────────────
     private bool _isWizardSensorMode = false; // true = wizard adım 3, false = mevcut yapı detayı
-    private Guid? _placingSensorId;
+    private Guid?  _placingSensorId;
+    private string _detailTab          = "sensors";
+    private string _detailSensorSearch = string.Empty;
+    private int    _detailSensorPage   = 0;
 
     private async Task CheckPendingClickAsync()
     {

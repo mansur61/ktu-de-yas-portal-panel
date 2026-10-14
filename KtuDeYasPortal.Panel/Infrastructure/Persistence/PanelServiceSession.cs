@@ -8,7 +8,7 @@ using System.Text.Encodings.Web;
 namespace KtuDeYasPortal.Panel.Infrastructure.Persistence;
 
 // The installed panel is a management console. Human login belongs to the portal.
-// This token stays on the server and authenticates the panel's own service account.
+// This token stays on the server and authenticates the panel installation, without a portal account.
 public sealed class PanelServiceSession(IHttpClientFactory factory, IConfiguration configuration)
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -23,12 +23,12 @@ public sealed class PanelServiceSession(IHttpClientFactory factory, IConfigurati
             var name=configuration["PanelService:UserName"];
             var password=configuration["PanelService:Password"];
             if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(password))
-                throw new HttpRequestException("Panelin servis hesabı kurulum ayarlarında eksik.");
-            using var response=await factory.CreateClient("panel-auth-login").PostAsJsonAsync("api/auth/login",new { UserName=name,Password=password },ct);
+                throw new HttpRequestException("Panelin servis bağlantısı kurulum ayarlarında eksik.");
+            using var response=await factory.CreateClient("panel-auth-login").PostAsJsonAsync("api/auth/panel-token",new { ClientId=name,ClientSecret=password },ct);
             response.EnsureSuccessStatusCode();
             var session=await response.Content.ReadFromJsonAsync<PanelLoginResponse>(ct);
             if(session is null || string.IsNullOrWhiteSpace(session.Token) || !session.Permissions.Contains("platform.admin"))
-                throw new HttpRequestException("Panelin servis hesabı yönetim yetkisine sahip değil.");
+                throw new HttpRequestException("Panelin servis bağlantısı yönetim yetkisine sahip değil.");
             var payload=session.Token.Split('.')[1].Replace('-','+').Replace('_','/');
             payload=payload.PadRight((payload.Length+3)/4*4,'=');
             using var claims=JsonDocument.Parse(Convert.FromBase64String(payload));

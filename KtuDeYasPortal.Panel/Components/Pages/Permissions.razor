@@ -30,7 +30,7 @@
     <div class="alert alert-danger py-2">@_error</div>
 }
 
-<div class="card mb-4"><div class="card-header"><strong>Kullanıcı hesapları</strong></div><div class="table-responsive"><table class="table mb-0"><thead><tr><th>Kullanıcı</th><th>Hesap türü</th><th>Yönetim yetkisi</th><th>Portal görünümü</th></tr></thead><tbody>@foreach(var user in _users){<tr><td>@user.UserName</td><td><span class="badge @(user.IsPanelAdmin ? "text-bg-success" : "text-bg-secondary")">@(user.Role == "panel.service" ? "Panel servis hesabı" : user.IsPanelAdmin ? "Yönetici" : "Portal kullanıcısı")</span></td><td>@(user.IsPanelAdmin ? "Var" : "Yok")</td><td>@(user.Role == "panel.service" ? "Arka plan servis hesabı" : user.IsPanelAdmin ? "Tüm barajlar" : "Verilen baraj ve menü izinleri")</td></tr>}</tbody></table></div><div class="card-body small text-muted">Baraj ve menü izni vermek kullanıcıyı yönetici yapmaz. Panelin servis hesabı kurulum ayarlarında tanımlanır; panel kullanıcı girişi istemez.</div></div>
+<div class="card mb-4"><div class="card-header"><strong>Kullanıcı hesapları</strong></div><div class="table-responsive"><table class="table mb-0"><thead><tr><th>Kullanıcı</th><th>Hesap türü</th><th>Yönetim yetkisi</th><th>Portal görünümü</th></tr></thead><tbody>@foreach(var user in _users){<tr><td>@user.UserName</td><td><span class="badge @(user.IsPanelAdmin ? "text-bg-success" : "text-bg-secondary")">@(user.IsPanelAdmin ? "Yönetici" : "Portal kullanıcısı")</span></td><td>@(user.IsPanelAdmin ? "Var" : "Yok")</td><td>@(user.IsPanelAdmin ? "Tüm barajlar" : "Verilen baraj ve menü izinleri")</td></tr>}</tbody></table></div><div class="card-body small text-muted">Baraj ve menü izni vermek kullanıcıyı yönetici yapmaz. Panel tüm barajları yönetir ve kullanıcı girişi istemez. Bu izinler portal kullanıcıları içindir.</div></div>
 
 <div class="row g-4">
     <div class="col-xl-5">
@@ -51,7 +51,7 @@
                             <option value="">-- Kullanıcı seçin --</option>
                             @foreach (var user in _users.Where(u=>u.Role != "panel.service"))
                             {
-                                <option value="@user.UserId">@user.UserName · @(user.Role == "panel.service" ? "Panel servis hesabı" : user.IsPanelAdmin ? "Yönetici" : "Portal kullanıcısı")@(user.OrganizationName is not null ? $" · {user.OrganizationName}" : "")</option>
+                                <option value="@user.UserId">@user.UserName · @(user.IsPanelAdmin ? "Yönetici" : "Portal kullanıcısı")@(user.OrganizationName is not null ? $" · {user.OrganizationName}" : "")</option>
                             }
                         </select>
                     }
@@ -60,7 +60,7 @@
                     <label class="form-label">Baraj <span class="text-danger">*</span></label>
                     <select class="form-select" @bind="_structureId">
                         <option value="">-- Baraj seçin --</option>
-                        @foreach (var structure in _structures)
+                        @foreach (var structure in _structures.Where(x => x.IsActive))
                         {
                             <option value="@structure.Id">@structure.Name (@structure.Province)</option>
                         }
@@ -118,7 +118,7 @@
                                         <strong>@permission.UserName</strong>
                                         <small class="d-block text-muted">@permission.OrganizationName · @permission.UserId</small>
                                     </td>
-                                    <td>@permission.StructureName</td>
+                                    <td>@StructureName(permission)</td>
                                     <td><span class="badge bg-primary">@permission.Permission</span></td>
                                     <td class="text-end">
                                         <button class="btn btn-sm btn-outline-danger" title="Yetkiyi kaldır"
@@ -173,6 +173,10 @@
                               !string.IsNullOrWhiteSpace(_selectedUserId) &&
                               _selectedPermissions.Count > 0;
 
+    private string StructureName(StructurePermissionDto permission) =>
+        _structures.FirstOrDefault(x => x.Id == permission.StructureId)?.Name
+        ?? (string.IsNullOrWhiteSpace(permission.StructureName) ? "Silinmiş veya bulunamayan baraj" : permission.StructureName);
+
     private List<StructurePermissionDto> SelectedUserPermissions =>
         string.IsNullOrWhiteSpace(_selectedUserId)
             ? []
@@ -190,7 +194,7 @@
         {
             var structures = await DataApi.GetFromJsonAsync<List<StructureOption>>("api/structures", _json) ?? [];
             _structures.Clear();
-            _structures.AddRange(structures.Where(x => x.IsActive).OrderBy(x => x.Name));
+            _structures.AddRange(structures.OrderBy(x => x.Name));
 
             var users = await AuthApi.GetFromJsonAsync<List<UserOption>>("api/auth/users", _json) ?? [];
             _users.Clear();

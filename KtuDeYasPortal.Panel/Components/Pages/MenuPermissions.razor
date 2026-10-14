@@ -40,7 +40,7 @@
                         @foreach (var user in _users.Where(u=>u.Role != "panel.service"))
                         {
                             <option value="@user.UserId">
-                                @user.UserName · @(user.Role == "panel.service" ? "Panel servis hesabı" : user.IsPanelAdmin ? "Yönetici" : "Portal kullanıcısı")@(user.OrganizationName is not null ? $" · {user.OrganizationName}" : "")
+                                @user.UserName · @(user.IsPanelAdmin ? "Yönetici" : "Portal kullanıcısı")@(user.OrganizationName is not null ? $" · {user.OrganizationName}" : "")
                             </option>
                         }
                     </select>
@@ -90,7 +90,7 @@
 @code {
     private static readonly (string Key, string Label, string Description)[] Options =
     [
-        (PortalMenuPermissions.Home,        "Ana sayfa",       "Portal ana ekranını açar."),
+        (PortalMenuPermissions.Home,        "Ana sayfa",       "Dijital ikiz ana ekranını açar; canlı ölçümler için barajın zaman serisi izni gerekir."),
         (PortalMenuPermissions.Structures,  "Baraj izleme",    "Baraj listesini ve detaylarını açar."),
         (PortalMenuPermissions.Sensors,     "Sensör izleme",   "Sensör ekranını açar."),
         (PortalMenuPermissions.Dashboard,   "Zaman serisi",    "Baraj bazlı zaman serisi ekranını açar."),

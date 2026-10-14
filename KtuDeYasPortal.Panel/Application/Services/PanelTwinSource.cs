@@ -44,8 +44,8 @@ public sealed class PanelTwinSource : IDigitalTwinSource, IDisposable
             using var response=await http.GetAsync("api/sensor-data/latest/"+Uri.EscapeDataString(sensor.DeviceId),token);
             if(response.StatusCode==System.Net.HttpStatusCode.NotFound)return;
             response.EnsureSuccessStatusCode();
-            var row=await response.Content.ReadFromJsonAsync<LatestRow>(token);
-            if(row is not null && row.Metrics.Count>0)samples.Add(new(sensor.DeviceId,row.Timestamp,row.Metrics,"",sensor.SiteId));
+            var row=await response.Content.ReadFromJsonAsync<TwinLatestReading>(token);
+            if(row?.ToSample(sensor.DeviceId,sensor.SiteId) is { } sample)samples.Add(sample);
         });
         var actions=new List<TwinAction>();
         if(chosen is not null){
@@ -57,6 +57,5 @@ public sealed class PanelTwinSource : IDigitalTwinSource, IDisposable
         }
         return new(sites.Select(s=>new TwinSite(s.Id,s.Name,s.Province,s.Latitude,s.Longitude,s.ImageUrl)).ToList(),sensors,samples.OrderBy(s=>s.Timestamp).ToList(),actions,scope.IsAdmin,actions.Any(a=>a.Label.StartsWith("Alarmlar"))?_alerts.FieldAlerts.Where(a=>sensors.Any(s=>s.DeviceId==a.DeviceId)).Select(a=>new TwinAlarm(a.AlarmId,a.DeviceId,a.Severity,a.IsActive,a.Timestamp)).ToList():[]);
     }
-    private sealed record LatestRow(DateTime Timestamp, Dictionary<string,double> Metrics);
     public void Dispose(){_state.OnSensorDataReceived-=Receive;_alerts.OnFieldAlertReceived-=ReceiveAlarm;}
 }

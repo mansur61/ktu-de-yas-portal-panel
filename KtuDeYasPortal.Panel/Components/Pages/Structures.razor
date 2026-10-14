@@ -1275,7 +1275,7 @@
     private double        _newLng         = 40.0;
     private string        _newNodeRedUrl  = "";
     private string        _newEdgeApiUrl  = "";
-    private bool          _newAutoRegister;
+    private bool          _newAutoRegister    = true;
     private string        _newEdgeConfigJson = "";
     private Guid            _createdStructureId;
     private string          _setupTab = "edge";
@@ -2129,7 +2129,7 @@
         SetEnv("DEYAS_BRIDGE_SOURCE_MQTT_TOPIC", "");
         _packageSection = 1;
         _newEdgeConfigJson      = EdgeConfigTemplate;
-        _newAutoRegister        = false;
+        _newAutoRegister        = true;
         _mapInitialized         = false;
         _wizardImageInitialized = false;
         _editingStructure       = null;
@@ -3241,7 +3241,7 @@
     "apiBaseUrl": "http://100.116.23.112:5000/",
     "nodeRedUrl": "",
     "edgeApiUrl": "",
-    "autoRegister": false,
+    "autoRegister": true,
     "isActive": true
 }
 """;

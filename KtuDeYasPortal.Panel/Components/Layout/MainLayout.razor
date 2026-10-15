@@ -4,23 +4,58 @@
 @inject NavigationManager Navigation
 
 <a class="dy-skip" href="#main-content">İçeriğe geç</a>
-    <div class="page dy-shell @(IsTwin ? "dt-shell" : "") @(_menuOpen ? "dt-menu-open" : "")">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
 
-    <main>
-        <div class="top-row px-4">
-            @if (IsTwin) { <button class="dt-menu-button" @onclick="() => _menuOpen = !_menuOpen" aria-expanded="@_menuOpen">☰ Menü</button> }
-                <span class="dy-top-label">DE-YAS · Baraj ve sensör yönetimi</span>
-            <span class="ms-auto small">Yönetim Paneli</span>
-        </div>
+@if (IsOpMap)
+{
+    @* ── Operasyon Haritası: tam ekran, sidebar/topbar yok ── *@
+    <div class="opmap-shell @(_drawerOpen ? "drawer-open" : "")">
 
-        <article class="content px-4" id="main-content">
+        @* Floating menü butonu *@
+        <button class="opmap-menu-btn" @onclick="ToggleDrawer" aria-label="Menü">
+            <span class="bi @(_drawerOpen ? "bi-x-lg" : "bi-list")"></span>
+        </button>
+
+        @* Overlay — drawer açıkken tıklayınca kapat *@
+        @if (_drawerOpen) {
+            <div class="opmap-overlay" @onclick="CloseDrawer"></div>
+        }
+
+        @* Slide-in drawer menüsü *@
+        <nav class="opmap-drawer" aria-label="Gezinme menüsü">
+            <div class="opmap-drawer-header">
+                <a class="dy-brand" href="/" @onclick="CloseDrawer">
+                    <span class="dy-brand-symbol" aria-hidden="true">≋</span>
+                    <span><strong>DE-YAS</strong><small>YÖNETİM PANELİ</small></span>
+                </a>
+            </div>
+            <NavMenu />
+        </nav>
+
+        @* İçerik — harita doğrudan burada *@
+        <main id="main-content" class="opmap-content">
             @Body
-        </article>
-    </main>
-</div>
+        </main>
+    </div>
+}
+else
+{
+    @* ── Normal sayfa düzeni ── *@
+    <div class="page dy-shell @(IsTwin ? "dt-shell" : "") @(_menuOpen ? "dt-menu-open" : "")">
+        <div class="sidebar">
+            <NavMenu />
+        </div>
+        <main>
+            <div class="top-row px-4">
+                @if (IsTwin) { <button class="dt-menu-button" @onclick="() => _menuOpen = !_menuOpen" aria-expanded="@(_menuOpen)">☰ Menü</button> }
+                <span class="dy-top-label">DE-YAS · Baraj ve sensör yönetimi</span>
+                <span class="ms-auto small">Yönetim Paneli</span>
+            </div>
+            <article class="content px-4" id="main-content">
+                @Body
+            </article>
+        </main>
+    </div>
+}
 
 <div id="blazor-error-ui" data-nosnippet>
     Beklenmedik bir hata oluştu.
@@ -30,5 +65,11 @@
 
 @code {
     private bool _menuOpen;
-    private bool IsTwin => Navigation.ToBaseRelativePath(Navigation.Uri).Split('?')[0].Trim('/') is "" or "digital-twin";
+    private bool _drawerOpen;
+
+    private bool IsTwin   => Navigation.ToBaseRelativePath(Navigation.Uri).Split('?')[0].Trim('/') is "digital-twin";
+    private bool IsOpMap  => Navigation.ToBaseRelativePath(Navigation.Uri).Split('?')[0].Trim('/') is "";
+
+    private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+    private void CloseDrawer()  => _drawerOpen = false;
 }

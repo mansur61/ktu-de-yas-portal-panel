@@ -13,29 +13,34 @@
     .op-map-shell {
         display: flex;
         flex-direction: column;
-        height: calc(100vh - 3.5rem); /* topbar yüksekliği */
-        margin: -1.5rem -1.5rem 0;   /* content padding'i sıfırla */
+        height: 100vh;
+        width: 100%;
+        position: absolute;
+        inset: 0;
     }
     .op-map-toolbar {
         display: flex;
         align-items: center;
         gap: .75rem;
-        padding: .5rem 1rem;
-        background: var(--dy-surface, #fff);
-        border-bottom: 1px solid var(--dy-border, #dee2e6);
+        padding: .5rem 1rem .5rem 4.5rem; /* sol: menü butonuna yer bırak */
+        background: rgba(255,255,255,.92);
+        border-bottom: 1px solid rgba(0,0,0,.08);
         flex-shrink: 0;
         z-index: 10;
+        backdrop-filter: blur(6px);
+        box-shadow: 0 1px 8px rgba(0,0,0,.08);
     }
     .op-map-toolbar h1 {
         font-size: 1rem;
         font-weight: 600;
         margin: 0;
-        color: var(--dy-text, #1a1a2e);
+        color: #1a1a2e;
     }
     .op-map-hint {
         font-size: .78rem;
         color: #6c757d;
         margin-left: auto;
+        margin-right: 1rem;
     }
     #op-turkey-map {
         flex: 1;

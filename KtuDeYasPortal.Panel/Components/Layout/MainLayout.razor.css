@@ -1,3 +1,4 @@
+/* ── Normal sayfa düzeni ─────────────────────────────────────────── */
 .page {
     position: relative;
     display: flex;
@@ -77,6 +78,87 @@ main {
     }
 }
 
+/* ── Operasyon Haritası tam ekran düzeni ────────────────────────── */
+
+/* Tüm viewport */
+.opmap-shell {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    z-index: 0;
+}
+
+/* Harita kendisi — tüm alanı kapla */
+.opmap-content {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+}
+
+/* Sol üst floating menü butonu */
+.opmap-menu-btn {
+    position: fixed;
+    top: 1rem;
+    left: 1rem;
+    z-index: 900;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 50%;
+    background: rgba(13, 67, 45, 0.92);
+    border: 2px solid rgba(255,255,255,.25);
+    color: #fff;
+    font-size: 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(0,0,0,.35);
+    backdrop-filter: blur(4px);
+    transition: background .2s, transform .15s;
+}
+
+    .opmap-menu-btn:hover {
+        background: rgba(13, 67, 45, 1);
+        transform: scale(1.06);
+    }
+
+/* Overlay — drawer açıkken yarı saydam arka plan */
+.opmap-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.45);
+    z-index: 950;
+    backdrop-filter: blur(2px);
+}
+
+/* Drawer — sol kenardan slide-in */
+.opmap-drawer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 270px;
+    background: linear-gradient(180deg, #0d432d 0%, #17633f 72%, #1c7650 100%);
+    border-right: 1px solid rgba(255,255,255,.12);
+    z-index: 1000;
+    transform: translateX(-100%);
+    transition: transform .25s cubic-bezier(.4,0,.2,1);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+}
+
+.drawer-open .opmap-drawer {
+    transform: translateX(0);
+}
+
+.opmap-drawer-header {
+    padding: 1rem 1rem .5rem;
+    border-bottom: 1px solid rgba(255,255,255,.12);
+    flex-shrink: 0;
+}
+
+/* ── Hata UI ─────────────────────────────────────────────────────── */
 #blazor-error-ui {
     color-scheme: light only;
     background: lightyellow;

@@ -152,12 +152,6 @@ main {
     transform: translateX(0);
 }
 
-.opmap-drawer-header {
-    padding: 1rem 1rem .5rem;
-    border-bottom: 1px solid rgba(255,255,255,.12);
-    flex-shrink: 0;
-}
-
 /* ── Hata UI ─────────────────────────────────────────────────────── */
 #blazor-error-ui {
     color-scheme: light only;

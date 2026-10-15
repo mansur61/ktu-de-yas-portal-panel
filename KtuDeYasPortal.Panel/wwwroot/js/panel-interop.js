@@ -377,3 +377,145 @@ function openWizardPlacement() {
     const details = document.getElementById('wizard-placement');
     if (details) { details.open = true; details.scrollIntoView({block:'center',behavior:'smooth'}); }
 }
+
+// ════════════════════════════════════════════════════════════════════════
+//  Operasyon Haritası — Türkiye tam ekran, yapı marker'ları
+// ════════════════════════════════════════════════════════════════════════
+let opMap          = null;
+let opMarkersLayer = null;
+let opDotNet       = null;
+
+const STRUCTURE_ICONS = {
+    Dam:      { emoji: '🏔️', color: '#1a6b3c' },
+    Bridge:   { emoji: '🌉', color: '#1565c0' },
+    Tunnel:   { emoji: '🚇', color: '#6a1b9a' },
+    Building: { emoji: '🏢', color: '#e65100' },
+    Other:    { emoji: '🏗️', color: '#546e7a' }
+};
+
+function _opStructureIcon(type, isActive) {
+    const def = STRUCTURE_ICONS[type] || STRUCTURE_ICONS.Other;
+    const opacity = isActive ? 1 : 0.5;
+    const html = `
+        <div style="
+            display:flex;align-items:center;justify-content:center;
+            width:42px;height:42px;border-radius:50%;
+            background:${def.color};
+            border:3px solid #fff;
+            box-shadow:0 2px 8px rgba(0,0,0,.35);
+            font-size:1.1rem;
+            opacity:${opacity};
+            cursor:pointer;
+        ">${def.emoji}</div>
+        <div style="
+            width:0;height:0;
+            border-left:7px solid transparent;
+            border-right:7px solid transparent;
+            border-top:9px solid ${def.color};
+            margin:0 auto;opacity:${opacity};
+        "></div>`;
+    return L.divIcon({
+        html, className: '', iconSize: [42, 52], iconAnchor: [21, 52], popupAnchor: [0, -54]
+    });
+}
+
+function initOperationMap(elementId, structures, dotNetRef) {
+    const container = document.getElementById(elementId);
+    if (!container) return;
+    if (opMap) { opMap.remove(); opMap = null; opMarkersLayer = null; }
+
+    opDotNet = dotNetRef;
+
+    // Türkiye merkezi — tam ülke görünümü
+    opMap = L.map(elementId, {
+        center: [39.0, 35.5],
+        zoom: 6,
+        zoomControl: true,
+        attributionControl: false
+    });
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 18,
+        attribution: '© OpenStreetMap'
+    }).addTo(opMap);
+
+    opMarkersLayer = L.layerGroup().addTo(opMap);
+
+    // Mevcut yapı marker'larını ekle
+    _addOpMarkers(structures);
+
+    // Harita tıklaması → yeni baraj kurulumu
+    opMap.on('click', function (e) {
+        // Marker üzerine tıklanmış mı? Leaflet bu event'i engeller, buraya gelmez.
+        const lat = e.latlng.lat;
+        const lng = e.latlng.lng;
+
+        // Reverse geocode ile il/ilçe bul
+        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=tr`)
+            .then(r => r.json())
+            .then(data => {
+                const addr = data.address || {};
+                const province = addr.province || addr.state || addr.region || '';
+                const district = addr.county || addr.district || addr.suburb || '';
+
+                // Türkiye sınırları içindeyse Blazor'a bildir
+                const countryCode = (data.address?.country_code || '').toLowerCase();
+                if (countryCode && countryCode !== 'tr') {
+                    // Türkiye dışı tıklamayı sessizce geç
+                    return;
+                }
+                if (opDotNet) {
+                    opDotNet.invokeMethodAsync('OnMapNewLocationClick', lat, lng, province, district);
+                }
+            })
+            .catch(() => {
+                // Offline — koordinatla devam et
+                if (opDotNet) {
+                    opDotNet.invokeMethodAsync('OnMapNewLocationClick', lat, lng, '', '');
+                }
+            });
+    });
+}
+
+function _addOpMarkers(structures) {
+    if (!opMarkersLayer) return;
+    opMarkersLayer.clearLayers();
+
+    (structures || []).forEach(s => {
+        if (s.lat == null || s.lng == null) return;
+
+        const marker = L.marker([s.lat, s.lng], {
+            icon: _opStructureIcon(s.type, s.isActive),
+            title: s.name
+        });
+
+        marker.on('click', function (e) {
+            // Haritanın kendi click event'inin tetiklenmesini engelle
+            L.DomEvent.stopPropagation(e);
+            if (opDotNet) {
+                opDotNet.invokeMethodAsync(
+                    'OnStructureMarkerClick',
+                    s.id,
+                    e.originalEvent.clientX,
+                    e.originalEvent.clientY
+                );
+            }
+        });
+
+        // Tooltip: kısa bilgi
+        marker.bindTooltip(
+            `<strong>${s.name}</strong><br>${s.province}${s.district ? ' / ' + s.district : ''}<br>${s.sensorCount} sensör`,
+            { direction: 'top', offset: [0, -52], opacity: 0.95 }
+        );
+
+        opMarkersLayer.addLayer(marker);
+    });
+}
+
+function refreshOperationMapMarkers(structures) {
+    _addOpMarkers(structures);
+}
+
+function destroyOperationMap() {
+    if (opMap) { opMap.remove(); opMap = null; opMarkersLayer = null; opDotNet = null; }
+}

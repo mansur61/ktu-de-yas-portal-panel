@@ -13,6 +13,7 @@
 @inject ITimeseriesRepository TimeseriesRepo
 @inject IConfiguration Configuration
 @inject IJSRuntime JS
+@inject NavigationManager Nav
 @implements IAsyncDisposable
 
 <PageTitle>Baraj Yönetimi</PageTitle>
@@ -1651,6 +1652,25 @@
     protected override async Task OnInitializedAsync()
     {
         await LoadStructuresAsync();
+
+        // Operasyon haritasından gelen query string parametreleri
+        var uri = new Uri(Nav.Uri);
+        var qs  = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+        if (qs.TryGetValue("openWizard", out var ow) && ow == "1")
+        {
+            if (qs.TryGetValue("newLat", out var latStr) && double.TryParse(latStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var lat))
+                _newLat = lat;
+            if (qs.TryGetValue("newLng", out var lngStr) && double.TryParse(lngStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var lng))
+                _newLng = lng;
+            if (qs.TryGetValue("province", out var prov) && !string.IsNullOrWhiteSpace(prov))
+            {
+                _newProvince = prov.ToString();
+                _newDistricts = _districtMap.TryGetValue(_newProvince, out var d) ? d.ToList() : [];
+            }
+            if (qs.TryGetValue("district", out var dist) && !string.IsNullOrWhiteSpace(dist))
+                _newDistrict = dist.ToString();
+            ShowCreateWizard();
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)

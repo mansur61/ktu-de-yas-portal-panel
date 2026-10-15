@@ -1,4 +1,269 @@
 @page "/"
 @rendermode InteractiveServer
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
-<DeYas.DigitalTwin.TwinWorkspace />
+@inject StructureUseCases StructureUC
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<PageTitle>DE-YAS · Operasyon Haritası</PageTitle>
+
+<style>
+    /* Operasyon haritası tam ekran — sidebar + topbar dışındaki alanı kapla */
+    .op-map-shell {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 3.5rem); /* topbar yüksekliği */
+        margin: -1.5rem -1.5rem 0;   /* content padding'i sıfırla */
+    }
+    .op-map-toolbar {
+        display: flex;
+        align-items: center;
+        gap: .75rem;
+        padding: .5rem 1rem;
+        background: var(--dy-surface, #fff);
+        border-bottom: 1px solid var(--dy-border, #dee2e6);
+        flex-shrink: 0;
+        z-index: 10;
+    }
+    .op-map-toolbar h1 {
+        font-size: 1rem;
+        font-weight: 600;
+        margin: 0;
+        color: var(--dy-text, #1a1a2e);
+    }
+    .op-map-hint {
+        font-size: .78rem;
+        color: #6c757d;
+        margin-left: auto;
+    }
+    #op-turkey-map {
+        flex: 1;
+        min-height: 0;
+        z-index: 1;
+    }
+    /* Yapı popup kartı */
+    .op-structure-card {
+        position: fixed;
+        z-index: 1100;
+        background: #fff;
+        border-radius: 10px;
+        box-shadow: 0 8px 32px rgba(0,0,0,.18);
+        width: 320px;
+        overflow: hidden;
+        font-size: .85rem;
+    }
+    .op-structure-card-header {
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+        padding: .65rem 1rem;
+        background: var(--dy-primary, #1a6b3c);
+        color: #fff;
+    }
+    .op-structure-card-header strong { flex: 1; font-size: .9rem; }
+    .op-structure-card-header button {
+        background: none; border: none; color: rgba(255,255,255,.8);
+        font-size: 1.2rem; cursor: pointer; line-height: 1;
+    }
+    .op-structure-card-body { padding: .75rem 1rem; }
+    .op-structure-card-row {
+        display: flex; justify-content: space-between;
+        padding: .2rem 0; border-bottom: 1px solid #f0f0f0;
+    }
+    .op-structure-card-row:last-child { border-bottom: none; }
+    .op-structure-card-row .label { color: #6c757d; }
+    .op-structure-card-actions {
+        display: flex; gap: .5rem; padding: .6rem 1rem;
+        background: #f8f9fa; border-top: 1px solid #dee2e6;
+        flex-wrap: wrap;
+    }
+    .op-new-hint {
+        position: fixed;
+        bottom: 1.5rem;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(26,107,60,.92);
+        color: #fff;
+        padding: .5rem 1.25rem;
+        border-radius: 2rem;
+        font-size: .82rem;
+        pointer-events: none;
+        z-index: 1050;
+        opacity: 1;
+        transition: opacity .5s;
+    }
+</style>
+
+<div class="op-map-shell">
+    <div class="op-map-toolbar">
+        <span class="bi bi-map-fill text-success"></span>
+        <h1>Operasyon Haritası</h1>
+        @if (_structures.Count > 0) {
+            <span class="badge bg-success">@_structures.Count yapı</span>
+        }
+        <span class="op-map-hint">
+            @if (_structures.Count == 0)
+            { <span>Haritaya tıklayarak ilk barajı ekleyin</span> }
+            else
+            { <span>Haritaya tıklayın → yeni baraj · Marker'a tıklayın → yapı detayı</span> }
+        </span>
+        <button class="btn btn-sm btn-outline-secondary" @onclick="LoadAndRefreshAsync">
+            <span class="bi bi-arrow-clockwise"></span>
+        </button>
+    </div>
+
+    <div id="op-turkey-map"></div>
+</div>
+
+@* Yapı bilgi kartı *@
+@if (_selectedStructure is not null)
+{
+    <div class="op-structure-card" style="left:@(_cardX)px;top:@(_cardY)px">
+        <div class="op-structure-card-header">
+            <span>@GetStructureEmoji(_selectedStructure.StructureType.ToString())</span>
+            <strong>@_selectedStructure.Name</strong>
+            <button @onclick="CloseCard">&times;</button>
+        </div>
+        <div class="op-structure-card-body">
+            <div class="op-structure-card-row">
+                <span class="label">Konum</span>
+                <span>@_selectedStructure.Province@(string.IsNullOrEmpty(_selectedStructure.District) ? "" : " / " + _selectedStructure.District)</span>
+            </div>
+            <div class="op-structure-card-row">
+                <span class="label">Sensör</span>
+                <span><strong>@_selectedStructure.SensorCount</strong> kayıtlı</span>
+            </div>
+            <div class="op-structure-card-row">
+                <span class="label">Durum</span>
+                <span class="badge @(_selectedStructure.IsActive ? "bg-success" : "bg-secondary")">
+                    @(_selectedStructure.IsActive ? "Aktif" : "Pasif")
+                </span>
+            </div>
+            @if (_selectedStructure.Latitude.HasValue) {
+                <div class="op-structure-card-row">
+                    <span class="label">Koordinat</span>
+                    <span style="font-size:.75rem">
+                        @_selectedStructure.Latitude.Value.ToString("F4"),
+                        @_selectedStructure.Longitude!.Value.ToString("F4")
+                    </span>
+                </div>
+            }
+        </div>
+        <div class="op-structure-card-actions">
+            <a class="btn btn-sm btn-success" href="structures">
+                <span class="bi bi-pencil me-1"></span>Düzenle
+            </a>
+            <a class="btn btn-sm btn-outline-primary" href="sensor-dashboard">
+                <span class="bi bi-activity me-1"></span>Ölçümler
+            </a>
+            <a class="btn btn-sm btn-outline-secondary" href="sensor-setup">
+                <span class="bi bi-check2-circle me-1"></span>Kurulum
+            </a>
+        </div>
+    </div>
+}
+
+@* Yeni konum seçme ipucu *@
+@if (_showNewHint) {
+    <div class="op-new-hint">
+        <span class="bi bi-plus-circle me-1"></span>
+        Haritaya tıklayın → yeni baraj konumu seçin
+    </div>
+}
+
+@code {
+    private List<Structure> _structures = [];
+    private Structure? _selectedStructure;
+    private double _cardX, _cardY;
+    private bool _showNewHint = true;
+    private bool _mapInitialized;
+    private DotNetObjectReference<Home>? _objRef;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _structures = await StructureUC.GetAllAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _mapInitialized) return;
+        _mapInitialized = true;
+        _objRef = DotNetObjectReference.Create(this);
+
+        var markers = _structures
+            .Where(s => s.Latitude.HasValue && s.Longitude.HasValue)
+            .Select(s => new {
+                id         = s.Id.ToString(),
+                name       = s.Name,
+                lat        = s.Latitude!.Value,
+                lng        = s.Longitude!.Value,
+                type       = s.StructureType,
+                sensorCount = s.SensorCount,
+                isActive   = s.IsActive,
+                province   = s.Province,
+                district   = s.District ?? ""
+            }).ToList();
+
+        await JS.InvokeVoidAsync("initOperationMap", "op-turkey-map", markers, _objRef);
+
+        // 4 saniye sonra ipucu gizle
+        _ = Task.Delay(4000).ContinueWith(_ => InvokeAsync(() => { _showNewHint = false; StateHasChanged(); }));
+    }
+
+    private async Task LoadAndRefreshAsync()
+    {
+        _structures = await StructureUC.GetAllAsync();
+        if (!_mapInitialized) return;
+        var markers = _structures
+            .Where(s => s.Latitude.HasValue && s.Longitude.HasValue)
+            .Select(s => new {
+                id          = s.Id.ToString(),
+                name        = s.Name,
+                lat         = s.Latitude!.Value,
+                lng         = s.Longitude!.Value,
+                type        = s.StructureType,
+                sensorCount = s.SensorCount,
+                isActive    = s.IsActive,
+                province    = s.Province,
+                district    = s.District ?? ""
+            }).ToList();
+        await JS.InvokeVoidAsync("refreshOperationMapMarkers", markers);
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public void OnStructureMarkerClick(string structureId, double clientX, double clientY)
+    {
+        _selectedStructure = _structures.FirstOrDefault(s => s.Id.ToString() == structureId);
+        // Kart pencere dışına taşmasın
+        _cardX = Math.Min(clientX + 12, System.Math.Max(0, clientX - 332));
+        _cardY = Math.Min(clientY - 10, System.Math.Max(0, clientY - 10));
+        if (_cardX + 320 > 1400) _cardX = clientX - 332;
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public void OnMapNewLocationClick(double lat, double lng, string province, string district)
+    {
+        _selectedStructure = null;
+        // Structures sayfasına koordinatı query string ile geç
+        Nav.NavigateTo($"/structures?newLat={lat.ToString(System.Globalization.CultureInfo.InvariantCulture)}&newLng={lng.ToString(System.Globalization.CultureInfo.InvariantCulture)}&province={Uri.EscapeDataString(province)}&district={Uri.EscapeDataString(district)}&openWizard=1");
+    }
+
+    private void CloseCard() { _selectedStructure = null; }
+
+    private static string GetStructureEmoji(string type) => type switch {
+        "Dam"      => "🏔️",
+        "Bridge"   => "🌉",
+        "Tunnel"   => "🚇",
+        "Building" => "🏢",
+        _          => "🏗️"
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        _objRef?.Dispose();
+        try { await JS.InvokeVoidAsync("destroyOperationMap"); } catch { }
+    }
+}

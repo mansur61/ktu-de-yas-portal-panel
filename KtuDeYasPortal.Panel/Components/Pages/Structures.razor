@@ -1664,12 +1664,27 @@
                 _newLng = lng;
             if (qs.TryGetValue("province", out var prov) && !string.IsNullOrWhiteSpace(prov))
             {
-                _newProvince = prov.ToString();
+                // Nominatim'den gelen il adını listedekiyle eşleştir (büyük/küçük harf, suffix temizle)
+                var raw = prov.ToString()
+                    .Replace(" İli", "").Replace(" ili", "")
+                    .Replace(" Province", "").Replace(" province", "")
+                    .Trim();
+                // Önce tam eşleşme dene, sonra büyük/küçük harf duyarsız
+                _newProvince = _provinces.FirstOrDefault(p =>
+                    string.Equals(p, raw, StringComparison.OrdinalIgnoreCase)) ?? raw;
                 _newDistricts = _districtMap.TryGetValue(_newProvince, out var d) ? d.ToList() : [];
             }
             if (qs.TryGetValue("district", out var dist) && !string.IsNullOrWhiteSpace(dist))
-                _newDistrict = dist.ToString();
+            {
+                var rawDist = dist.ToString()
+                    .Replace(" İlçesi", "").Replace(" ilçesi", "")
+                    .Replace(" District", "").Replace(" district", "")
+                    .Trim();
+                _newDistrict = _newDistricts.FirstOrDefault(d =>
+                    string.Equals(d, rawDist, StringComparison.OrdinalIgnoreCase)) ?? rawDist;
+            }
             ShowCreateWizard();
+            StateHasChanged();
         }
     }
 

@@ -455,13 +455,21 @@ function initOperationMap(elementId, structures, dotNetRef) {
             .then(r => r.json())
             .then(data => {
                 const addr = data.address || {};
-                const province = addr.province || addr.state || addr.region || '';
-                const district = addr.county || addr.district || addr.suburb || '';
+                // Nominatim farklı alanlarda ili döndürebilir — öncelik sırası:
+                const rawProvince = addr.province || addr.state || addr.region || addr.county || '';
+                const rawDistrict = addr.county || addr.district || addr.city_district || addr.suburb || '';
+
+                // "Ankara İli" → "Ankara", "Gümüşhane Province" → "Gümüşhane" gibi temizle
+                const province = rawProvince
+                    .replace(/\s*(İli|ili|Province|province|Şehri|şehri)\s*/g, '')
+                    .trim();
+                const district = rawDistrict
+                    .replace(/\s*(İlçesi|ilçesi|District|district)\s*/g, '')
+                    .trim();
 
                 // Türkiye sınırları içindeyse Blazor'a bildir
                 const countryCode = (data.address?.country_code || '').toLowerCase();
                 if (countryCode && countryCode !== 'tr') {
-                    // Türkiye dışı tıklamayı sessizce geç
                     return;
                 }
                 if (opDotNet) {

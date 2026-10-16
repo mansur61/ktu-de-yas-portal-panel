@@ -15,6 +15,7 @@
     @if (Can("menu.media")) { <NavLink href="media-dashboard"><span class="bi bi-camera-video" aria-hidden="true"></span>Kameralar ve kayıtlar</NavLink> }
     @if (Can("menu.alerts")) { <NavLink href="field-alerts"><span class="bi bi-bell" aria-hidden="true"></span>Sahadan gelen alarmlar @if (AlertState.FieldAlertCount > 0) { <span class="badge bg-warning text-dark">@AlertState.FieldAlertCount</span> }</NavLink> }
     @if (Can("menu.alerts")) { <NavLink href="stakeholder-alerts"><span class="bi bi-chat-square-text" aria-hidden="true"></span>İletilen incelemeler</NavLink> }
+    @if (Can("platform.admin")) { <NavLink href="support-requests"><span class="bi bi-life-preserver" aria-hidden="true"></span>Destek talepleri</NavLink> }
     <div class="dy-nav-label">AYARLAR</div>
     @if (Can("platform.admin")) { <NavLink href="settings"><span class="bi bi-gear" aria-hidden="true"></span>Genel Ayarlar</NavLink> }
 </nav>

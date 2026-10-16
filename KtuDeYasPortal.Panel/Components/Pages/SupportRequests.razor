@@ -1,0 +1,17 @@
+@page "/support-requests"
+@rendermode InteractiveServer
+@inject PanelApiClients ApiClients
+
+<PageTitle>Destek talepleri · DE-YAS</PageTitle>
+<div class="d-flex justify-content-between align-items-end mb-4"><div><div class="dy-eyebrow">KULLANICI PORTALI</div><h1 class="h3 mb-1">Destek talepleri</h1><p class="text-muted mb-0">Portal kullanıcılarının gönderdiği talepler yalnızca görüntülenir.</p></div><button class="btn btn-outline-secondary" @onclick="LoadAsync" disabled="@_loading"><span class="bi bi-arrow-clockwise me-1"></span>Yenile</button></div>
+@if (_loading) { <div class="text-center py-5"><span class="spinner-border text-primary"></span></div> }
+else if (_error is not null) { <div class="alert alert-danger">@_error</div> }
+else if (!_items.Any()) { <div class="alert alert-light border py-5 text-center"><span class="bi bi-inbox fs-2 d-block text-muted mb-2"></span>Henüz destek talebi yok.</div> }
+else { <div class="card"><div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead class="table-light"><tr><th>Takip no</th><th>Kullanıcı</th><th>Konu / açıklama</th><th>Durum</th><th>Tarih</th></tr></thead><tbody>@foreach(var item in _items) { <tr><td><code>@item.Reference</code></td><td>@item.RequesterName</td><td><strong>@item.Subject</strong><div class="small text-muted text-break">@item.Description</div></td><td><span class="badge bg-primary">@StatusText(item.Status)</span></td><td class="small text-nowrap">@item.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</td></tr> }</tbody></table></div></div> }
+@code {
+ private List<SupportRequestItem> _items=[]; private bool _loading=true; private string? _error;
+ protected override async Task OnInitializedAsync()=>await LoadAsync();
+ private async Task LoadAsync(){_loading=true;_error=null;try{_items=await ApiClients.CreateClient("timeseries-api").GetFromJsonAsync<List<SupportRequestItem>>("api/support-requests")??[];}catch{_error="Destek talepleri alınamadı.";}finally{_loading=false;}}
+ private static string StatusText(string status)=>status=="Open"?"Açık":status;
+ private sealed class SupportRequestItem { public Guid Id {get;set;} public string Reference {get;set;}=""; public string RequesterName {get;set;}=""; public string Subject {get;set;}=""; public string Description {get;set;}=""; public string Status {get;set;}=""; public DateTime CreatedAt {get;set;} }
+}

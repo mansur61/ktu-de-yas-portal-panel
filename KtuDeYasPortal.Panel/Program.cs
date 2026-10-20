@@ -111,6 +111,7 @@ builder.Services.AddScoped<IStructureRepository, StructureHttpRepository>();
 builder.Services.AddScoped<IStructureSimulationClient, StructureSimulationHttpClient>();
 builder.Services.AddScoped<IMediaSimulationClient, MediaSimulationHttpClient>();
 builder.Services.AddScoped<IMediaArchiveClient, MediaArchiveHttpClient>();
+builder.Services.AddScoped<ILiveCameraClient, LiveCameraHttpClient>();
 builder.Services.AddScoped<ISensorRepository, SensorHttpRepository>();
 builder.Services.AddScoped<ITimeseriesRepository, TimeseriesRepository>();
 builder.Services.AddScoped<StructureUseCases>();

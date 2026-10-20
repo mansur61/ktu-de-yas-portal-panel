@@ -16,6 +16,7 @@
                     {
                         <div class="col-md-6"><label class="form-label">Kamerayı okuyan bilgisayar</label><select class="form-select" @bind="camera.Backend"><option value="v4l2">Linux</option><option value="dshow">Windows</option><option value="avfoundation">macOS</option></select></div>
                         <div class="col-md-6"><label class="form-label">Kamera cihazı / adı @(camera.SourceType == "mqtt" ? "(isteğe bağlı)" : "")</label><input class="form-control" @bind="camera.Device" placeholder="Kurulum sorumlusunun verdiği kamera adı veya /dev/video0" /></div>
+                        @if (camera.Backend == "v4l2") { <div class="col-md-6"><label class="form-label">USB görüntü biçimi</label><select class="form-select" @bind="camera.PixelFormat"><option value="auto">Otomatik seç</option><option value="mjpeg">MJPEG</option><option value="yuyv422">YUYV</option></select></div> }
                         <div class="col-12"><div class="dy-guide mb-0"><p>@(camera.SourceType == "mqtt" ? "Kamera başka bilgisayara takılıdır. Görüntüyü gönderen yazılım o bilgisayarda çalışmalıdır; cihaz adı yazılırsa ZIP içinde yayıncı ayarları da hazırlanır." : "Kamera saha bilgisayarına takılı olmalıdır. Linux'ta cihaz erişimi pakete eklenir. Windows ve macOS'ta kamera gönderici yazılımı işletim sistemi üzerinde çalıştırılır.")</p></div></div>
                     }
                     <div class="col-md-6"><label class="form-label">Her kaydın süresi (saniye)</label><input type="number" min="1" max="300" class="form-control" @bind="camera.ClipSeconds" /></div>
@@ -27,8 +28,8 @@
                     <div class="col-md-4"><label class="form-label">Teknik kamera kimliği</label><input class="form-control" @bind="camera.Id" /></div>
                     <div class="col-md-4"><label class="form-label">Saniyedeki kare sayısı</label><input type="number" min="1" max="120" class="form-control" @bind="camera.Fps" /></div>
                     <div class="col-md-4"><label class="form-label">Görüntü çözünürlüğü</label><input class="form-control" @bind="camera.Resolution" placeholder="1280x720" /></div>
-                    @if (camera.SourceType == "mqtt") { <div class="col-12"><label class="form-label">Gelen görüntü yayın adresi (isteğe bağlı)</label><input class="form-control" @bind="camera.InputTopic" placeholder="Boşsa sistem oluşturur" /></div> }
-                    <div class="col-12"><label class="form-label">Kayıt komutu yayın adresi (isteğe bağlı)</label><input class="form-control" @bind="camera.CommandTopic" placeholder="Boşsa sistem oluşturur" /></div>
+                    @if (camera.SourceType == "mqtt") { <div class="col-12"><label class="form-label">Gelen görüntü yayın adresi (isteğe bağlı)</label><input class="form-control" @bind="camera.InputTopic" placeholder="Boşsa saha/kamera/yapı kimliğinden oluşturulur" /><div class="form-text">Topic boş bırakılırsa ZIP, yapı ve kamera kimliğine göre `saha/media/input/.../chunk` adresini üretir.</div></div> }
+                    <div class="col-12"><label class="form-label">Kayıt komutu yayın adresi (isteğe bağlı)</label><input class="form-control" @bind="camera.CommandTopic" placeholder="Boşsa saha/kamera/yapı kimliğinden oluşturulur" /><div class="form-text">Topic boş bırakılırsa ZIP, `saha/media/commands/.../capture` adresini üretir. MQTT kamera yayıncısı için bu alan da ZIP'e eklenir.</div></div>
                 </div></details>
             </section>
         }
@@ -42,11 +43,16 @@
     {
         var index = 1;
         while (Settings.Cameras.Any(c => c.Id == $"kamera-{index}")) index++;
-        Settings.Cameras.Add(new CameraDeploymentEntry { Id = $"kamera-{index}", Mode = "remote", SourceType = "rtsp", CaptureMode = "scheduled" });
+        Settings.Cameras.Add(new CameraDeploymentEntry { Id = $"kamera-{index}", Mode = "remote", SourceType = "mqtt", CaptureMode = "manual", ClipSeconds = 10 });
     }
     private static void ChangeSource(CameraDeploymentEntry camera, string? source)
     {
         camera.SourceType = source ?? "rtsp";
         camera.Mode = camera.SourceType == "usb" ? "local" : "remote";
+        if (camera.SourceType == "mqtt")
+        {
+            camera.CaptureMode = "manual";
+            camera.ClipSeconds = 10;
+        }
     }
 }

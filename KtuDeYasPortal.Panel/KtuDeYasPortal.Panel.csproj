@@ -23,6 +23,8 @@
     <Content Include="..\..\ktu-de-yas\src\saha-media-bridge\saha_media_bridge.py" Link="DeploymentTemplates\saha-deployment\publisher\saha_media_bridge.py" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\..\ktu-de-yas\src\saha-media-bridge\requirements.txt" Link="DeploymentTemplates\saha-deployment\publisher\requirements.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\..\ktu-de-yas\infra\compose\saha-deployment\ONCE_BUNU_OKUYUN.md" Link="DeploymentTemplates\saha-deployment\SENARYOLAR.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\ktu-de-yas\infra\compose\saha-deployment\systemd\saha-media-bridge.service" Link="DeploymentTemplates\saha-deployment\systemd\saha-media-bridge.service" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\ktu-de-yas\infra\compose\saha-deployment\systemd\DOCKER_DISI_KAMERA_KURULUMU.md" Link="DeploymentTemplates\saha-deployment\systemd\DOCKER_DISI_KAMERA_KURULUMU.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup><ProjectReference Include="../../ktu-de-yas-shared/src/DeYas.DigitalTwin/DeYas.DigitalTwin.csproj" /></ItemGroup>

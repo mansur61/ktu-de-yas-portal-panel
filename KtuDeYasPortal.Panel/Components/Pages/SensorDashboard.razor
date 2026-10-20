@@ -351,6 +351,7 @@ else
                     @if (IsMediaSensor(sensor))
                     {
                         <div class="col-sm-6 col-md-4 col-xl-3">
+                            <a class="text-decoration-none" href="@($"/media-dashboard?structureId={_selectedStructureId:D}&deviceId={Uri.EscapeDataString(sensor.DeviceId)}")" aria-label="@sensor.Name canlı görüntüsünü aç">
                             <div class="card h-100 shadow-sm border-info border-opacity-50">
                                 <div class="card-header py-2 bg-info bg-opacity-10 d-flex justify-content-between">
                                     <span class="fw-semibold small">📷 Kamera sensörü</span>
@@ -359,9 +360,10 @@ else
                                 <div class="card-body py-2 px-3">
                                     <div class="fw-semibold text-truncate">@sensor.Name</div>
                                     <div class="text-muted small text-truncate">@sensor.SensorType · @sensor.DeviceId</div>
-                                    <div class="small mt-2 text-muted">Video/stream akışı merkez Node-RED ekranından izlenir.</div>
+                                    <div class="small mt-2 text-primary">Canlı görüntü ve kayıtları aç</div>
                                 </div>
                             </div>
+                            </a>
                         </div>
                     }
 

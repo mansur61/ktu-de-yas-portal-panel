@@ -4,9 +4,12 @@
 @attribute [Authorize(Policy = "media.access")]
 @page "/media-dashboard"
 @rendermode InteractiveServer
+@implements IAsyncDisposable
 @inject IMediaArchiveClient MediaArchive
+@inject ILiveCameraClient LiveCamera
 @inject StructureUseCases StructureUC
 @inject IStructureSimulationClient StructureSimClient
+@inject IJSRuntime JS
 
 <PageTitle>Medya Arşivi</PageTitle>
 
@@ -29,6 +32,19 @@
 </div></div></div>
 
 <div class="mb-3"><button class="btn btn-success" @onclick="CaptureAsync" disabled="@(!CanCapture || _capturing)">@(_capturing ? "İstek gönderiliyor…" : "Seçili kameradan kayıt al")</button><div class="form-text">Bir baraj ve kamera seçin. Saha çalışır ve ağdan erişilebilir olmalı. Tamamlanan klip/fotoğraf için arşivi yenileyin.</div></div>
+<div class="mb-3"><button class="btn btn-primary" @onclick="StartLiveAsync" disabled="@(!CanLive || _liveStarting || _liveSession is not null)">@(_liveStarting ? "Bağlanıyor…" : "Canlı görüntüyü aç")</button><div class="form-text">Canlı görüntü yalnız izleme oturumu açıkken aktarılır. Oturum kapatılınca sahadaki yayın durdurulur.</div></div>
+@if (_liveError is not null) { <div class="alert alert-warning">@_liveError <button class="btn btn-sm btn-outline-secondary ms-2" @onclick="StartLiveAsync">Yeniden dene</button></div> }
+@if (_liveSession is not null || _liveStarting)
+{
+    <section class="card shadow-sm mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center"><strong>Canlı kamera · @_deviceId</strong><button class="btn btn-sm btn-outline-danger" @onclick="StopLiveAsync">Yayını kapat</button></div>
+        <div class="card-body bg-dark text-center">
+            @if (_liveStarting) { <div class="text-light py-5"><span class="spinner-border me-2"></span>Saha kamerasından yayın bekleniyor…</div> }
+            <video id="live-camera-video" class="w-100" autoplay playsinline style="max-height:70vh;@( _liveStarting ? "display:none" : "")"></video>
+        </div>
+        <div class="card-footer small text-muted">Oturum süresi: @_liveSession?.ExpiresAt.ToLocalTime().ToString("HH:mm:ss") zamanına kadar</div>
+    </section>
+}
 @if (_captureNotice is not null) { <div class="alert alert-info">@_captureNotice</div> }
 @if (!string.IsNullOrWhiteSpace(_error)) { <div class="alert alert-danger">@_error</div> }
 @if (_loading) { <div class="text-center py-5"><span class="spinner-border text-primary"></span></div> }
@@ -62,10 +78,51 @@ else { <div class="row g-3">
     [SupplyParameterFromQuery(Name="structureId")] public Guid? QueryStructureId { get; set; }
     [SupplyParameterFromQuery(Name="deviceId")] public string? QueryDeviceId { get; set; }
     private bool _capturing;
+    private bool _liveStarting;
+    private LiveCameraSession? _liveSession;
+    private string? _liveError;
     private string? _captureNotice;
     private Structure? SelectedStructure => _structures.FirstOrDefault(s => s.Id.ToString() == _structureId);
     private bool CanCapture => SelectedStructure is { } s && !string.IsNullOrWhiteSpace(s.EdgeApiUrl)
         && Cameras.Any(c => c.DeviceId == _deviceId) && (_manageAccess.IsAdmin || _manageAccess.StructureIds.Contains(s.Id));
+    private bool CanLive => SelectedStructure is { } s && Cameras.Any(c => c.DeviceId == _deviceId)
+        && (_mediaAccess.IsAdmin || _mediaAccess.StructureIds.Contains(s.Id));
+
+    private async Task StartLiveAsync()
+    {
+        if (!CanLive || _liveStarting || _liveSession is not null) return;
+        _liveStarting = true; _liveError = null;
+        try
+        {
+            var session = await LiveCamera.StartAsync(SelectedStructure!.Id, _deviceId);
+            _liveSession = session;
+            _liveStarting = false;
+            await InvokeAsync(StateHasChanged);
+            await Task.Delay(100);
+            await JS.InvokeVoidAsync("deyasLiveCamera.start", "live-camera-video", session.WhepUrl, session.ViewerToken);
+        }
+        catch (Exception ex)
+        {
+            _liveError = ex.Message;
+            if (_liveSession is not null)
+            {
+                try { await LiveCamera.StopAsync(SelectedStructure!.Id, _liveSession.SessionId); } catch { }
+                _liveSession = null;
+            }
+        }
+        finally { _liveStarting = false; }
+    }
+
+    private async Task StopLiveAsync()
+    {
+        var session = _liveSession;
+        _liveSession = null;
+        if (session is null) return;
+        try { await JS.InvokeVoidAsync("deyasLiveCamera.stop", "live-camera-video"); }
+        catch { }
+        try { await LiveCamera.StopAsync(Guid.Parse(_structureId), session.SessionId); }
+        catch (Exception ex) { _liveError = $"Yayın durdurma isteği iletilemedi: {ex.Message}"; }
+    }
     private async Task CaptureAsync()
     {
         if (!CanCapture || _capturing) return;
@@ -76,16 +133,18 @@ else { <div class="row g-3">
     }
     private List<Structure> _structures = [];
     private PanelAccessSnapshot _manageAccess = new(false, []);
+    private PanelAccessSnapshot _mediaAccess = new(false, []);
     private List<MediaAsset> _assets = [];
     private string _structureId = "", _deviceId = "";
     private DateTime? _from = DateTime.Now.AddHours(-24), _to = DateTime.Now;
     private bool _loading, _previewLoading; private string? _error, _previewUrl; private MediaAsset? _selected;
     private IEnumerable<StructureSensor> Cameras => _structures.Where(s => string.IsNullOrWhiteSpace(_structureId) || s.Id.ToString() == _structureId).SelectMany(s => s.Sensors).Where(s => s.SensorType.Equals("Camera", StringComparison.OrdinalIgnoreCase));
-    protected override async Task OnInitializedAsync() { var allowed = await Access.GetAsync(BarajPermissions.Media, PortalMenuPermissions.Media); _manageAccess = await Access.GetAsync(BarajPermissions.Manage, PortalMenuPermissions.Media); _structures = (await StructureUC.GetAllAsync()).Where(s => allowed.IsAdmin || allowed.StructureIds.Contains(s.Id)).ToList(); foreach (var s in _structures) { var detail = await StructureUC.GetByIdAsync(s.Id); if (detail is not null) s.Sensors = detail.Sensors; } if(_structures.Any(s=>s.Id==QueryStructureId)) { _structureId=QueryStructureId!.Value.ToString(); if(Cameras.Any(c=>c.DeviceId==QueryDeviceId))_deviceId=QueryDeviceId!; } await LoadAsync(); }
+    protected override async Task OnInitializedAsync() { _mediaAccess = await Access.GetAsync(BarajPermissions.Media, PortalMenuPermissions.Media); _manageAccess = await Access.GetAsync(BarajPermissions.Manage, PortalMenuPermissions.Media); _structures = (await StructureUC.GetAllAsync()).Where(s => _mediaAccess.IsAdmin || _mediaAccess.StructureIds.Contains(s.Id)).ToList(); foreach (var s in _structures) { var detail = await StructureUC.GetByIdAsync(s.Id); if (detail is not null) s.Sensors = detail.Sensors; } if(_structures.Any(s=>s.Id==QueryStructureId)) { _structureId=QueryStructureId!.Value.ToString(); if(Cameras.Any(c=>c.DeviceId==QueryDeviceId))_deviceId=QueryDeviceId!; } await LoadAsync(); if (QueryStructureId is not null && !string.IsNullOrWhiteSpace(QueryDeviceId) && CanLive) await StartLiveAsync(); }
     private async Task LoadAsync() { _loading = true; _error = null; try { _assets = (await MediaArchive.ListAsync(_structureId, _deviceId, _from?.ToUniversalTime(), _to?.ToUniversalTime())).ToList(); } catch (Exception ex) { _error = $"Medya arşivi okunamadı: {ex.Message}"; } finally { _loading = false; } }
     private async Task OpenAsync(MediaAsset asset) { _selected = asset; _previewUrl = null; _previewLoading = true; try { _previewUrl = await MediaArchive.GetPresignedUrlAsync(asset.Bucket, asset.ObjectKey); } finally { _previewLoading = false; } }
     private bool CanProtect(MediaAsset asset) => _manageAccess.IsAdmin || _structures.Any(s => _manageAccess.StructureIds.Contains(s.Id) && s.Sensors.Any(c => c.DeviceId == asset.DeviceId));
     private async Task ToggleProtectionAsync(MediaAsset asset) { try { await MediaArchive.SetProtectionAsync(asset, !asset.IsProtected); await LoadAsync(); } catch { _error = "Kayıt koruması değiştirilemedi; yapı yönetim yetkisi gerekir."; } }
     private void Close() { _selected = null; _previewUrl = null; }
+    public async ValueTask DisposeAsync() { if (_liveSession is not null) await StopLiveAsync(); }
     private static string FormatSize(long? value) => value is null ? "Boyut bilinmiyor" : value < 1024 * 1024 ? $"{value.Value / 1024d:0} KB" : $"{value.Value / 1024d / 1024d:0.0} MB";
 }

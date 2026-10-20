@@ -280,7 +280,7 @@ public partial class Structures
         if (_sensorSourceKind == "camera") {
             var index = 1;
             while (_cameraSettings.Cameras.Any(c => c.Id == $"kamera-{index}")) index++;
-            _setupCameraDraft = new() { Cameras = [new() { Id = $"kamera-{index}", Mode = "remote", SourceType = "rtsp", CaptureMode = "scheduled" }] };
+            _setupCameraDraft = new() { Cameras = [new() { Id = $"kamera-{index}", Mode = "remote", SourceType = "mqtt", CaptureMode = "manual", ClipSeconds = 10 }] };
         }
     }
     private void LoadMqttForm()
@@ -299,7 +299,7 @@ public partial class Structures
     private void EditSetupCamera(CameraDeploymentEntry camera)
     {
         OpenConnectionEditor(); _sensorSourceKind = "camera"; _editingCameraId = camera.Id;
-        _setupCameraDraft = CameraDeploymentSettings.FromJson(new CameraDeploymentSettings { Cameras = [camera] }.ToJson());
+        _setupCameraDraft = CameraDeploymentSettings.FromJson(new CameraDeploymentSettings { Cameras = [camera] }.ToJson(structureId: _createdStructureId));
         _setupCameraDraft.Cameras[0].SourceValue = camera.SourceValue;
     }
     private void RemoveSetupCamera(CameraDeploymentEntry camera) => _cameraSettings.Cameras.Remove(camera);
@@ -313,9 +313,9 @@ public partial class Structures
         var oldMqtt = _sourceMqtt; var oldUdpEnabled = _sourceUdp;
         try {
             if (_sensorSourceKind == "camera") {
-                _setupCameraDraft.ToJson();
+                _setupCameraDraft.ToJson(structureId: _createdStructureId);
                 var combined = new CameraDeploymentSettings { Cameras = _cameraSettings.Cameras.Where(c => c.Id != _editingCameraId).Concat(_setupCameraDraft.Cameras).ToList() };
-                combined.ToJson();
+                combined.ToJson(structureId: _createdStructureId);
                 _cameraSettings.Cameras = combined.Cameras;
                 if (!IsPipelineSelected("kamera")) TogglePipeline("kamera");
             } else {
@@ -370,12 +370,12 @@ Mevcut kurulum güncelleniyorsa mevcut .env, kamera dosyası, veri klasörleri v
 
 ## 2. Kurulum sorumlusu bağlantıyı kontrol etsin
 
-Docker'ın kurulu ve çalışır olması gerekir. .env dosyasında DEYAS_JWT_SIGNING_KEY merkezle aynı olmalı; boşsa kurulum sorumlusu doldurmalıdır.
-Merkez ve cihaz adresleri bu bilgisayardan erişilebilir olmalıdır. Bu dosya parola içermez; .env erişim bilgileri içerir, paketi yalnız kurulum sorumlusuyla paylaşın.
+Merkez ve cihaz adresleri bu bilgisayardan erişilebilir olmalıdır. Docker ile tam saha kurulumu yapılacaksa Docker çalışır durumda olmalıdır. Docker desteklenmeyen Linux cihazda yalnız kamera köprüsü çalıştırılacaksa systemd kılavuzunu kullanın; bu yöntem saha Compose servislerini veya ivmeölçer pipeline'ını başlatmaz. .env dosyasında DEYAS_JWT_SIGNING_KEY merkezle aynı olmalı; boşsa kurulum sorumlusu doldurmalıdır.
+Bu dosya parola içermez; .env erişim bilgileri içerir, paketi yalnız kurulum sorumlusuyla paylaşın.
 
-## 3. Kurulumu başlatın
+## 3. Docker ile kurulumu başlatın
 
-Paket klasöründe terminal açın. Yeni kurulumda:
+Docker ile tam saha kurulumu yapıyorsanız paket klasöründe terminal açın. Yeni kurulumda:
 
 ```sh
 {(_samePcDeployment ? "docker compose -f docker-compose.shared-services.yml up -d\n" : "")}{command} config --quiet
@@ -386,13 +386,31 @@ Paket klasöründe terminal açın. Yeni kurulumda:
 
 Ortak bilgisayar kullanılıyorsa ortak hizmetleri yalnız ilk kurulumda başlatın. Diğer baraj için farklı proje adı ve kontrol/editör portları gerekir. Ayrıntı AYNI_PC_KURULUM.md içindedir.
 
+Docker kullanmayan kamera bilgisayarında ZIP içindeki systemd/DOCKER_DISI_KAMERA_KURULUMU.md kılavuzunu izleyin. Kılavuz Linux/systemd, Windows/PowerShell ve macOS/Terminal adımlarını içerir. publisher/requirements.txt sanal ortama kurulur; Python ve FFmpeg kamera bilgisayarında çalışır.
+
 ## 4. Veri geldiğini doğrulayın
 
 Panelde Bağlantı ve kurulum kontrolü ekranını açın. Barajı seçin; cihaz bağlantısını ve örnek veriyi kontrol edin. Ardından baraj kartındaki Veri toplamayı başlat ve Merkeze ilet işlemlerini kullanın.
 Portalda Ölçümler ve grafikler / Kameralar ve kayıtlar ekranlarında gerçek ölçüm ve çekim zamanını kontrol edin. Veri yoksa barajın uygun durumda olduğu varsayılmaz.
 
-Kamera varsa KAMERA_KURULUM.txt dosyasını da okuyun. Kamerası başka bilgisayara bağlıysa o bilgisayarda yayıncı kurulumu gerekir.
+Kamera varsa KAMERA_KURULUM.txt dosyasını da okuyun. Docker kullanılamayan sahalarda systemd/DOCKER_DISI_KAMERA_KURULUMU.md kılavuzundaki işletim sisteminize uygun adımı izleyin. Canlı izleme için merkezde MediaMTX, HTTPS ve WebRTC ICE erişimi ayrıca hazırlanmalıdır; infra/compose/center-deployment/LIVE_CAMERA.md dosyasına bakın.
 Sorun halinde mevcut verileri veya Docker volume'larını silmeyin; teknik sorumluya bağlantı hatasını iletin.
 """;
+    }
+
+    private void EnsureCameraPipelineEnabled()
+    {
+        var pipelines = GetEnv("SAHA_ENABLED_PIPELINES")
+            .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .Select(value => value.Equals("camera", StringComparison.OrdinalIgnoreCase) ? "kamera" : value)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var hasEnabledCamera = _cameraSettings.Cameras.Any(camera => camera.Enabled);
+        if (hasEnabledCamera && !pipelines.Contains("kamera", StringComparer.OrdinalIgnoreCase))
+            pipelines.Add("kamera");
+        if (pipelines.Count > 0)
+            SetEnv("SAHA_ENABLED_PIPELINES", string.Join(',', pipelines.OrderBy(value => value, StringComparer.OrdinalIgnoreCase)));
+        if (hasEnabledCamera)
+            SetEnv("SAHA_MEDIA_ENABLED", "true");
     }
 }

@@ -2306,7 +2306,8 @@
         _saveError = null;
         try
         {
-            _cameraSettings.ToJson();
+            EnsureCameraPipelineEnabled();
+            _cameraSettings.ToJson(structureId: _createdStructureId);
             _cameraSettings.LinuxUsbDevices();
             var structure = await StructureUC.GetByIdAsync(_createdStructureId);
             if (structure is null) { _saveError = "Baraj kaydı bulunamadı. Listeyi yenileyip yeniden deneyin."; return; }
@@ -2415,7 +2416,8 @@
         if (_createdStructureId == Guid.Empty) return;
 
         _saveError = null;
-        try { _cameraSettings.ToJson(); _cameraSettings.LinuxUsbDevices(); }
+        EnsureCameraPipelineEnabled();
+        try { _cameraSettings.ToJson(structureId: _createdStructureId); _cameraSettings.LinuxUsbDevices(); }
         catch (Exception ex) { _saveError = ex.Message; return; }
         var structure = await StructureUC.GetByIdAsync(_createdStructureId);
         if (structure is null) return;
@@ -2434,17 +2436,16 @@
             AddDeploymentTemplateEntry(archive, "init-databases.sql");
             var scenarioPath = Path.Combine(AppContext.BaseDirectory, "DeploymentTemplates", "saha-deployment", "SENARYOLAR.md");
             AddPackageEntry(archive, "ONCE_BUNU_OKUYUN.md", BuildFriendlyInstallGuide() + "\n\n" + (File.Exists(scenarioPath) ? File.ReadAllText(scenarioPath) : ""));
+            AddPackageEntry(archive, "KAMERA_KURULUM.txt", BuildCameraGuide());
             AddPackageEntry(archive, "edge-config.json", edgeConfig);
             AddPackageEntry(archive, ".env", environment);
-            AddPackageEntry(archive, "media-config.json", NormalizeMediaConfigJson());
+            AddPackageEntry(archive, "media-config.json", NormalizeMediaConfigJson(_createdStructureId));
+            AddDeploymentTemplateEntry(archive, "publisher/saha_media_bridge.py");
+            AddDeploymentTemplateEntry(archive, "publisher/requirements.txt");
+            AddDeploymentTemplateEntry(archive, "systemd/saha-media-bridge.service");
+            AddDeploymentTemplateEntry(archive, "systemd/DOCKER_DISI_KAMERA_KURULUMU.md");
             foreach (var camera in _cameraSettings.Cameras.Where(camera => camera.SourceType == "mqtt" && !string.IsNullOrWhiteSpace(camera.Device)))
                 AddPackageEntry(archive, $"publishers/{camera.Id}/media-config.json", _cameraSettings.PublisherJson(camera, _createdStructureId));
-            if (_cameraSettings.Cameras.Any(camera => camera.SourceType == "mqtt" && !string.IsNullOrWhiteSpace(camera.Device)))
-            {
-                AddDeploymentTemplateEntry(archive, "publisher/saha_media_bridge.py");
-                AddDeploymentTemplateEntry(archive, "publisher/requirements.txt");
-            }
-
         }
 
         var base64 = Convert.ToBase64String(output.ToArray());
@@ -2456,13 +2457,15 @@
     }
 
     private string BuildCameraGuide() =>
-        "Kamera ayarları panel seçimlerinden üretildi. RTSP adresleri .env içindedir; boş değerleri sahada doldurun.\n" +
+        "Kamera ayarları panel seçimlerinden üretildi. MQTT kamera seçildiğinde media-config.json içinde mode=remote, inputTopic ve commandTopic yapı/kamera kimliğinden otomatik oluşturulur; istenirse panelden değiştirilebilir.\n" +
+        "RTSP adresleri .env içindedir; boş değerleri sahada doldurun.\n" +
         "Linux USB cihazları ana compose dosyasında kamera servisine eklendi; ek YAML gerekmez.\n" +
         "Windows/macOS USB için bridge'i kameranın bağlı olduğu işletim sisteminde çalıştırın.\n" +
         "Uzaktan MQTT: publishers/<kamera>/media-config.json dosyasını USB bilgisayarına taşıyın. Mevcut saha_media_bridge.py dosyasını kullanın; ayrı agent projesi yoktur.\n" +
         $"STRUCTURE_ID={_createdStructureId} ayarlayın; MQTT_HOST saha bilgisayarının Tailscale IP'si, MQTT_PORT saha EMQX portu, MQTT_USERNAME/PASSWORD broker hesabıdır. SAHA_ENABLED_PIPELINES=kamera ve SAHA_MEDIA_ENABLED=true olmalıdır.\n" +
         "SAHA_MEDIA_CONFIG_PATH yayıncı dosyasını göstermelidir. Çalıştırma: python saha_media_bridge.py --publish-to-saha\n" +
-        "Manuel veya olay kaydında komut/alarm mesajı yayıncının bağlandığı saha broker'ına gitmelidir. Merkez medya hattı otomatik çalışır.\n";
+        "Manuel veya olay kaydında komut/alarm mesajı yayıncının bağlandığı saha broker'ına gitmelidir. Merkez medya hattı otomatik çalışır.\n" +
+        "Docker kullanılamayan Linux kamera bilgisayarında systemd/DOCKER_DISI_KAMERA_KURULUMU.md dosyasını ve publisher/requirements.txt dosyasını kullanın.\n";
 
     private static void AddPackageEntry(System.IO.Compression.ZipArchive archive, string name, string content)
     {
@@ -3098,7 +3101,7 @@
             _editingStructure.EdgeConfigJson = NormalizeJson(_editEdgeConfigJson);
             var environment = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string?>>(
                 string.IsNullOrWhiteSpace(_editSiteEnvironmentJson) ? "{}" : StripDeploymentSecrets(_editSiteEnvironmentJson))!;
-            environment[CameraDeploymentSettings.StorageKey] = _editCameraSettings.ToJson();
+            environment[CameraDeploymentSettings.StorageKey] = _editCameraSettings.ToJson(structureId: _editingStructure.Id);
             _editingStructure.SiteEnvironmentJson = System.Text.Json.JsonSerializer.Serialize(environment);
 
             var ids = _editingStructure.Sensors?.Select(s => s.SensorId).ToList() ?? new();
@@ -3169,7 +3172,7 @@
                     var values = new Dictionary<string, string?>(_siteEnvironment)
                     {
                         ["STRUCTURE_ID"] = _createdStructureId == Guid.Empty ? null : _createdStructureId.ToString(),
-                        [CameraDeploymentSettings.StorageKey] = _cameraSettings.ToJson(),
+                        [CameraDeploymentSettings.StorageKey] = _cameraSettings.ToJson(structureId: _createdStructureId),
                         ["STRUCTURE_TYPE"] = _setupStructureType,
                         ["STRUCTURE_NAME"] = _setupName.Trim(),
                         ["STRUCTURE_SLUG"] = ToStructureSlug(_setupName),
@@ -3217,17 +3220,35 @@
                         values["EDGE_API_HOST_PORT"] = _samePcEdgePort.ToString();
                     }
 
-                    var templatePath = Path.Combine(AppContext.BaseDirectory, "DeploymentTemplates", "saha-deployment", ".env.template");
-                    var lines = File.Exists(templatePath) ? File.ReadAllLines(templatePath).ToList() : [];
+                    var deploymentRoot = Path.Combine(AppContext.BaseDirectory, "DeploymentTemplates", "saha-deployment");
+                    var composeFiles = _samePcDeployment
+                        ? new[] { "docker-compose.structure.yml", "docker-compose.shared-services.yml" }
+                        : new[] { "docker-compose.yml" };
+                    var requiredKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var composeFile in composeFiles)
+                    {
+                        var composePath = Path.Combine(deploymentRoot, composeFile);
+                        if (!File.Exists(composePath)) continue;
+                        foreach (System.Text.RegularExpressions.Match match in
+                                 System.Text.RegularExpressions.Regex.Matches(File.ReadAllText(composePath), @"\$\{([A-Z][A-Z0-9_]*)"))
+                            requiredKeys.Add(match.Groups[1].Value);
+                    }
+                    // Kamera adresleri ayrıca env_file ile saha-media-bridge'e aktarılır.
+                    foreach (var camera in _cameraSettings.Cameras.Where(camera => camera.SourceType == "rtsp"))
+                        requiredKeys.Add(camera.SourceEnvironment);
+
+                    var templatePath = Path.Combine(deploymentRoot, ".env.template");
+                    var lines = File.Exists(templatePath)
+                        ? File.ReadAllLines(templatePath).Where(line =>
+                        {
+                            var separator = line.IndexOf('=');
+                            return separator > 0 && requiredKeys.Contains(line[..separator].Trim());
+                        }).ToList()
+                        : [];
                     var emitted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                     // MQTT_CREDENTIALS template'de yorum satırı olarak bulunur;
                     // panel dolduruyor ama sona düz değer olarak eklenmemeli.
                     emitted.Add("DEYAS_BRIDGE_MQTT_CREDENTIALS");
-                    // Saha compose'unda kullanılmayan gereksiz image key'leri
-                    foreach (var unusedKey in new[] { "PANEL_IMAGE","PORTAL_IMAGE","AUTH_IMAGE","VIDEO_SERVICE_IMAGE",
-                        "MEDIA_UPLOAD_IMAGE","MEDIA_PROCESSING_IMAGE","RETENTION_IMAGE",
-                        "ALERT_EVALUATOR_IMAGE","ALERT_NOTIFICATION_IMAGE" })
-                        emitted.Add(unusedKey);
                     for (var index = 0; index < lines.Count; index++)
                     {
                         var separator = lines[index].IndexOf('=');
@@ -3238,7 +3259,7 @@
                         emitted.Add(key);
                     }
 
-                    foreach (var (key, value) in values.Where(pair => !emitted.Contains(pair.Key)))
+                    foreach (var (key, value) in values.Where(pair => requiredKeys.Contains(pair.Key) && !emitted.Contains(pair.Key)))
                         lines.Add($"{key}={value}");
 
                     return string.Join(Environment.NewLine, lines) + Environment.NewLine;
@@ -3254,7 +3275,7 @@
                     Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(24))
                         .Replace('+', '-').Replace('/', '_').TrimEnd('=');
 
-                private string NormalizeMediaConfigJson() => _cameraSettings.ToJson();
+                private string NormalizeMediaConfigJson(Guid structureId) => _cameraSettings.ToJson(structureId: structureId);
 
                 private string BuildTcpSourcesJson() => System.Text.Json.JsonSerializer.Serialize(
                     _newStructureSensors.Where(sensor => IsTcpSensor(sensor) && !string.IsNullOrWhiteSpace(sensor.IpAddress) && sensor.Port.HasValue).Select(BuildTcpSource).ToList());

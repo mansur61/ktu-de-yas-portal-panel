@@ -15,6 +15,9 @@
     }
 
     window.deyasLiveCamera = {
+        formatExpiry(value) {
+            return new Date(value).toLocaleString("tr-TR");
+        },
         async start(videoId, whepUrl, token) {
             await this.stop(videoId);
             const video = document.getElementById(videoId);
@@ -30,7 +33,7 @@
             await pc.setLocalDescription(offer);
             await waitForIce(pc);
             let response;
-            for (let attempt = 0; attempt < 10; attempt++) {
+            for (let attempt = 0; attempt < 20; attempt++) {
                 response = await fetch(whepUrl, {
                     method: "POST",
                     headers: { "Content-Type": "application/sdp", "Authorization": `Bearer ${token}` },
@@ -43,7 +46,7 @@
                 pc.close();
                 peers.delete(videoId);
                 throw new Error(response.status === 404
-                    ? "Saha kamerasından henüz yayın gelmedi. Kamera bağlantısını kontrol edip yeniden deneyin."
+                    ? "20 saniye içinde kamera yayını ulaşmadığı için oturum kapatıldı. LattePanda kamera ve RTSP bağlantısını kontrol edip yeniden deneyin."
                     : `Canlı yayın bağlantısı kurulamadı (${response.status}).`);
             }
             const location = response.headers.get("Location");

@@ -26,13 +26,13 @@
 <div class="card shadow-sm mb-3"><div class="card-body"><div class="row g-2 align-items-end">
     <div class="col-md-4"><label class="form-label small">Yapı</label><select class="form-select" @bind="_structureId"><option value="">Tüm yapılar</option>@foreach (var item in _structures) { <option value="@item.Id">@item.Name</option> }</select></div>
     <div class="col-md-3"><label class="form-label small">Kamera</label><select class="form-select" @bind="_deviceId"><option value="">Tüm kameralar</option>@foreach (var item in Cameras) { <option value="@item.DeviceId">@item.Name (@item.DeviceId)</option> }</select></div>
-    <div class="col-md-2"><label class="form-label small">Başlangıç</label><input class="form-control" type="datetime-local" @bind="_from" /></div>
-    <div class="col-md-2"><label class="form-label small">Bitiş</label><input class="form-control" type="datetime-local" @bind="_to" /></div>
+    <div class="col-md-2"><label class="form-label small">Arşiv başlangıcı</label><input class="form-control" type="datetime-local" @bind="_from" /></div>
+    <div class="col-md-2"><label class="form-label small">Arşiv bitişi</label><input class="form-control" type="datetime-local" @bind="_to" /></div>
     <div class="col-md-1 d-grid"><button class="btn btn-primary" @onclick="LoadAsync">Filtrele</button></div>
 </div></div></div>
 
 <div class="mb-3"><button class="btn btn-success" @onclick="CaptureAsync" disabled="@(!CanCapture || _capturing)">@(_capturing ? "İstek gönderiliyor…" : "Seçili kameradan kayıt al")</button><div class="form-text">Bir baraj ve kamera seçin. Saha çalışır ve ağdan erişilebilir olmalı. Tamamlanan klip/fotoğraf için arşivi yenileyin.</div></div>
-<div class="mb-3"><button class="btn btn-primary" @onclick="StartLiveAsync" disabled="@(!CanLive || _liveStarting || _liveSession is not null)">@(_liveStarting ? "Bağlanıyor…" : "Canlı görüntüyü aç")</button><div class="form-text">Canlı görüntü yalnız izleme oturumu açıkken aktarılır. Oturum kapatılınca sahadaki yayın durdurulur.</div></div>
+<div class="mb-3"><button class="btn btn-primary" @onclick="StartLiveAsync" disabled="@(!CanLive || _liveStarting || _liveSession is not null)">@(_liveStarting ? "Bağlanıyor…" : "Canlı görüntüyü aç")</button><div class="form-text">Tarih filtresi arşiv kayıtları içindir. Canlı izleme süresi merkez ayarından belirlenir. Canlı görüntü yalnız izleme oturumu açıkken aktarılır. Oturum kapatılınca sahadaki yayın durdurulur.</div></div>
 @if (_liveError is not null) { <div class="alert alert-warning">@_liveError <button class="btn btn-sm btn-outline-secondary ms-2" @onclick="StartLiveAsync">Yeniden dene</button></div> }
 @if (_liveSession is not null || _liveStarting)
 {
@@ -42,7 +42,7 @@
             @if (_liveStarting) { <div class="text-light py-5"><span class="spinner-border me-2"></span>Saha kamerasından yayın bekleniyor…</div> }
             <video id="live-camera-video" class="w-100" autoplay playsinline style="max-height:70vh;@( _liveStarting ? "display:none" : "")"></video>
         </div>
-        <div class="card-footer small text-muted">Oturum süresi: @_liveSession?.ExpiresAt.ToLocalTime().ToString("HH:mm:ss") zamanına kadar</div>
+        <div class="card-footer small text-muted">Canlı oturum bitişi (tarayıcınızın yerel saati): @_liveExpiresLocal</div>
     </section>
 }
 @if (_captureNotice is not null) { <div class="alert alert-info">@_captureNotice</div> }
@@ -81,6 +81,7 @@ else { <div class="row g-3">
     private bool _liveStarting;
     private LiveCameraSession? _liveSession;
     private string? _liveError;
+    private string? _liveExpiresLocal;
     private string? _captureNotice;
     private Structure? SelectedStructure => _structures.FirstOrDefault(s => s.Id.ToString() == _structureId);
     private bool CanCapture => SelectedStructure is { } s && !string.IsNullOrWhiteSpace(s.EdgeApiUrl)
@@ -96,14 +97,14 @@ else { <div class="row g-3">
         {
             var session = await LiveCamera.StartAsync(SelectedStructure!.Id, _deviceId);
             _liveSession = session;
-            _liveStarting = false;
+            _liveExpiresLocal = await JS.InvokeAsync<string>("deyasLiveCamera.formatExpiry", session.ExpiresAt.ToString("O"));
             await InvokeAsync(StateHasChanged);
             await Task.Delay(100);
             await JS.InvokeVoidAsync("deyasLiveCamera.start", "live-camera-video", session.WhepUrl, session.ViewerToken);
         }
         catch (Exception ex)
         {
-            _liveError = ex.Message;
+            _liveError = ex.Message.Split("\n")[0];
             if (_liveSession is not null)
             {
                 try { await LiveCamera.StopAsync(SelectedStructure!.Id, _liveSession.SessionId); } catch { }

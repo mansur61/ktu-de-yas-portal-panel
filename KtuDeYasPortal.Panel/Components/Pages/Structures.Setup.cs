@@ -386,14 +386,14 @@ Docker ile tam saha kurulumu yapıyorsanız paket klasöründe terminal açın. 
 
 Ortak bilgisayar kullanılıyorsa ortak hizmetleri yalnız ilk kurulumda başlatın. Diğer baraj için farklı proje adı ve kontrol/editör portları gerekir. Ayrıntı AYNI_PC_KURULUM.md içindedir.
 
-Docker kullanmayan kamera bilgisayarında ZIP içindeki systemd/DOCKER_DISI_KAMERA_KURULUMU.md kılavuzunu izleyin. Kılavuz Linux/systemd, Windows/PowerShell ve macOS/Terminal adımlarını içerir. publisher/requirements.txt sanal ortama kurulur; Python ve FFmpeg kamera bilgisayarında çalışır.
+Docker kullanmayan kamera bilgisayarında ZIP içindeki dockerless-camera/ klasörünü kullanın. Bridge kodu, gereksinimleri, kamera ayarları ve işletim sistemi kılavuzları bu klasördedir. Python ve FFmpeg kamera bilgisayarında çalışır.
 
 ## 4. Veri geldiğini doğrulayın
 
 Panelde Bağlantı ve kurulum kontrolü ekranını açın. Barajı seçin; cihaz bağlantısını ve örnek veriyi kontrol edin. Ardından baraj kartındaki Veri toplamayı başlat ve Merkeze ilet işlemlerini kullanın.
 Portalda Ölçümler ve grafikler / Kameralar ve kayıtlar ekranlarında gerçek ölçüm ve çekim zamanını kontrol edin. Veri yoksa barajın uygun durumda olduğu varsayılmaz.
 
-Kamera varsa KAMERA_KURULUM.txt dosyasını da okuyun. Docker kullanılamayan sahalarda systemd/DOCKER_DISI_KAMERA_KURULUMU.md kılavuzundaki işletim sisteminize uygun adımı izleyin. Canlı izleme için merkezde MediaMTX, HTTPS ve WebRTC ICE erişimi ayrıca hazırlanmalıdır; infra/compose/center-deployment/LIVE_CAMERA.md dosyasına bakın.
+Kamera varsa KAMERA_KURULUM.txt dosyasını da okuyun. Docker kullanılamayan sahalarda dockerless-camera/DOCKER_DISI_KAMERA_KURULUMU.md kılavuzundaki işletim sisteminize uygun adımı izleyin. Canlı izleme için merkezde MediaMTX, HTTPS ve WebRTC ICE erişimi ayrıca hazırlanmalıdır; infra/compose/center-deployment/LIVE_CAMERA.md dosyasına bakın.
 Sorun halinde mevcut verileri veya Docker volume'larını silmeyin; teknik sorumluya bağlantı hatasını iletin.
 """;
     }

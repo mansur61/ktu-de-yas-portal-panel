@@ -1331,6 +1331,11 @@
         new("LOCAL_TIMESERIES_API_BASE_URL", "Yerel Timeseries API", "Saha içi servis; Docker servis adı kullanılmalıdır.", "http://timeseries-service:5000"),
         new("CENTRAL_AUTH_API_BASE_URL", "Merkez Auth API", "Merkez uygulama bilgisayarında çalışan auth-service adresi; saha servisleri yapı yetkilerini buradan doğrular.", "http://100.116.23.112:5100"),
         new("CENTRAL_TIMESERIES_API_BASE_URL", "Merkez Timeseries API", "Commissioning ve merkezi envanter adresi. Tailscale yokken edge-layer retry eder; yerel veri akışı etkilenmez.", "http://100.116.23.112:5000"),
+        new("CENTRAL_VIDEO_API_BASE_URL", "Merkez Video API", "Boşsa merkez ölçüm hizmetinin adresi ve 5010 portu kullanılır.", ""),
+        new("CENTRAL_ALERT_CONFIG_API_BASE_URL", "Merkez Alarm API", "Boşsa merkez giriş hizmetinin adresi ve 5020 portu kullanılır.", ""),
+        new("CENTRAL_PANEL_BASE_URL", "Merkez Panel", "Boşsa merkez giriş hizmetinin adresi ve 5056 portu kullanılır.", ""),
+        new("CENTRAL_GRAFANA_BASE_URL", "Merkez Grafana", "Tarayıcının ulaşabildiği Grafana adresi; boşsa merkez ölçüm adresinden türetilir.", ""),
+        new("PORTAL_HOST_PORT", "Saha portal portu", "Saha müşteri portalının erişim portu.", "5050"),
         new("CENTRAL_MQTT_HOST", "Merkez MQTT Host", "Yalnız merkezi Node-RED izleme/iletim için kullanılan EMQX adresi; paket merkezi sensor_data tablosuna ikinci kayıt yazmaz.", "100.116.23.112"),
         new("CENTRAL_MQTT_PORT", "Merkez MQTT Port", "Merkez EMQX portu.", "1883"),
         new("CENTRAL_MQTT_USE_TLS", "Merkez MQTT TLS", "Merkez MQTT TLS kullanımı.", "false"),
@@ -1356,7 +1361,8 @@
         new("mqtt-source", "Kaynak MQTT"),
         new("bridge", "Saha Bridge: Sensör ve Yerel MQTT Bağlantısı", "Yerel MQTT, saha paketinin kendi içinde kurulan MQTT hizmetidir. Saha Bridge ise sensörler ile bu yerel MQTT arasında sahada çalışan servistir; sensör verisini alır, uygun formata dönüştürür ve ilgili sensör/device kimliğiyle yerel MQTT'ye iletir."),
         new("pipeline", "Saha Pipeline'ları"),
-        new("central", "Merkez Bağlantısı")
+        new("central", "Merkez Bağlantısı"),
+        new("portal", "Saha Portalı")
     ];
     private readonly HashSet<string> _expandedEnvironmentGroups = new(StringComparer.OrdinalIgnoreCase) { "source" };
 
@@ -1381,6 +1387,7 @@
         var value when value.StartsWith("DEYAS_BRIDGE_SOURCE_MQTT_", StringComparison.Ordinal) => "mqtt-source",
         "SAHA_ENABLED_PIPELINES" or "SAHA_PIPELINE_RUNTIME_ENABLED" or "SAHA_MEDIA_ENABLED" => "pipeline",
         var value when value.StartsWith("CENTRAL_", StringComparison.Ordinal) || value == "LOCAL_TIMESERIES_API_BASE_URL" || value == "EDGE_FORWARDING_ENABLED" || value == "EDGE_LOCAL_TIMESERIES_PRODUCER" => "central",
+        "PORTAL_HOST_PORT" => "portal",
         _ => "bridge"
     };
 
@@ -2434,6 +2441,7 @@
             if (_samePcDeployment)
                 AddDeploymentTemplateEntry(archive, "docker-compose.shared-services.yml");
             AddDeploymentTemplateEntry(archive, "init-databases.sql");
+            AddDeploymentTemplateEntry(archive, "DOCKERLI_SAHA_KURULUMU.md");
             var scenarioPath = Path.Combine(AppContext.BaseDirectory, "DeploymentTemplates", "saha-deployment", "SENARYOLAR.md");
             AddPackageEntry(archive, "ONCE_BUNU_OKUYUN.md", BuildFriendlyInstallGuide() + "\n\n" + (File.Exists(scenarioPath) ? File.ReadAllText(scenarioPath) : ""));
             AddPackageEntry(archive, "KAMERA_KURULUM.txt", BuildCameraGuide());
@@ -2443,11 +2451,24 @@
             AddDeploymentTemplateEntry(archive, "dockerless-camera/README.md");
             AddDeploymentTemplateEntry(archive, "dockerless-camera/saha_media_bridge.py");
             AddDeploymentTemplateEntry(archive, "dockerless-camera/requirements.txt");
-            AddDeploymentTemplateEntry(archive, "dockerless-camera/systemd/saha-media-bridge.service");
+
             AddDeploymentTemplateEntry(archive, "dockerless-camera/DOCKER_DISI_KAMERA_KURULUMU.md");
             AddDeploymentTemplateEntry(archive, "dockerless-camera/TEST_LATTEPANDA.md");
-            foreach (var camera in _cameraSettings.Cameras.Where(camera => camera.SourceType == "mqtt" && !string.IsNullOrWhiteSpace(camera.Device)))
+            var standaloneCameras = _cameraSettings.Cameras.Where(camera => camera.SourceType == "mqtt" && !string.IsNullOrWhiteSpace(camera.Device)).ToList();
+            foreach (var camera in standaloneCameras)
+            {
                 AddPackageEntry(archive, $"dockerless-camera/cameras/{camera.Id}/media-config.json", _cameraSettings.PublisherJson(camera, _createdStructureId));
+                AddPackageEntry(archive, $"dockerless-camera/cameras/{camera.Id}/saha-media-bridge.env", BuildStandaloneCameraEnvironment(camera));
+            }
+            if (standaloneCameras.Count > 0)
+            {
+                var camera = standaloneCameras[0];
+                AddPackageEntry(archive, "saha-media-bridge.env", BuildStandaloneCameraEnvironment(camera));
+                AddPackageEntry(archive, "dockerless-camera/systemd/saha-media-bridge.service", BuildStandaloneCameraService());
+                AddPackageEntry(archive, "dockerless-camera/BASLAT.md", BuildStandaloneCameraGuide());
+            }
+            else
+                AddDeploymentTemplateEntry(archive, "dockerless-camera/systemd/saha-media-bridge.service");
         }
 
         var base64 = Convert.ToBase64String(output.ToArray());
@@ -3203,6 +3224,16 @@
                     foreach (var field in SiteEnvironmentFields)
                         values[field.Key] = field.Key == "DEYAS_BRIDGE_TCP_SOURCES" ? BuildTcpSourcesJson() : GetEnv(field.Key);
 
+                    foreach (var (key, basis, port) in new[] {
+                        ("CENTRAL_VIDEO_API_BASE_URL", "CENTRAL_TIMESERIES_API_BASE_URL", 5010),
+                        ("CENTRAL_ALERT_CONFIG_API_BASE_URL", "CENTRAL_AUTH_API_BASE_URL", 5020),
+                        ("CENTRAL_PANEL_BASE_URL", "CENTRAL_AUTH_API_BASE_URL", 5056),
+                        ("CENTRAL_GRAFANA_BASE_URL", "CENTRAL_TIMESERIES_API_BASE_URL", 3000) })
+                    {
+                        if (string.IsNullOrWhiteSpace(values.GetValueOrDefault(key)))
+                            values[key] = new UriBuilder(GetEnv(basis)) { Port = port, Path = "", Query = "", Fragment = "" }.Uri.GetLeftPart(UriPartial.Authority);
+                    }
+
                     values["DEYAS_BRIDGE_MQTT_CREDENTIALS"]=System.Text.Json.JsonSerializer.Serialize(MqttConnections().ToDictionary(source=>source.Id,source=>new {username=_deploymentSecrets.GetValueOrDefault(source.UsernameEnv,""),password=_deploymentSecrets.GetValueOrDefault(source.PasswordEnv,"")}),SourceJson);
                     values["DEYAS_BRIDGE_MQTT_CREDENTIALS"] = "'" + values["DEYAS_BRIDGE_MQTT_CREDENTIALS"] + "'";
                     foreach (var camera in _cameraSettings.Cameras.Where(camera => camera.SourceType == "rtsp"))
@@ -3256,9 +3287,9 @@
                         var separator = lines[index].IndexOf('=');
                         if (separator <= 0 || lines[index].TrimStart().StartsWith('#')) continue;
                         var key = lines[index][..separator].Trim();
+                        emitted.Add(key);
                         if (!values.TryGetValue(key, out var value)) continue;
                         lines[index] = $"{key}={value}";
-                        emitted.Add(key);
                     }
 
                     foreach (var (key, value) in values.Where(pair => requiredKeys.Contains(pair.Key) && !emitted.Contains(pair.Key)))

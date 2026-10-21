@@ -2448,27 +2448,31 @@
             AddPackageEntry(archive, "edge-config.json", edgeConfig);
             AddPackageEntry(archive, ".env", environment);
             AddPackageEntry(archive, "media-config.json", NormalizeMediaConfigJson(_createdStructureId));
-            AddDeploymentTemplateEntry(archive, "dockerless-camera/README.md");
-            AddDeploymentTemplateEntry(archive, "dockerless-camera/saha_media_bridge.py");
-            AddDeploymentTemplateEntry(archive, "dockerless-camera/requirements.txt");
-
-            AddDeploymentTemplateEntry(archive, "dockerless-camera/DOCKER_DISI_KAMERA_KURULUMU.md");
-            AddDeploymentTemplateEntry(archive, "dockerless-camera/TEST_LATTEPANDA.md");
-            var standaloneCameras = _cameraSettings.Cameras.Where(camera => camera.SourceType == "mqtt" && !string.IsNullOrWhiteSpace(camera.Device)).ToList();
-            foreach (var camera in standaloneCameras)
+            foreach (var camera in _cameraSettings.Cameras.Where(c => c.Enabled && c.SourceType == "mqtt" && c.PublisherRuntime == "docker"))
             {
-                AddPackageEntry(archive, $"dockerless-camera/cameras/{camera.Id}/media-config.json", _cameraSettings.PublisherJson(camera, _createdStructureId));
-                AddPackageEntry(archive, $"dockerless-camera/cameras/{camera.Id}/saha-media-bridge.env", BuildStandaloneCameraEnvironment(camera));
+                var folder = $"camera-docker/{camera.Id}";
+                AddPackageEntry(archive, folder + "/media-config.json", _cameraSettings.PublisherJson(camera, _createdStructureId));
+                AddPackageEntry(archive, folder + "/docker-compose.yml", BuildCameraDockerCompose(camera));
+                AddPackageEntry(archive, folder + "/saha-media-bridge.env", BuildStandaloneCameraEnvironment(camera).Replace("$", "$$"));
+                AddPackageEntry(archive, folder + "/BASLAT.md", "# Linux USB kamera — Docker\nBu klasörü kamera bilgisayarına kopyalayın. Aynı klasörde:\n```sh\ndocker compose pull\ndocker compose up -d\ndocker compose logs --tail=50 saha-media-bridge\n```\nFFmpeg ve Python imajdadır. USB cihazını başka uygulamalarda kapatın. Ortam dosyasındaki MQTT adresleri bu bilgisayardan erişilebilir olmalıdır.\n");
             }
+            var standaloneCameras = _cameraSettings.Cameras.Where(camera => camera.Enabled && camera.SourceType == "mqtt" && camera.PublisherRuntime == "native").ToList();
             if (standaloneCameras.Count > 0)
             {
-                var camera = standaloneCameras[0];
-                AddPackageEntry(archive, "saha-media-bridge.env", BuildStandaloneCameraEnvironment(camera));
+                AddDeploymentTemplateEntry(archive, "dockerless-camera/README.md");
+                AddDeploymentTemplateEntry(archive, "dockerless-camera/saha_media_bridge.py");
+                AddDeploymentTemplateEntry(archive, "dockerless-camera/requirements.txt");
+                AddDeploymentTemplateEntry(archive, "dockerless-camera/DOCKER_DISI_KAMERA_KURULUMU.md");
+                foreach (var camera in standaloneCameras)
+                {
+                    AddPackageEntry(archive, $"dockerless-camera/cameras/{camera.Id}/media-config.json", _cameraSettings.PublisherJson(camera, _createdStructureId));
+                    AddPackageEntry(archive, $"dockerless-camera/cameras/{camera.Id}/saha-media-bridge.env", BuildStandaloneCameraEnvironment(camera));
+                }
+                AddPackageEntry(archive, "dockerless-camera/saha-media-bridge.env", BuildStandaloneCameraEnvironment(standaloneCameras[0]));
                 AddPackageEntry(archive, "dockerless-camera/systemd/saha-media-bridge.service", BuildStandaloneCameraService());
                 AddPackageEntry(archive, "dockerless-camera/BASLAT.md", BuildStandaloneCameraGuide());
+                AddPackageEntry(archive, "dockerless-camera/start_camera.py", BuildCameraNativeLauncher());
             }
-            else
-                AddDeploymentTemplateEntry(archive, "dockerless-camera/systemd/saha-media-bridge.service");
         }
 
         var base64 = Convert.ToBase64String(output.ToArray());
@@ -2480,15 +2484,10 @@
     }
 
     private string BuildCameraGuide() =>
-        "Kamera ayarları panel seçimlerinden üretildi. MQTT kamera seçildiğinde media-config.json içinde mode=remote, inputTopic ve commandTopic yapı/kamera kimliğinden otomatik oluşturulur; istenirse panelden değiştirilebilir.\n" +
-        "RTSP adresleri .env içindedir; boş değerleri sahada doldurun.\n" +
-        "Linux USB cihazları ana compose dosyasında kamera servisine eklendi; ek YAML gerekmez.\n" +
-        "Docker kullanmayan USB kamera bilgisayarı için ZIP içindeki dockerless-camera/ klasörünü kullanın. Tek çalıştırılabilir program saha_media_bridge.py'dir; kameraya özel JSON ayarı dockerless-camera/cameras/<kamera>/media-config.json altındadır. İkinci bir publisher programı yoktur.\n" +
-        "Uzaktan MQTT ve yerel saha broker'ı birlikte kullanılacaksa bridge'i normal modda başlatın; --publish-to-saha seçeneğini eklemeyin.\n" +
-        $"STRUCTURE_ID={_createdStructureId} ayarlayın; MQTT_HOST saha bilgisayarının Tailscale IP'si, MQTT_PORT saha EMQX portu, MQTT_USERNAME/PASSWORD broker hesabıdır. SAHA_ENABLED_PIPELINES=kamera ve SAHA_MEDIA_ENABLED=true olmalıdır.\n" +
-        "SAHA_MEDIA_CONFIG_PATH kamera JSON dosyasını göstermelidir.\n" +
-        "Manuel veya olay kaydında komut/alarm mesajı yayıncının bağlandığı saha broker'ına gitmelidir. Merkez medya hattı otomatik çalışır.\n" +
-        "Linux kurulum adımları dockerless-camera/DOCKER_DISI_KAMERA_KURULUMU.md ve TEST_LATTEPANDA.md içindedir.\n";
+        "Aynı bilgisayar / USB: Linux saha Docker kurulumu kullanılır. Kamera cihazı Compose'a eklenir; saha-media-bridge imajında FFmpeg hazırdır. Host üzerine ayrıca kurulmaz.\n" +
+        "Başka bilgisayar / USB: Kamera seçilmişse dockerless-camera/BASLAT.md ile ilerleyin. Ortam dosyası, kamera ayarı ve servis dockerless-camera/ içindedir.\n" +
+        "Ağ kamerası: RTSP adresi Docker .env dosyasındadır. Saha medya servisi kamerayı ağ üzerinden okur.\n" +
+        "İvmeölçer UDP ayarları kamera konumundan bağımsızdır. Canlı görüntü RTSP/TCP ile merkeze aktarılır; mevcut MQTT kayıt akışı korunur.\n";
 
     private static void AddPackageEntry(System.IO.Compression.ZipArchive archive, string name, string content)
     {

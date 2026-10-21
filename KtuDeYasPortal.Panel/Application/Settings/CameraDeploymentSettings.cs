@@ -36,6 +36,8 @@ public sealed class CameraDeploymentSettings
             }
             if (camera.SourceType == "mqtt")
             {
+                config["publisherDevice"] = camera.Device;
+                config["publisherBackend"] = camera.Backend;
                 config.Remove("device"); config.Remove("backend");
                 config.Remove("sourceEnv"); config.Remove("rtspUrlEnv");
             }
@@ -90,6 +92,8 @@ public sealed class CameraDeploymentSettings
 
     public string[] LinuxUsbDevices()
     {
+        if (Cameras.Any(camera => camera.Enabled && camera.SourceType == "usb" && camera.Backend != "v4l2"))
+            throw new InvalidOperationException("Docker USB kamera kurulumu Linux gerektirir. Windows/macOS için Docker dışı kurulumu seçin.");
         var devices = Cameras.Where(camera => camera.Enabled && camera.SourceType == "usb" && camera.Backend == "v4l2")
             .Select(camera => camera.Device).Distinct().ToArray();
         if (devices.Any(device => !Regex.IsMatch(device, "^/dev/video[0-9]+$")))
@@ -134,9 +138,10 @@ public sealed class CameraDeploymentEntry
     private bool Flag(string key, bool fallback) => Config[key]?.GetValue<bool>() ?? fallback;
     public string Mode { get => Text("mode", "remote"); set => Config["mode"] = value; }
     public string SourceType { get => Text("sourceType", "mqtt"); set { Config["sourceType"] = value; if (value == "mqtt") Mode = "remote"; } }
+    public string PublisherRuntime { get => Text("publisherRuntime", "native"); set => Config["publisherRuntime"] = value; }
     public string CaptureMode { get => Text("captureMode", "manual"); set => Config["captureMode"] = value; }
-    public string Device { get => Text("device", ""); set => Config["device"] = value; }
-    public string Backend { get => Text("backend", "v4l2"); set => Config["backend"] = value; }
+    public string Device { get => Text("device", Text("publisherDevice", "")); set => Config["device"] = value; }
+    public string Backend { get => Text("backend", Text("publisherBackend", "v4l2")); set => Config["backend"] = value; }
     public string SourceEnvironment => Text("sourceEnv", Text("rtspUrlEnv", "CAMERA_" + Id.Replace('-', '_').ToUpperInvariant() + "_SOURCE"));
     public string SourceValue { get; set; } = ""; // Export only; never save RTSP credentials in the central record.
     public string InputTopic { get => Text("inputTopic", ""); set => Config["inputTopic"] = value; }
@@ -152,10 +157,13 @@ public sealed class CameraDeploymentEntry
     public void Validate()
     {
         if (!Regex.IsMatch(Id, "^[a-z0-9]+(-[a-z0-9]+)*$")) throw new InvalidOperationException("Kamera kimliğinde küçük harf, rakam ve tire kullanın.");
+        if (PublisherRuntime is not ("native" or "docker")) throw new InvalidOperationException("Kamera kurulum türü geçersiz.");
+        if (SourceType == "mqtt" && PublisherRuntime == "docker" && (Backend != "v4l2" || !Regex.IsMatch(Device, "^/dev/video[0-9]+$"))) throw new InvalidOperationException("Docker USB kamera için Linux ve /dev/videoN cihazı seçin. Windows/macOS için Docker dışı kurulumu kullanın.");
+        if (string.IsNullOrWhiteSpace(SourceType)) throw new InvalidOperationException("Kameranın aynı saha bilgisayarında mı başka bilgisayarda mı çalışacağını seçin.");
         if (Mode is not ("local" or "remote") || SourceType is not ("usb" or "rtsp" or "mqtt") || CaptureMode is not ("manual" or "scheduled" or "continuous" or "event")) throw new InvalidOperationException("Geçersiz kamera seçimi.");
         if (SourceType == "mqtt" && Mode != "remote") throw new InvalidOperationException("MQTT kamera remote olmalıdır.");
         if (ClipSeconds is < 1 or > 300 || IntervalSeconds is < 1 or > 86400 || Fps is < 1 or > 120 || !Regex.IsMatch(Resolution, "^[1-9][0-9]{1,4}x[1-9][0-9]{1,4}$")) throw new InvalidOperationException("Klip, aralık, FPS veya çözünürlük geçersiz.");
-        if (Enabled && SourceType == "usb" && string.IsNullOrWhiteSpace(Device)) throw new InvalidOperationException("USB cihaz adresini doldurun.");
+        if (Enabled && SourceType is ("usb" or "mqtt") && string.IsNullOrWhiteSpace(Device)) throw new InvalidOperationException("USB cihaz adresini doldurun.");
         if (SourceType is "usb" or "mqtt" && Backend is not ("v4l2" or "dshow" or "avfoundation")) throw new InvalidOperationException("USB işletim sistemi seçimi geçersiz.");
         if (PixelFormat is not ("auto" or "mjpeg" or "yuyv422")) throw new InvalidOperationException("USB görüntü biçimi geçersiz.");
         if (CaptureMode == "event" && string.IsNullOrWhiteSpace(EventTopic)) throw new InvalidOperationException("Olay modunda alarm topic'i zorunludur.");

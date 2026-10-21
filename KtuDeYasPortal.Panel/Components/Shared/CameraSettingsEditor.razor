@@ -6,18 +6,22 @@
             <section class="dy-choice mb-3" @key="camera">
                 <div class="d-flex justify-content-between align-items-center mb-3"><h4 class="h6 mb-0">Kamera @(Settings.Cameras.IndexOf(camera) + 1)</h4>@if (AllowAdd) { <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => Settings.Cameras.Remove(camera)">Kaldır</button> }</div>
                 <div class="row g-3">
-                    <div class="col-md-6"><label class="form-label">Kamera nasıl bağlı?</label><select class="form-select" value="@camera.SourceType" @onchange="e => ChangeSource(camera, e.Value?.ToString())"><option value="rtsp">Ağ üzerinden görüntü veren kamera</option><option value="usb">Saha bilgisayarına takılı kamera</option><option value="mqtt">Başka bilgisayardan gönderilen görüntü</option></select></div>
+                    <div class="col-md-6"><label class="form-label">Kamera nerede çalışacak?</label><select class="form-select" value="@camera.SourceType" @onchange="e => ChangeSource(camera, e.Value?.ToString())"><option value="">Konumu seçin</option><option value="usb">Aynı saha bilgisayarında — USB / Docker</option><option value="mqtt">Başka bilgisayarda — USB</option><option value="rtsp">Ağ kamerası — RTSP adresi</option></select></div>
                     <div class="col-md-6"><label class="form-label">Ne zaman kayıt alınsın?</label><select class="form-select" @bind="camera.CaptureMode"><option value="scheduled">Belirli aralıklarla</option><option value="continuous">Sürekli, kısa kayıtlar halinde</option><option value="manual">Komut verildiğinde</option><option value="event">Alarm oluştuğunda</option></select></div>
                     @if (camera.SourceType == "rtsp")
                     {
                         <div class="col-12"><label class="form-label">Kamera görüntü adresi</label><input type="password" class="form-control" @bind="camera.SourceValue" autocomplete="new-password" placeholder="Kamera kurulum sorumlusundan alınan rtsp:// adresi" /><div class="form-text">Şifre içeriyorsa yalnız kurulum ZIP'ine yazılır. Boş bırakılırsa sahada doldurulur; kaydı yeniden açınca gizli adres geri yüklenmez.</div></div>
                     }
+                    @if (camera.SourceType == "mqtt")
+                    {
+                        <div class="col-md-6"><label class="form-label">Kamera kurulumu</label><select class="form-select" @bind="camera.PublisherRuntime"><option value="native">Docker dışı — Linux / Windows / macOS</option><option value="docker">Docker — Linux USB</option></select></div>
+                    }
                     @if (camera.SourceType is "usb" or "mqtt")
                     {
-                        <div class="col-md-6"><label class="form-label">Kamerayı okuyan bilgisayar</label><select class="form-select" @bind="camera.Backend"><option value="v4l2">Linux</option><option value="dshow">Windows</option><option value="avfoundation">macOS</option></select></div>
-                        <div class="col-md-6"><label class="form-label">Kamera cihazı / adı @(camera.SourceType == "mqtt" ? "(isteğe bağlı)" : "")</label><input class="form-control" @bind="camera.Device" placeholder="Kurulum sorumlusunun verdiği kamera adı veya /dev/video0" /></div>
+                        <div class="col-md-6"><label class="form-label">Kamerayı okuyan bilgisayar</label><select class="form-select" value="@camera.Backend" @onchange="e => ChangeBackend(camera, e.Value?.ToString())"><option value="v4l2">Linux</option>@if (camera.SourceType == "mqtt") { <option value="dshow">Windows</option><option value="avfoundation">macOS</option> }</select></div>
+                        <div class="col-md-6"><label class="form-label">Kamera cihazı / adı </label><input class="form-control" @bind="camera.Device" placeholder="Kurulum sorumlusunun verdiği kamera adı veya /dev/video0" /></div>
                         @if (camera.Backend == "v4l2") { <div class="col-md-6"><label class="form-label">USB görüntü biçimi</label><select class="form-select" @bind="camera.PixelFormat"><option value="auto">Otomatik seç</option><option value="mjpeg">MJPEG</option><option value="yuyv422">YUYV</option></select></div> }
-                        <div class="col-12"><div class="dy-guide mb-0"><p>@(camera.SourceType == "mqtt" ? "Kamera başka bilgisayara takılıdır. Görüntüyü gönderen yazılım o bilgisayarda çalışmalıdır; cihaz adı yazılırsa ZIP içinde yayıncı ayarları da hazırlanır." : "Kamera saha bilgisayarına takılı olmalıdır. Linux'ta cihaz erişimi pakete eklenir. Windows ve macOS'ta kamera gönderici yazılımı işletim sistemi üzerinde çalıştırılır.")</p></div></div>
+                        <div class="col-12"><div class="dy-guide mb-0"><p>@(camera.SourceType == "mqtt" ? "Docker seçilirse camera-docker, Docker dışı seçilirse dockerless-camera klasöründeki rehberi kullanın. Windows/macOS USB kameraları işletim sistemi üzerinde çalıştırılır; diğer saha servisleri Docker kullanabilir." : "Linux saha bilgisayarında USB kamera Docker içindeki saha-media-bridge tarafından okunur. FFmpeg imajda hazırdır; cihaz erişimi Compose dosyasına eklenir. Windows/macOS USB kameraları için Docker dışı kurulum seçin.")</p></div></div>
                     }
                     <div class="col-md-6"><label class="form-label">Her kaydın süresi (saniye)</label><input type="number" min="1" max="300" class="form-control" @bind="camera.ClipSeconds" /></div>
                     @if (camera.CaptureMode == "scheduled") { <div class="col-md-6"><label class="form-label">Kayıtlar arası süre (saniye)</label><input type="number" min="1" max="86400" class="form-control" @bind="camera.IntervalSeconds" /></div> }
@@ -43,11 +47,22 @@
     {
         var index = 1;
         while (Settings.Cameras.Any(c => c.Id == $"kamera-{index}")) index++;
-        Settings.Cameras.Add(new CameraDeploymentEntry { Id = $"kamera-{index}", Mode = "remote", SourceType = "mqtt", CaptureMode = "manual", ClipSeconds = 10 });
+        Settings.Cameras.Add(new CameraDeploymentEntry { Id = $"kamera-{index}", Mode = "remote", SourceType = "", CaptureMode = "manual", ClipSeconds = 10 });
+    }
+    private static void ChangeBackend(CameraDeploymentEntry camera, string? backend)
+    {
+        camera.Backend = backend ?? "v4l2";
+        camera.Device = camera.Backend switch { "v4l2" => "/dev/video0", "avfoundation" => "0", _ => "" };
+        if (camera.Backend != "v4l2") camera.PublisherRuntime = "native";
     }
     private static void ChangeSource(CameraDeploymentEntry camera, string? source)
     {
-        camera.SourceType = source ?? "rtsp";
+        camera.SourceType = source ?? "";
+        if (camera.SourceType is "usb" or "mqtt")
+        {
+            if (camera.SourceType == "usb") camera.Backend = "v4l2";
+            if (string.IsNullOrWhiteSpace(camera.Device)) camera.Device = "/dev/video0";
+        }
         camera.Mode = camera.SourceType == "usb" ? "local" : "remote";
         if (camera.SourceType == "mqtt")
         {

@@ -280,7 +280,7 @@ public partial class Structures
         if (_sensorSourceKind == "camera") {
             var index = 1;
             while (_cameraSettings.Cameras.Any(c => c.Id == $"kamera-{index}")) index++;
-            _setupCameraDraft = new() { Cameras = [new() { Id = $"kamera-{index}", Mode = "remote", SourceType = "mqtt", CaptureMode = "manual", ClipSeconds = 10 }] };
+            _setupCameraDraft = new() { Cameras = [new() { Id = $"kamera-{index}", Mode = "remote", SourceType = "", CaptureMode = "manual", ClipSeconds = 10 }] };
         }
     }
     private void LoadMqttForm()

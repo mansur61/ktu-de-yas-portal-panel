@@ -17,6 +17,7 @@ public partial class Structures
             ["DEYAS_BRIDGE_LOCATION_ID"] = GetEnv("DEYAS_BRIDGE_LOCATION_ID"),
             ["SAHA_ENABLED_PIPELINES"] = "kamera",
             ["SAHA_MEDIA_ENABLED"] = "true",
+            ["SAHA_MEDIA_ARCHIVE_TARGET"] = "saha",
             ["EDGE_FORWARDING_ENABLED"] = "true",
             ["SAHA_LOCAL_MQTT_ENABLED"] = "true",
             ["DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED"] = "true",
@@ -47,7 +48,7 @@ public partial class Structures
         {
             ["saha-media-bridge"] = new
             {
-                image = "mansur61/ktu-saha-media-bridge:dsi-2026.10.19-live-r1",
+                image = "mansur61/ktu-saha-media-bridge:dsi-2026.10.21-media-r1",
                 restart = "unless-stopped",
                 env_file = new[] { "saha-media-bridge.env" },
                 environment = new { SAHA_MEDIA_CONFIG_PATH = "/config/media-config.json" },

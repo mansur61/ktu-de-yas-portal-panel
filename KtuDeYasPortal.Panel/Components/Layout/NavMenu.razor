@@ -11,6 +11,7 @@
     @if (Can("baraj.sensor-setup")) { <NavLink href="sensor-setup"><span class="bi bi-check2-circle" aria-hidden="true"></span>Bağlantı ve kurulum kontrolü</NavLink> }
     <div class="dy-nav-label">İZLEME</div>
     @if (Can("menu.digital-twin")) { <NavLink href="digital-twin"><span class="bi bi-box" aria-hidden="true"></span>Dijital İkiz</NavLink> }
+    @if (Can("menu.digital-twin")) { <NavLink href="site-monitor"><span class="bi bi-broadcast-pin" aria-hidden="true"></span>Saha ve sensör izleme</NavLink> }
     @if (Can("menu.dashboard")) { <NavLink href="sensor-dashboard"><span class="bi bi-activity" aria-hidden="true"></span>Ölçümler ve grafikler</NavLink> }
     @if (Can("menu.media")) { <NavLink href="media-dashboard"><span class="bi bi-camera-video" aria-hidden="true"></span>Kameralar ve kayıtlar</NavLink> }
     @if (Can("menu.alerts")) { <NavLink href="field-alerts"><span class="bi bi-bell" aria-hidden="true"></span>Sahadan gelen alarmlar @if (AlertState.FieldAlertCount > 0) { <span class="badge bg-warning text-dark">@AlertState.FieldAlertCount</span> }</NavLink> }

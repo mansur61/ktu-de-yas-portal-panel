@@ -1,7 +1,7 @@
 @page "/site-monitor"
 @page "/site-monitor/{Id:guid}"
-@rendermode InteractiveServer
-@attribute [Microsoft.AspNetCore.Authorization.Authorize]
-<DeYas.DigitalTwin.TwinWorkspace Overview="true" SiteId="Id" @key="Id" />
-
-@code { [Parameter] public Guid? Id { get; set; } }
+@inject NavigationManager Navigation
+@code {
+    [Parameter] public Guid? Id { get; set; }
+    protected override void OnParametersSet()=>Navigation.NavigateTo(Id.HasValue?$"/digital-twin/{Id}":"/digital-twin",replace:true);
+}

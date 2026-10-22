@@ -1,0 +1,24 @@
+<div class="dam-scene">
+    <div class="model-caption"><span>3D YAPI GÖRÜNÜMÜ</span><small>Şematik model · kayıtlı sensör yerleşimleri</small></div>
+    <div class="model-perspective">
+        <div class="model-world" style="@($"transform:rotateX(-16deg) rotateY({_angle}deg)")">
+            <div class="reservoir"></div><div class="ground"></div>
+            <div class="dam-solid">
+                <div class="face front">
+                    <div class="spillways">@for(var i=0;i<5;i++){ <div></div> }</div>
+                    @foreach(var sensor in Sensors.Where(s => s.ImagePositionX is >= 0 and <= 100 && s.ImagePositionY is >= 0 and <= 100)) {
+                        <button title="@sensor.Name" aria-label="@($"{sensor.Name} sensörünü aç")" class="model-pin @(sensor.Id==SelectedId?"selected":"")" style="@($"left:{sensor.ImagePositionX?.ToString(System.Globalization.CultureInfo.InvariantCulture)}%;top:{sensor.ImagePositionY?.ToString(System.Globalization.CultureInfo.InvariantCulture)}%")" @onclick="() => OnSelect.InvokeAsync(sensor)"><i class="bi @(sensor.SensorType.ToString()=="Camera"?"bi-camera-video-fill":"bi-broadcast-pin")"></i></button>
+                    }
+                </div>
+                <div class="face back"></div><div class="face top"></div><div class="face side left"></div><div class="face side right"></div>
+            </div>
+        </div>
+    </div>
+    <label class="model-controls"><i class="bi bi-arrow-repeat"></i> Modeli döndür <input type="range" min="-65" max="65" @bind="_angle" @bind:event="oninput" /></label>
+</div>
+@code {
+    [Parameter] public IReadOnlyList<Sensor> Sensors { get; set; } = [];
+    [Parameter] public Guid? SelectedId { get; set; }
+    [Parameter] public EventCallback<Sensor> OnSelect { get; set; }
+    private int _angle = -24;
+}

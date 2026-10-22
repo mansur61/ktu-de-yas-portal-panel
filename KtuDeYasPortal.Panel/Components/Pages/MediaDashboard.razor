@@ -32,9 +32,9 @@
 </div></div></div>
 
 <div class="nav nav-tabs mb-3">
-    <button class="nav-link @(_tab == MediaTab.Live ? "active" : "")" @onclick="() => _tab = MediaTab.Live">Canlı görüntü</button>
-    <button class="nav-link @(_tab == MediaTab.Videos ? "active" : "")" @onclick="() => _tab = MediaTab.Videos">Video kayıtları (@_assets.Count(a => a.Kind == "video"))</button>
-    <button class="nav-link @(_tab == MediaTab.Images ? "active" : "")" @onclick="() => _tab = MediaTab.Images">Fotoğraf kayıtları (@_assets.Count(a => a.Kind != "video"))</button>
+    <button class="nav-link @(_tab == MediaTab.Live ? "active" : "")" @onclick="() => SelectTabAsync(MediaTab.Live)">Canlı görüntü</button>
+    <button class="nav-link @(_tab == MediaTab.Videos ? "active" : "")" @onclick="() => SelectTabAsync(MediaTab.Videos)">Video kayıtları (@_assets.Count(a => a.Kind == "video"))</button>
+    <button class="nav-link @(_tab == MediaTab.Images ? "active" : "")" @onclick="() => SelectTabAsync(MediaTab.Images)">Fotoğraf kayıtları (@_assets.Count(a => a.Kind != "video"))</button>
 </div>
 
 @if (_tab == MediaTab.Live)
@@ -50,8 +50,8 @@
         <div class="form-text mt-2">Video veya fotoğraf canlı akışın o anki görüntüsünden alınır. Video süresini 1–60 saniye seçin. Yukarıdaki tarihler yalnız arşiv kayıtlarını filtreler.</div>
     </div></div>
 }
-@if (_liveError is not null) { <div class="alert alert-warning">@_liveError <button class="btn btn-sm btn-outline-secondary ms-2" @onclick="StartLiveAsync">Yeniden dene</button></div> }
-@if (_liveSession is not null || _liveStarting)
+@if (_tab == MediaTab.Live && _liveError is not null) { <div class="alert alert-warning">@_liveError <button class="btn btn-sm btn-outline-secondary ms-2" @onclick="StartLiveAsync">Yeniden dene</button></div> }
+@if (_tab == MediaTab.Live && (_liveSession is not null || _liveStarting))
 {
     <section class="card shadow-sm mb-4">
         <div class="card-header d-flex justify-content-between align-items-center"><strong>Canlı kamera · @_deviceId</strong><button class="btn btn-sm btn-outline-danger" @onclick="StopLiveAsync">Yayını kapat</button></div>
@@ -146,7 +146,7 @@ else if (_tab != MediaTab.Live) { <div class="row g-3">
     {
         if (!CanCapture || _capturing) return;
         _capturing = true; _captureNotice = null; _error = null;
-        try { await LiveCamera.CaptureAsync(SelectedStructure!.Id, _deviceId, _recordSeconds, kind); _captureNotice = kind == "video" ? "Video kaydı arşive eklendi." : "Fotoğraf kaydı arşive eklendi."; _to = DateTime.Now; if (_from > _to) _from = _to.Value.AddHours(-24); await LoadAsync(); _tab = kind == "video" ? MediaTab.Videos : MediaTab.Images; }
+        try { await LiveCamera.CaptureAsync(SelectedStructure!.Id, _deviceId, _recordSeconds, kind); _captureNotice = kind == "video" ? "Video kaydı arşive eklendi." : "Fotoğraf kaydı arşive eklendi."; _to = DateTime.Now; if (_from > _to) _from = _to.Value.AddHours(-24); _tab = kind == "video" ? MediaTab.Videos : MediaTab.Images; await LoadAsync(); }
         catch (Exception ex) { _error = $"Kayıt isteği gönderilemedi: {ex.Message}"; }
         finally { _capturing = false; }
     }
@@ -167,6 +167,7 @@ else if (_tab != MediaTab.Live) { <div class="row g-3">
     private IEnumerable<StructureSensor> Cameras => _structures.Where(s => string.IsNullOrWhiteSpace(_structureId) || s.Id.ToString() == _structureId).SelectMany(s => s.Sensors).Where(s => s.SensorType.Equals("Camera", StringComparison.OrdinalIgnoreCase));
     protected override async Task OnInitializedAsync() { _mediaAccess = await Access.GetAsync(BarajPermissions.Media, PortalMenuPermissions.Media); _manageAccess = await Access.GetAsync(BarajPermissions.Manage, PortalMenuPermissions.Media); _structures = (await StructureUC.GetAllAsync()).Where(s => _mediaAccess.IsAdmin || _mediaAccess.StructureIds.Contains(s.Id)).ToList(); foreach (var s in _structures) { var detail = await StructureUC.GetByIdAsync(s.Id); if (detail is not null) s.Sensors = detail.Sensors; } if(_structures.Any(s=>s.Id==QueryStructureId)) { _structureId=QueryStructureId!.Value.ToString(); if(Cameras.Any(c=>c.DeviceId==QueryDeviceId))_deviceId=QueryDeviceId!; } await LoadAsync(); if (QueryStructureId is not null && !string.IsNullOrWhiteSpace(QueryDeviceId) && CanLive) await StartLiveAsync(); }
     private async Task LoadAsync() { _loading = true; _error = null; try { _assets = (await MediaArchive.ListAsync(_structureId, _deviceId, _from?.ToUniversalTime(), _to?.ToUniversalTime())).ToList(); } catch (Exception ex) { _error = $"Medya arşivi okunamadı: {ex.Message}"; } finally { _loading = false; } }
+    private async Task SelectTabAsync(MediaTab tab) { _tab = tab; if (tab != MediaTab.Live) await LoadAsync(); }
     private async Task OpenAsync(MediaAsset asset) { _selected = asset; _previewUrl = null; _previewLoading = true; try { _previewUrl = await MediaArchive.GetPresignedUrlAsync(asset.Bucket, asset.ObjectKey); } finally { _previewLoading = false; } }
     private bool CanProtect(MediaAsset asset) => _manageAccess.IsAdmin || _structures.Any(s => _manageAccess.StructureIds.Contains(s.Id) && s.Sensors.Any(c => c.DeviceId == asset.DeviceId));
     private async Task ToggleProtectionAsync(MediaAsset asset) { try { await MediaArchive.SetProtectionAsync(asset, !asset.IsProtected); await LoadAsync(); } catch { _error = "Kayıt koruması değiştirilemedi; yapı yönetim yetkisi gerekir."; } }

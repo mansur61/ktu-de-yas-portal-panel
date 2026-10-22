@@ -146,8 +146,20 @@ else if (_tab != MediaTab.Live) { <div class="row g-3">
     {
         if (!CanCapture || _capturing) return;
         _capturing = true; _captureNotice = null; _error = null;
-        try { await LiveCamera.CaptureAsync(SelectedStructure!.Id, _deviceId, _recordSeconds, kind); _captureNotice = kind == "video" ? "Video kaydı arşive eklendi." : "Fotoğraf kaydı arşive eklendi."; _to = DateTime.Now; if (_from > _to) _from = _to.Value.AddHours(-24); _tab = kind == "video" ? MediaTab.Videos : MediaTab.Images; await LoadAsync(); }
-        catch (Exception ex) { _error = $"Kayıt isteği gönderilemedi: {ex.Message}"; }
+        try
+        {
+            await LiveCamera.CaptureAsync(SelectedStructure!.Id, _deviceId, _recordSeconds, kind);
+            _captureNotice = kind == "video" ? "Video kaydı başarıyla arşive eklendi." : "Fotoğraf başarıyla arşive eklendi.";
+            _to = DateTime.Now;
+            if (_from > _to) _from = _to.Value.AddHours(-24);
+            _tab = kind == "video" ? MediaTab.Videos : MediaTab.Images;
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            var label = kind == "video" ? "Video kaydı" : "Fotoğraf kaydı";
+            _error = $"{label} alınamadı: {ex.Message}";
+        }
         finally { _capturing = false; }
     }
     private List<Structure> _structures = [];

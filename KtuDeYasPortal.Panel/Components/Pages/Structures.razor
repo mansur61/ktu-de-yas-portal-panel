@@ -8,6 +8,7 @@
 @using DeYas.Contracts.Sensors
 @using DeYas.Contracts.Simulation
 @using DeYas.Contracts.Integration
+@inject PanelApiClients ImageClients
 @inject StructureUseCases StructureUC
 @inject IStructureSimulationClient StructureSimClient
 @inject ITimeseriesRepository TimeseriesRepo
@@ -1659,6 +1660,13 @@
     protected override async Task OnInitializedAsync()
     {
         await LoadStructuresAsync();
+        try
+        {
+            var image = await ImageClients.CreateClient("timeseries-api").GetFromJsonAsync<System.Text.Json.JsonElement>("api/image-assets/default");
+            if (image.TryGetProperty("imageUrl", out var property) && property.GetString() is { Length: > 0 } url)
+                _structureTypes[StructureType.Dam] = _structureTypes[StructureType.Dam] with { ImagePath = url };
+        }
+        catch { _simulationErrorMessage = "Varsayılan baraj görseli alınamadı. Yeni yapı için standart görsel kullanılacak."; }
 
         // Operasyon haritasından gelen query string parametreleri
         var uri = new Uri(Nav.Uri);
@@ -3117,7 +3125,7 @@
             _editingStructure.Address      = _editAddress;
             _editingStructure.StructureType = _editType;
             _editingStructure.IsActive     = _editIsActive;
-            _editingStructure.ImageUrl     = _structureTypes[_editType].ImagePath;
+            _editingStructure.ImageUrl     ??= _structureTypes[_editType].ImagePath;
             _editingStructure.NodeRedUrl   = string.IsNullOrWhiteSpace(_editNodeRedUrl) ? null : _editNodeRedUrl.Trim();
             _editingStructure.EdgeApiUrl   = string.IsNullOrWhiteSpace(_editEdgeApiUrl) ? null : _editEdgeApiUrl.Trim();
             _editingStructure.EdgeConfigJson = NormalizeJson(_editEdgeConfigJson);

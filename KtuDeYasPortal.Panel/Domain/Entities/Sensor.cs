@@ -62,6 +62,7 @@ public class Sensor
     // ── Görsel üzerinde pozisyon (2D pin) ──
     public double? ImagePositionX { get; set; }
     public double? ImagePositionY { get; set; }
+    public string? ImageUrl { get; set; }
 
     // ── Anlık durum (runtime, DB'ye kaydedilmez) ──
     public SensorStatus Status { get; set; } = SensorStatus.Offline;

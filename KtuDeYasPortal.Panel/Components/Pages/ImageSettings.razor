@@ -1,0 +1,77 @@
+@page "/image-settings"
+@rendermode InteractiveServer
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using System.Net.Http.Json
+@using Microsoft.AspNetCore.Components.Forms
+@using KtuDeYasPortal.Panel.Domain.Entities
+@inject KtuDeYasPortal.Panel.Infrastructure.Persistence.PanelApiClients Clients
+@inject KtuDeYasPortal.Panel.Domain.Interfaces.ISensorRepository Sensors
+<PageTitle>Görsel Ayarları · DE-YAS</PageTitle>
+<KtuDeYasPortal.Panel.Components.Shared.SettingsNavigation />
+<div class="dy-heading"><div><h1>Baraj ve sensör görselleri</h1><p>PNG veya JPEG fotoğraf yükleyin. Dosya boyutu en fazla 5 MB olabilir.</p></div></div>
+@if (_error is not null) { <div class="alert alert-danger" role="alert">@_error</div> }
+@if (_success is not null) { <div class="alert alert-success" role="status">@_success</div> }
+<div class="row g-4">
+<div class="col-lg-6"><section class="card p-4 h-100">
+<h2 class="h4">Varsayılan baraj görseli</h2>
+<p>Yeni oluşturulan barajlarda kullanılır. Mevcut yapıların görselleri değişmez.</p>
+<img src="@(_defaultUrl ?? "/images/structures/dam.svg")" alt="Varsayılan baraj görseli" class="asset-preview" />
+<label class="form-label mt-3">Yeni fotoğraf seçin ve kaydedin</label>
+<InputFile OnChange="e => Upload(e, false)" accept="image/png,image/jpeg" disabled="@_busy" class="form-control" />
+</section></div>
+<div class="col-lg-6"><section class="card p-4 h-100">
+<h2 class="h4">Sensör fotoğrafı</h2><p>Yalnızca seçtiğiniz sensörün fotoğrafı değişir.</p>
+<label for="image-sensor" class="form-label">Sensör</label>
+<select id="image-sensor" class="form-select mb-3" @bind="_sensorId" disabled="@_busy">
+<option value="">Sensör seçin</option>
+@foreach (var sensor in _sensors) { <option value="@sensor.Id">@sensor.Name · @sensor.DeviceId</option> }
+</select>
+@if (Selected?.ImageUrl is { Length: > 0 } url) { <img src="@url" alt="Seçili sensörün fotoğrafı" class="asset-preview" /> }
+else { <div class="asset-preview d-flex align-items-center justify-content-center text-muted">Henüz fotoğraf eklenmedi</div> }
+<label class="form-label mt-3">Yeni fotoğraf seçin ve kaydedin</label>
+<InputFile OnChange="e => Upload(e, true)" accept="image/png,image/jpeg" disabled="@(_busy || Selected is null)" class="form-control" />
+</section></div></div>
+@if (_busy) { <p class="mt-3" role="status">Fotoğraf kaydediliyor…</p> }
+<style>.asset-preview { width:100%; height:240px; object-fit:contain; border-radius:12px; background:#f1f5f7; }</style>
+@code {
+    private List<Sensor> _sensors = [];
+    private string _sensorId = "";
+    private string? _defaultUrl, _error, _success;
+    private bool _busy;
+    private Sensor? Selected => _sensors.FirstOrDefault(s => s.Id.ToString() == _sensorId);
+    private sealed record ImageResult(string? ImageUrl);
+    private sealed record ErrorResult(string? Error);
+    protected override async Task OnInitializedAsync()
+    {
+        try {
+            _sensors = await Sensors.GetAllAsync();
+            _defaultUrl = (await Clients.CreateClient("timeseries-api").GetFromJsonAsync<ImageResult>("api/image-assets/default"))?.ImageUrl;
+        } catch { _error = "Görsel ayarları yüklenemedi. Bağlantıyı kontrol edip sayfayı yenileyin."; }
+    }
+    private async Task Upload(InputFileChangeEventArgs e, bool forSensor)
+    {
+        if (_busy) return;
+        var selected = Selected;
+        if (forSensor && selected is null) return;
+        _busy = true; _error = null; _success = null;
+        try {
+            var file = e.File;
+            if (file.Size > 5 * 1024 * 1024) { _error = "Fotoğraf en fazla 5 MB olabilir."; return; }
+            using var form = new MultipartFormDataContent();
+            using var stream = file.OpenReadStream(5 * 1024 * 1024);
+            using var content = new StreamContent(stream);
+            form.Add(content, "file", file.Name);
+            var endpoint = forSensor ? $"api/image-assets/sensor?sensorId={selected!.Id}" : "api/image-assets/default";
+            using var response = await Clients.CreateClient("timeseries-api").PostAsync(endpoint, form);
+            if (!response.IsSuccessStatusCode) {
+                _error = (await response.Content.ReadFromJsonAsync<ErrorResult>())?.Error ?? "Fotoğraf kaydedilemedi.";
+                return;
+            }
+            var result = await response.Content.ReadFromJsonAsync<ImageResult>();
+            if (forSensor) selected!.ImageUrl = result!.ImageUrl;
+            else _defaultUrl = result!.ImageUrl;
+            _success = "Fotoğraf kaydedildi.";
+        } catch { _error = "Fotoğraf kaydedilemedi. Bağlantıyı ve dosyanızı kontrol edip yeniden deneyin."; }
+        finally { _busy = false; }
+    }
+}

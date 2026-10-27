@@ -58,6 +58,7 @@ public class SensorHttpRepository : ISensorRepository
             rotationZ      = sensor.RotationZ,
             imagePositionX = sensor.ImagePositionX,
             imagePositionY = sensor.ImagePositionY,
+            imageUrl       = sensor.ImageUrl,
             telemetryIntervalMs = sensor.TelemetryIntervalMs > 0 ? sensor.TelemetryIntervalMs : 5000,
             telemetryBatchSize  = sensor.TelemetryBatchSize  > 0 ? sensor.TelemetryBatchSize  : 1
         };

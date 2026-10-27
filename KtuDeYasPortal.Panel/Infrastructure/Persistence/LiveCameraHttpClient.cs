@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 
 namespace KtuDeYasPortal.Panel.Infrastructure.Persistence;
@@ -33,7 +34,24 @@ public sealed class LiveCameraHttpClient(PanelApiClients factory) : ILiveCameraC
         using var response = await captureClient.PostAsJsonAsync(
             $"api/live-cameras/{structureId:D}/{Uri.EscapeDataString(deviceId)}/recordings", new { seconds, kind }, ct);
         if (!response.IsSuccessStatusCode)
-            throw new InvalidOperationException($"Kayıt alınamadı ({(int)response.StatusCode}): {await response.Content.ReadAsStringAsync(ct)}");
+            throw new InvalidOperationException(CaptureErrorMessage(kind, response.StatusCode));
+    }
+
+    private static string CaptureErrorMessage(string kind, HttpStatusCode statusCode)
+    {
+        var assetName = kind == "image" ? "Fotoğraf" : "Video kaydı";
+
+        return statusCode switch
+        {
+            HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden =>
+                $"{assetName} almak için yetkiniz bulunmuyor.",
+            HttpStatusCode.Conflict =>
+                $"{assetName} şu anda oluşturulamadı. Kamera yayını hazırlanıyor olabilir; 10 saniye bekleyip yeniden deneyin. Sorun sürerse kamera ve saha bağlantısını kontrol edin.",
+            HttpStatusCode.GatewayTimeout or HttpStatusCode.RequestTimeout =>
+                $"Kamera zamanında yanıt vermedi. 10 saniye bekleyip yeniden deneyin. Sorun sürerse kamera ve saha bağlantısını kontrol edin.",
+            _ =>
+                $"{assetName} şu anda oluşturulamadı. Birkaç saniye sonra yeniden deneyin; sorun sürerse sistem yöneticinize bildirin."
+        };
     }
 
     public async Task StopAsync(Guid structureId, string sessionId, CancellationToken ct = default)

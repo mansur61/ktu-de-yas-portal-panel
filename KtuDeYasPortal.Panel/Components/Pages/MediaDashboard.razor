@@ -73,10 +73,10 @@ else if (_tab != MediaTab.Live) { <div class="row g-3">
             <div class="card-body">
                 <div class="d-flex justify-content-between"><span class="badge @(asset.Kind == "video" ? "text-bg-primary" : "text-bg-success")">@(asset.Kind == "video" ? "Klip" : "Snapshot")</span><small class="text-muted">@asset.CapturedAt.ToLocalTime().ToString("dd.MM HH:mm:ss")</small></div>
                 <h6 class="mt-3 mb-1 text-truncate"><span class="bi bi-camera me-1"></span>@asset.DeviceId</h6>
-                <div class="small text-muted">@asset.LocationId · @asset.Status</div>
+                <div class="small text-muted">@asset.LocationId · @ArchiveStatus(asset.Status)</div>
                 <div class="small text-muted mt-2">@FormatSize(asset.FileSizeBytes)@(asset.DurationSeconds is not null ? $" · {asset.DurationSeconds} sn" : "")</div>
             </div>
-            @if (asset.IsProtected) { <span class="badge text-bg-warning mx-3 mb-2">Araştırma için korunuyor</span> }
+            @if (asset.IsProtected) { <span class="badge text-bg-warning mx-3 mb-2" title="Bu kayıt zaten merkezi arşivdedir. Koruma, otomatik saklama süresi temizliğinin kaydı silmesini engeller.">Araştırma için korunuyor <span class="bi bi-info-circle" aria-hidden="true"></span></span> }
             @if (CanProtect(asset)) { <button class="btn btn-sm btn-outline-secondary mx-3 mb-2" @onclick="() => ToggleProtectionAsync(asset)">@(asset.IsProtected ? "Korumayı kaldır" : "Araştırma için koru")</button> }
             <div class="card-footer bg-white border-0 pt-0"><button class="btn btn-sm btn-outline-primary w-100" @onclick="() => OpenAsync(asset)"><span class="bi bi-play-circle me-1"></span>Görüntüle</button></div>
         </article></div>
@@ -155,11 +155,7 @@ else if (_tab != MediaTab.Live) { <div class="row g-3">
             _tab = kind == "video" ? MediaTab.Videos : MediaTab.Images;
             await LoadAsync();
         }
-        catch (Exception ex)
-        {
-            var label = kind == "video" ? "Video kaydı" : "Fotoğraf kaydı";
-            _error = $"{label} alınamadı: {ex.Message}";
-        }
+        catch (Exception ex) { _error = ex.Message; }
         finally { _capturing = false; }
     }
     private List<Structure> _structures = [];
@@ -185,6 +181,13 @@ else if (_tab != MediaTab.Live) { <div class="row g-3">
     private async Task ToggleProtectionAsync(MediaAsset asset) { try { await MediaArchive.SetProtectionAsync(asset, !asset.IsProtected); await LoadAsync(); } catch { _error = "Kayıt koruması değiştirilemedi; yapı yönetim yetkisi gerekir."; } }
     private void Close() { _selected = null; _previewUrl = null; }
     public async ValueTask DisposeAsync() { if (_liveSession is not null) await StopLiveAsync(); }
+    private static string ArchiveStatus(string status) => status.ToLowerInvariant() switch
+    {
+        "uploaded" or "processed" => "Merkezi arşivde",
+        "uploading" or "processing" => "Arşive aktarılıyor",
+        "failed" or "error" => "Arşivleme tamamlanamadı",
+        _ => status
+    };
     private static string FormatSize(long? value) => value is null ? "Boyut bilinmiyor" : value < 1024 * 1024 ? $"{value.Value / 1024d:0} KB" : $"{value.Value / 1024d / 1024d:0.0} MB";
     private enum MediaTab { Live, Videos, Images }
 }

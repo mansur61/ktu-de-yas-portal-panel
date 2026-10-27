@@ -76,7 +76,9 @@ else if (_tab != MediaTab.Live) { <div class="row g-3">
                 <div class="small text-muted">@asset.LocationId · @ArchiveStatus(asset.Status)</div>
                 <div class="small text-muted mt-2">@FormatSize(asset.FileSizeBytes)@(asset.DurationSeconds is not null ? $" · {asset.DurationSeconds} sn" : "")</div>
             </div>
-            @if (asset.IsProtected) { <span class="badge text-bg-warning mx-3 mb-2" title="Bu kayıt zaten merkezi arşivdedir. Koruma, otomatik saklama süresi temizliğinin kaydı silmesini engeller.">Araştırma için korunuyor <span class="bi bi-info-circle" aria-hidden="true"></span></span> }
+            @if (asset.IsProtected) { <span class="badge text-bg-warning ms-3 mb-2">Araştırma için korunuyor</span> }
+            <button class="btn btn-sm btn-link text-secondary mb-2 p-0 ms-2" title="Koruma bilgisini göster" aria-label="Koruma bilgisini göster" @onclick="() => ToggleProtectionInfo(asset.Id)"><span class="bi bi-info-circle" aria-hidden="true"></span></button>
+            @if (_protectionInfoAssetId == asset.Id) { <div class="alert alert-warning small mx-3 mb-2 py-2"><strong>Araştırma koruması:</strong> Bu kayıt merkezi arşivde saklanır. Koruma açıkken, otomatik saklama süresi dolsa bile kayıt silinmez. Gerek kalmadığında <em>Korumayı kaldır</em> ile normal saklama politikasına döndürebilirsiniz.</div> }
             @if (CanProtect(asset)) { <button class="btn btn-sm btn-outline-secondary mx-3 mb-2" @onclick="() => ToggleProtectionAsync(asset)">@(asset.IsProtected ? "Korumayı kaldır" : "Araştırma için koru")</button> }
             <div class="card-footer bg-white border-0 pt-0"><button class="btn btn-sm btn-outline-primary w-100" @onclick="() => OpenAsync(asset)"><span class="bi bi-play-circle me-1"></span>Görüntüle</button></div>
         </article></div>
@@ -87,7 +89,7 @@ else if (_tab != MediaTab.Live) { <div class="row g-3">
 {
     <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.55)"><div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content">
         <div class="modal-header"><h5 class="modal-title">@_selected.DeviceId · @_selected.CapturedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss")</h5><button class="btn-close" @onclick="Close"></button></div>
-        <div class="modal-body text-center bg-dark">@if (_previewLoading) { <span class="spinner-border text-light my-5"></span> } else if (_previewUrl is null) { <p class="text-light m-4">Medya bağlantısı üretilemedi.</p> } else if (_selected.Kind == "video") { <video src="@_previewUrl" controls class="w-100" style="max-height:65vh"></video> } else { <img src="@_previewUrl" class="img-fluid" style="max-height:65vh" /> }</div>
+        <div class="modal-body text-center bg-dark">@if (_previewLoading) { <span class="spinner-border text-light my-5"></span> } else if (_previewUrl is null || _previewError is not null) { <p class="text-light m-4">@(_previewError ?? "Medya bağlantısı üretilemedi.")</p> } else if (_selected.Kind == "video") { <video src="@_previewUrl" controls class="w-100" style="max-height:65vh" @onerror="PreviewLoadFailed"></video> } else { <img src="@_previewUrl" class="img-fluid" style="max-height:65vh" @onerror="PreviewLoadFailed" /> }</div>
     </div></div></div>
 }
 
@@ -164,7 +166,8 @@ else if (_tab != MediaTab.Live) { <div class="row g-3">
     private List<MediaAsset> _assets = [];
     private string _structureId = "", _deviceId = "";
     private DateTime? _from = DateTime.Now.AddHours(-24), _to = DateTime.Now;
-    private bool _loading, _previewLoading; private string? _error, _previewUrl; private MediaAsset? _selected;
+    private bool _loading, _previewLoading; private string? _error, _previewUrl, _previewError; private MediaAsset? _selected;
+    private Guid? _protectionInfoAssetId;
     private MediaTab _tab = MediaTab.Live;
     private IEnumerable<MediaAsset> VisibleAssets => _tab switch
     {
@@ -176,10 +179,12 @@ else if (_tab != MediaTab.Live) { <div class="row g-3">
     protected override async Task OnInitializedAsync() { _mediaAccess = await Access.GetAsync(BarajPermissions.Media, PortalMenuPermissions.Media); _manageAccess = await Access.GetAsync(BarajPermissions.Manage, PortalMenuPermissions.Media); _structures = (await StructureUC.GetAllAsync()).Where(s => _mediaAccess.IsAdmin || _mediaAccess.StructureIds.Contains(s.Id)).ToList(); foreach (var s in _structures) { var detail = await StructureUC.GetByIdAsync(s.Id); if (detail is not null) s.Sensors = detail.Sensors; } if(_structures.Any(s=>s.Id==QueryStructureId)) { _structureId=QueryStructureId!.Value.ToString(); if(Cameras.Any(c=>c.DeviceId==QueryDeviceId))_deviceId=QueryDeviceId!; } await LoadAsync(); if (QueryStructureId is not null && !string.IsNullOrWhiteSpace(QueryDeviceId) && CanLive) await StartLiveAsync(); }
     private async Task LoadAsync() { _loading = true; _error = null; try { _assets = (await MediaArchive.ListAsync(_structureId, _deviceId, _from?.ToUniversalTime(), _to?.ToUniversalTime())).ToList(); } catch (Exception ex) { _error = $"Medya arşivi okunamadı: {ex.Message}"; } finally { _loading = false; } }
     private async Task SelectTabAsync(MediaTab tab) { _tab = tab; if (tab != MediaTab.Live) await LoadAsync(); }
-    private async Task OpenAsync(MediaAsset asset) { _selected = asset; _previewUrl = null; _previewLoading = true; try { _previewUrl = await MediaArchive.GetPresignedUrlAsync(asset.Bucket, asset.ObjectKey); } finally { _previewLoading = false; } }
+    private async Task OpenAsync(MediaAsset asset) { _selected = asset; _previewUrl = null; _previewError = null; _previewLoading = true; try { _previewUrl = await MediaArchive.GetPresignedUrlAsync(asset.Bucket, asset.ObjectKey); } catch { _previewError = "Kayıt açılırken merkezi arşive ulaşılamadı. Birkaç saniye sonra yeniden deneyin."; } finally { _previewLoading = false; } }
     private bool CanProtect(MediaAsset asset) => _manageAccess.IsAdmin || _structures.Any(s => _manageAccess.StructureIds.Contains(s.Id) && s.Sensors.Any(c => c.DeviceId == asset.DeviceId));
     private async Task ToggleProtectionAsync(MediaAsset asset) { try { await MediaArchive.SetProtectionAsync(asset, !asset.IsProtected); await LoadAsync(); } catch { _error = "Kayıt koruması değiştirilemedi; yapı yönetim yetkisi gerekir."; } }
-    private void Close() { _selected = null; _previewUrl = null; }
+    private void ToggleProtectionInfo(Guid assetId) => _protectionInfoAssetId = _protectionInfoAssetId == assetId ? null : assetId;
+    private void PreviewLoadFailed() => _previewError = "Kayıt görüntülenemedi. Merkezi arşiv bağlantısını kontrol edip yeniden deneyin.";
+    private void Close() { _selected = null; _previewUrl = null; _previewError = null; }
     public async ValueTask DisposeAsync() { if (_liveSession is not null) await StopLiveAsync(); }
     private static string ArchiveStatus(string status) => status.ToLowerInvariant() switch
     {

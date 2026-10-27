@@ -169,6 +169,42 @@
     gap: 4px;
 }
 
+.structure-card-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+@media (max-width: 1400px) {
+    /* Kart daraldığında durum ikonları okunabilir iki sütunda kalır. */
+    .structure-card-badges {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 6px;
+    }
+
+    .structure-card-badges .badge {
+        min-width: 0;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        line-height: 1.25;
+        text-align: center;
+    }
+
+    .structure-card-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .structure-card-actions .btn {
+        width: 100%;
+        min-width: 0;
+        white-space: normal;
+        line-height: 1.25;
+    }
+}
+
 /* ══════════════════════════════════════════════════════════════════════
    YAPI DETAY — GÖRSEL OVERLAY (fullscreen benzeri)
    ══════════════════════════════════════════════════════════════════════ */

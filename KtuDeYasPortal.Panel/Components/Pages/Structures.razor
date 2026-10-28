@@ -296,6 +296,8 @@
                                 <option value="@p">@p</option>
                             }
                         </select>
+                        @if(RegionFor(_newProvince) is {} regionnew){<div class="mt-2 small text-primary"><i class="bi bi-diagram-3"></i> @regionnew.Name</div>@if(regionnew.Notes.Length>0){<div class="small text-muted">@regionnew.Notes</div>}}else if(!string.IsNullOrEmpty(_newProvince)){<div class="small text-warning">DSİ bölge eşleştirmesi alınamadı. Bölge kataloğunu kontrol edin.</div>}
+
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">İlçe</label>
@@ -1064,6 +1066,8 @@
                         @foreach (var p in _provinces)
                         { <option value="@p">@p</option> }
                     </select>
+                        @if(RegionFor(_editProvince) is {} regionedit){<div class="mt-2 small text-primary"><i class="bi bi-diagram-3"></i> @regionedit.Name</div>@if(regionedit.Notes.Length>0){<div class="small text-muted">@regionedit.Notes</div>}}else if(!string.IsNullOrEmpty(_editProvince)){<div class="small text-warning">DSİ bölge eşleştirmesi alınamadı. Bölge kataloğunu kontrol edin.</div>}
+
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">İlçe</label>
@@ -1657,8 +1661,12 @@
     };
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
+    private List<DeYas.Contracts.DsiRegionInfo> _dsiRegions=[];
+    private DeYas.Contracts.DsiRegionInfo? RegionFor(string province)=>_dsiRegions.FirstOrDefault(r=>r.Provinces.Contains(province,StringComparer.OrdinalIgnoreCase));
     protected override async Task OnInitializedAsync()
     {
+        try {_dsiRegions=await ImageClients.CreateClient("timeseries-api").GetFromJsonAsync<List<DeYas.Contracts.DsiRegionInfo>>("api/dsi-regions")??[];}catch{ /* Province entry remains usable; region unavailable is displayed explicitly. */ }
+
         await LoadStructuresAsync();
         try
         {

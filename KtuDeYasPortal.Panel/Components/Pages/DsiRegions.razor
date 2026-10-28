@@ -1,0 +1,29 @@
+@page "/dsi-regions"
+@rendermode InteractiveServer
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = "platform.admin")]
+@using DeYas.Contracts
+@using System.Net.Http.Json
+@inject KtuDeYasPortal.Panel.Infrastructure.Persistence.PanelApiClients Clients
+<PageTitle>DSİ Bölge Kataloğu</PageTitle>
+<KtuDeYasPortal.Panel.Components.Shared.SettingsNavigation />
+<h1>DSİ bölge müdürlükleri</h1>
+<p>İl seçildiğinde yapıların bölgesi bu katalogdan bulunur. Değişiklikler mevcut kullanıcı izinlerini otomatik olarak değiştirmez.</p>
+@if(_message is not null){<div class="alert alert-info" role="status">@_message</div>}
+@if(_regions.Count>0){
+<label class="form-label" for="dsi-region">Bölge müdürlüğü</label><select id="dsi-region" class="form-select mb-4" @bind="_number" @bind:after="SelectRegion" disabled="@_busy">@foreach(var r in _regions){<option value="@r.Number">@r.Name</option>}</select>
+<div class="row g-4"><div class="col-lg-7"><div class="card p-4">
+<label class="form-label">Bölge adı<input class="form-control" @bind="_selected.Name" /></label>
+<label class="form-label">Merkez il<input class="form-control" @bind="_selected.Center" /></label>
+<label class="form-label">İller (virgülle ayırın)<textarea class="form-control" rows="3" @bind="_provinces"></textarea></label>
+<label class="form-label">Resmî DSİ kaynak adresi<input class="form-control" @bind="_selected.SourceUrl" /></label>
+<label class="form-label">Harita görseli adresi<input class="form-control" @bind="_selected.MapImageUrl" /></label>
+<label class="form-label">İlçe / görev alanı istisnaları<textarea class="form-control" rows="3" @bind="_selected.Notes"></textarea></label>
+<label class="form-label">Doğrulama tarihi<input type="text" placeholder="YYYY-AA-GG" class="form-control" @bind="_selected.VerifiedOn" /></label>
+<button class="btn btn-primary mt-3" @onclick="Save" disabled="@_busy">@(_busy?"Kaydediliyor…":"Kaydet")</button>
+</div></div><div class="col-lg-5"><div class="card p-4"><h2 class="h5">Bölge haritası</h2>@if(_selected.MapImageUrl.Length>0){<img src="@_selected.MapImageUrl" alt="@_selected.Name" style="width:100%;max-height:450px;object-fit:contain" />}else{<p>Resmî harita görseli tanımlı değil.</p>}<a href="@_selected.SourceUrl" target="_blank" rel="noopener noreferrer">Resmî DSİ bilgileri ↗</a><small class="mt-3">İlçe istisnaları olan yapılarda yetki kapsamını ayrıca kontrol edin. Katalog il esaslı varsayılan eşleştirme sağlar.</small></div></div></div>}
+@code{
+ private List<DsiRegionInfo> _regions=[]; private DsiRegionInfo _selected=new();private int _number;private string _provinces="";private string? _message;private bool _busy;
+ protected override async Task OnInitializedAsync(){try{_regions=await Clients.CreateClient("timeseries-api").GetFromJsonAsync<List<DsiRegionInfo>>("api/dsi-regions")??[];_number=_regions.FirstOrDefault()?.Number??0;SelectRegion();}catch{_message="Bölge kataloğu yüklenemedi. Sunucu bağlantısını kontrol edin.";}}
+ private void SelectRegion(){var r=_regions.FirstOrDefault(r=>r.Number==_number);if(r is null)return;_selected=System.Text.Json.JsonSerializer.Deserialize<DsiRegionInfo>(System.Text.Json.JsonSerializer.Serialize(r))!;_provinces=string.Join(", ",r.Provinces);}
+ private async Task Save(){_busy=true;try{_selected.Provinces=_provinces.Split(',',StringSplitOptions.RemoveEmptyEntries|StringSplitOptions.TrimEntries);using var response=await Clients.CreateClient("timeseries-api").PutAsJsonAsync($"api/dsi-regions/{_number}",_selected);if(!response.IsSuccessStatusCode){_message="Kaydedilemedi. İl listesini, resmî DSİ adresini ve harita adresini kontrol edin.";return;}_regions[_regions.FindIndex(r=>r.Number==_number)]=_selected;_message="Bölge bilgileri kaydedildi. Kullanıcı yetkileri korunmuştur.";}catch{_message="Kaydetme tamamlanamadı. Yeniden deneyin.";}finally{_busy=false;}}
+}

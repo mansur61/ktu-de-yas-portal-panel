@@ -4,95 +4,82 @@
 @rendermode InteractiveServer
 @using DeYas.Contracts.Authorization
 @using System.Globalization
-@using System.Text.RegularExpressions
 @inject StructureUseCases StructuresUC
 @inject PanelAccess Access
 @inject PanelApiClients Clients
 @inject SensorDataState RealtimeState
-@inject IOptions<GrafanaOptions> GrafanaOpts
 @inject NavigationManager Navigation
 @implements IDisposable
 
 @using KtuDeYasPortal.Panel.Components.Shared
 
-<PageTitle>Dijital ikiz · DE-YAS</PageTitle>
+@using DeYas.Contracts
+<div class="panel-twin-screen">
 <div class="twin-site-picker"><label for="twin-site">İzlenen yapı</label><select id="twin-site" value="@Id" @onchange="ChangeSite">@foreach(var site in _sites){<option value="@site.Id">@site.Name</option>}</select></div>
+<PageTitle>@(_structure?.Name ?? "Dijital ikiz") · SAHA</PageTitle>
 @if (_loading) { <p role="status">Baraj ve ölçümler yükleniyor…</p> }
 else if (_structure is null) { <div class="dy-empty"><h1>Baraj açılamadı</h1><p>@_error</p><a href="structures">Tüm barajlar</a></div> }
 else {
-<section class="twin-page monitor-page">
-    <header class="monitor-heading"><div><a href="structures">← Tüm barajlar</a><h1>@_structure.Name <span>DİJİTAL İKİZ</span></h1><p>@_structure.Province · @_structure.District</p></div><div class="monitor-health"><i class="bi bi-broadcast"></i><strong>@FreshCount / @_sensors.Count</strong><span>Son 2 dakikada veri alınan / toplam sensör</span></div></header>
-    @if (_dataError is not null) { <div class="alert alert-warning" role="status">@_dataError</div> }
-    <div class="monitor-workbench">
-        <section class="model-section">
-            <div class="model-view-switch"><button class="@(!_show3D?"selected":"")" @onclick="()=>_show3D=false">Panel yerleşimi · @_sensors.Count(HasPosition) nokta</button><button class="@(_show3D?"selected":"")" @onclick="()=>_show3D=true">3D model</button></div>
-            @if(_show3D){ <DamModel3D Sensors="_sensors" SelectedId="_selected?.Id" OnSelect="SelectSensor" /> <p class="monitor-note">Kayıtlı X/Y yüzdeleri şematik modelin ön yüzeyine uygulanır.</p> }
-            else {
-                <div class="registered-plan"><img src="@PlanImageUrl" alt="@($"{_structure.Name} panelde kayıtlı sensör yerleşimi")" />
-                @foreach(var sensor in _sensors.Where(HasPosition)){<button class="registered-pin @(sensor.Id==_selected?.Id?"selected":"") @(IsFresh(sensor)?"fresh":"")" style="@FormattableString.Invariant($"left:{sensor.ImagePositionX}%;top:{sensor.ImagePositionY}%")" title="@sensor.Name" aria-label="@($"{sensor.Name} sensörünü seç")" @onclick="()=>SelectSensor(sensor)"><i class="bi @(IsCamera(sensor)?"bi-camera-video-fill":"bi-broadcast-pin")"></i></button>}
-                </div>
-            }
-            <div class="sensor-filters"><input aria-label="Model sensörlerinde ara" placeholder="Sensör adı veya cihaz ara…" @bind="ModelSearch" @bind:event="oninput" /><select aria-label="Model sensör türü" @bind="ModelType"><option value="">Tüm türler</option>@foreach(var type in SensorTypes){<option value="@type">@type</option>}</select></div>
-            <div class="model-sensor-strip">@foreach(var s in ModelSensors.Skip(ModelPage*10).Take(10)){ <button @key="s.Id" class="@(s.Id==_selected?.Id?"selected":"")" @onclick="()=>SelectSensor(s)"><i class="bi @(IsCamera(s)?"bi-camera-video":"bi-broadcast-pin")"></i> @s.Name</button> }</div>
-            <div class="sensor-pagination"><span>@ModelSensors.Count() sensör · @(ModelPage+1) / @ModelPageCount sayfa</span><button disabled="@(ModelPage==0)" @onclick="()=>_modelPage=ModelPage-1">Önceki</button><button disabled="@(ModelPage+1>=ModelPageCount)" @onclick="()=>_modelPage=ModelPage+1">Sonraki</button></div>
-            @if(!ModelSensors.Any() && _sensors.Count>0){<p class="monitor-note">Filtreye uygun sensör bulunamadı.</p>}
-            @if (_sensors.Count==0) { <p class="monitor-note">Bu baraja bağlı aktif sensör kaydı yok.</p> }
-        </section>
-        <section class="live-section"><header><div><span class="monitor-kicker">TELEMETRİ</span><h2>Canlı sensör akışı</h2></div><span class="refresh-label">10 sn güncelleme</span></header>
-            @if (!CanRead) { <p>Ölçümleri görüntüleme yetkisi gerekiyor.</p> }
-            else {
-            <div class="sensor-filters telemetry-filters"><input aria-label="Telemetri sensörü ara" placeholder="Sensör adı veya cihaz ara…" @bind="_telemetrySearch" @bind:event="oninput" /><select aria-label="Telemetri sensör türü" @bind="_telemetryType"><option value="">Tüm türler</option>@foreach(var type in SensorTypes.Where(t=>t!="Camera")){<option value="@type">@type</option>}</select><select aria-label="Telemetri akış durumu" @bind="_telemetryStatus"><option value="">Tüm durumlar</option><option value="live">Akış alınıyor</option><option value="waiting">Veri bekleniyor</option></select></div>
-            <p class="monitor-note">@TelemetrySensors.Count() / @_sensors.Count(s=>!IsCamera(s)) sensör gösteriliyor</p>
-            <div class="telemetry-grid">
-            @foreach(var sensor in TelemetrySensors) {
-                var streams=Streams(sensor).ToList();
-                var waveform=Waveform(sensor);
-                <article class="telemetry-card @(sensor.Id==_selected?.Id?"selected":"")"><button class="telemetry-title" @onclick="()=>SelectSensor(sensor)"><span>@sensor.Name</span><small class="@(IsFresh(sensor)?"fresh":"waiting")">@(IsFresh(sensor)?"Akış alınıyor":"Veri bekleniyor")</small></button>
-                @if(streams.Count==0){ <div class="no-reading">— <small>Henüz ölçüm alınmadı</small></div> }
-                @if(waveform.Count>1){<div class="waveform-reading"><span>Canlı örnek dalgası</span><strong>@(WaveformRate(sensor)?.ToString("G4") ?? "—") <small>Hz</small></strong></div><svg class="stream-chart waveform-chart" viewBox="0 0 280 70" preserveAspectRatio="none" role="img" aria-label="@($"{sensor.Name} gerçek örnek dalga formu")"><path d="M0 20H280 M0 45H280 M0 69H280" class="chart-grid"/><polyline points="@WaveformPoints(waveform)" /></svg>}
-                @foreach(var stream in streams){ var last=stream.Value.Last();
-                    <div class="metric-reading"><span>@MetricLabel(stream.Key.Metric)</span><strong>@last.Value.ToString("G5") <small>@MetricUnit(stream.Key.Metric, sensor.Unit)</small></strong></div>
-                    @if(stream.Value.Count>1){ <svg class="stream-chart" viewBox="0 0 280 70" preserveAspectRatio="none" role="img" aria-label="@($"{sensor.Name} {stream.Key.Metric} ölçüm geçmişi")"><path d="M0 20H280 M0 45H280 M0 69H280" class="chart-grid"/><polyline points="@Points(stream.Value)" /></svg> }
-                    else { <p class="monitor-note">Grafik için yeni ölçümler bekleniyor.</p> }
-                    <div class="metric-stats"><span>Min @stream.Value.Min(p=>p.Value).ToString("G4")</span><span>Ort @stream.Value.Average(p=>p.Value).ToString("G4")</span><span>Maks @stream.Value.Max(p=>p.Value).ToString("G4")</span></div>
-                    <time class="reading-timestamp">@last.Time.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss")</time>
-                }</article>
-            }
-            </div>
-            @if(!TelemetrySensors.Any()) { <p class="monitor-note">Filtreye uygun ölçüm sensörü bulunmuyor.</p> }
-            }
-        </section>
-    </div>
-    <section class="monitor-summary"><article><span>Bağlı sensör</span><strong>@_sensors.Count</strong><small>@_sensors.Count(IsCamera) kamera</small></article><article><span>Güncel ölçüm</span><strong>@FreshCount</strong><small>Son 2 dakika</small></article><article><span>Veri bekleyen ölçüm sensörü</span><strong>@_sensors.Count(s=>!IsCamera(s) && !IsFresh(s))</strong><small>Veri yok veya son ölçüm eski</small></article><article><span>İncelenen sensör</span><strong class="selected-name">@(_selected?.Name??"—")</strong><small>@(_selected is null?"":$"Kayıt: {_selected.CreatedAt.ToLocalTime():dd.MM.yyyy}")</small></article></section>
-    @if(CanRead && _sensors.Any(s=>!IsCamera(s))){
-    <section class="monitor-grafana">
-        <article><header><span class="monitor-kicker">BARAJ GENELİ</span><h2>Tüm sensörlerin akışı</h2><div class="grafana-filters"><select aria-label="Tüm sensörler grafik metriği" @bind="AllActiveMetric">@foreach(var metric in AllMetrics){<option value="@metric">@metric</option>}</select><select aria-label="Tüm sensörler zaman aralığı" @bind="_allRange"><option value="15m">Son 15 dakika</option><option value="1h">Son 1 saat</option><option value="6h">Son 6 saat</option><option value="24h">Son 24 saat</option></select></div><small>Tüm cihazlar · cihaz başına ayrı renkli seri</small></header>@if(AllMetrics.Any()){<iframe title="Baraj sensörleri ölçüm grafiği" src="@AllGrafanaUrl" loading="lazy"></iframe>}else{<p class="monitor-note">Metrik tanımı veya ölçüm bekleniyor.</p>}</article>
-        <article><header><span class="monitor-kicker">SENSÖR AYRINTISI</span><h2>@(_selected?.Name??"Sensör seçin")</h2><div class="grafana-filters"><select aria-label="Seçili sensör grafik metriği" @bind="ActiveMetric">@foreach(var metric in SelectedMetrics){<option value="@metric">@metric</option>}</select><select aria-label="Seçili sensör zaman aralığı" @bind="_selectedRange"><option value="15m">Son 15 dakika</option><option value="1h">Son 1 saat</option><option value="6h">Son 6 saat</option><option value="24h">Son 24 saat</option></select></div><small>Yalnızca seçili cihaz</small></header>@if(_selected is not null && !IsCamera(_selected)&&SelectedMetrics.Any()){<iframe title="Seçili sensör ölçüm grafiği" src="@SelectedGrafanaUrl" loading="lazy"></iframe>}</article>
-    </section> }
+<section class="twin-page monitor-page structure-detail">
+<header class="monitor-heading"><div><a href="/structures">← Barajlar</a><h1>@_structure.Name</h1><p>@_structure.Province · @_structure.District</p></div></header>
+@if (_dataError is not null) { <div class="alert alert-warning" role="status">@_dataError</div> }
+<div class="saha-category-tabs" aria-label="Sensör kategorisi">@foreach(var category in MonitoringHealth.Categories){<button class="@(_category==category?"selected":"")" aria-pressed="@(_category==category)" @onclick="()=>SetCategory(category)">@category</button>}</div>
+<div class="monitor-workbench">
+<section class="model-section">
+<DamModel3D Sensors="ModelSensors" ImageUrl="@PlanImageUrl" SelectedId="_selected?.Id" OnSelect="SelectSensor" StatusFor="SensorStatus" IsLiveFor="HasLiveData" />
+@if(_popup && _selected is not null) {
+<aside class="saha-sensor-popup twin-popup" role="dialog" aria-label="Sensör bilgisi"><button class="btn-close float-end" aria-label="Kapat" @onclick="()=>_popup=false"></button><h3>@_selected.Name</h3><p>@MonitoringHealth.Category(_selected.SensorType.ToString()) · <span class="health-text @SensorStatus(_selected)">@MonitoringHealth.Label(SensorStatus(_selected))</span></p><p>Son veri: @(LastSeen(_selected)?.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss") ?? "Henüz veri yok")</p><a class="btn btn-sm btn-primary" href="@SensorUrl(_selected)">Sensör detayına git</a></aside>
+}
+<p class="monitor-note">Sensöre tıklayarak bilgisini açın. Nabız efekti yalnız güncel veri alan sensörlerde gösterilir.</p>
 </section>
+<section class="live-section"><header><div><span class="monitor-kicker">TELEMETRİ</span><h2>Tüm Sensörlerin Canlı Akışı <small title="Ölçümler 10 saniyede bir yenilenir; her sayfada en fazla 10 sensör gösterilir."><i class="bi bi-info-circle"></i></small></h2></div><span class="refresh-label">10 sn</span></header>
+@if(!CanRead){<p>Ölçümleri görüntüleme yetkisi gerekiyor.</p>}else {
+<div class="sensor-filters telemetry-filters"><input aria-label="Telemetri sensörü ara" placeholder="Sensör adı veya cihaz ara…" @bind="TelemetrySearch" @bind:event="oninput" /><select aria-label="Telemetri sensör türü" @bind="TelemetryType"><option value="">Tüm türler</option>@foreach(var type in SensorTypes){<option value="@type">@type</option>}</select><select aria-label="Telemetri akış durumu" @bind="TelemetryStatus"><option value="">Tüm durumlar</option><option value="live">Akış alınıyor</option><option value="waiting">Veri bekleniyor</option></select></div>
+<div class="telemetry-list"><table class="telemetry-table"><thead><tr><th scope="col">Sensör adı</th><th scope="col">Ölçüm grafiği</th><th scope="col">Durum</th></tr></thead><tbody>
+@foreach(var sensor in TelemetrySensors.Skip(TelemetryPage*10).Take(10)) {
+var waveform=Waveform(sensor);var trend=Streams(sensor).FirstOrDefault(x=>x.Key.Metric is not ("ric_ok" or "sample_count" or "sampling_rate"));
+<tr class="telemetry-row" @key="sensor.Id" @onclick="@(()=>Navigation.NavigateTo(SensorUrl(sensor)))"><td><a class="telemetry-identity" href="@SensorUrl(sensor)"><i class="bi @DamModel3D.Icon(sensor)"></i><strong>@sensor.Name</strong><small>@sensor.DeviceId</small></a></td><td class="telemetry-spark">
+@if(IsCamera(sensor)){<span><i class="bi bi-camera-video"></i> Kamera görüntüsü</span>}
+else if(waveform.Count>1){<svg viewBox="0 0 280 70" preserveAspectRatio="none" class="stream-chart @(sensor.SensorType.ToString() is "Accelerometer" or "Vibration" ? "signal-gray" : "")" role="img" aria-label="@($"{sensor.Name} ölçüm grafiği")"><polyline points="@WaveformPoints(waveform)" /></svg>}
+else if(trend.Value is {Count:>1}){<svg viewBox="0 0 280 70" preserveAspectRatio="none" class="stream-chart @(sensor.SensorType.ToString() is "Accelerometer" or "Vibration" ? "signal-gray" : "")" role="img" aria-label="@($"{sensor.Name} ölçüm grafiği")"><polyline points="@Points(trend.Value)" /></svg>}
+else {<small>Grafik için ölçüm bekleniyor</small>}
+</td><td class="health-text @SensorStatus(sensor)">@MonitoringHealth.Label(SensorStatus(sensor)) <i class="bi bi-chevron-right"></i></td></tr>
+}
+</tbody></table></div>
+@if(!TelemetrySensors.Any()){<p class="monitor-note">Bu kategori ve filtrelere uygun sensör bulunamadı.</p>}
+<nav class="sensor-pagination" aria-label="Sensör sayfaları"><span>@TelemetrySensors.Count() sensör · @(TelemetryPage+1) / @TelemetryPageCount sayfa</span><button disabled="@(TelemetryPage==0)" @onclick="()=>_telemetryPage=TelemetryPage-1">Önceki</button><button disabled="@(TelemetryPage+1>=TelemetryPageCount)" @onclick="()=>_telemetryPage=TelemetryPage+1">Sonraki</button></nav>
+}
+</section>
+</div></section>
 }
 
+</div>
 @code {
     [Parameter] public Guid Id {get;set;}
     private Structure? _structure;
     private List<Sensor> _sensors=[];
     private Sensor? _selected;
     private bool _loading=true;
-    private bool _show3D;
+    private bool _popup;
+    private string _category="";
+    private int _telemetryPage;
+    private string TelemetrySearch {get=>_telemetrySearch;set{_telemetrySearch=value;_telemetryPage=0;}}
+    private string TelemetryType {get=>_telemetryType;set{_telemetryType=value;_telemetryPage=0;}}
+    private string TelemetryStatus {get=>_telemetryStatus;set{_telemetryStatus=value;_telemetryPage=0;}}
+    private int TelemetryPageCount=>Math.Max(1,(TelemetrySensors.Count()+9)/10);
+    private int TelemetryPage=>Math.Clamp(_telemetryPage,0,TelemetryPageCount-1);
+    private DateTime? LastSeen(Sensor s)=>Streams(s).SelectMany(x=>x.Value).Select(x=>(DateTime?)x.Time).Max();
+    private bool HasLiveData(Sensor s)=>IsFresh(s);
+    private string SensorStatus(Sensor s)=>MonitoringHealth.Sensor(LastSeen(s), s.Status.ToString() is "Warning" or "Alarm" ? s.Status.ToString() : null, [], DateTime.UtcNow);
+    private string SensorUrl(Sensor s)=>$"/sensor-dashboard?structureId={Id}&deviceId={Uri.EscapeDataString(s.DeviceId)}";
+    private void SetCategory(string category){_category=category;_telemetryPage=0;_telemetryType="";_popup=false;}
     private string PlanImageUrl => !string.IsNullOrWhiteSpace(_structure?.ImageUrl) ? _structure.ImageUrl : "/images/structures/" + (_structure?.StructureType.ToString().ToLowerInvariant() switch { "dam"=>"dam.svg", "bridge"=>"bridge.jpg", "tunnel"=>"tunnel.svg", "building"=>"building.svg", _=>"other.svg" });
     private string? _error, _dataError;
-    private string _metric="";
-    private string _allMetric="", _allRange="15m", _selectedRange="15m";
-    private string _modelSearch="", _modelType="", _telemetrySearch="", _telemetryType="", _telemetryStatus="";
-    private int _modelPage;
-    private string ModelSearch {get=>_modelSearch;set{_modelSearch=value;_modelPage=0;}}
-    private string ModelType {get=>_modelType;set{_modelType=value;_modelPage=0;}}
+    private string _telemetrySearch="", _telemetryType="", _telemetryStatus="";
     private IEnumerable<string> SensorTypes=>_sensors.Select(s=>s.SensorType.ToString()).Distinct().Order();
     private static bool Matches(Sensor sensor,string search,string type)=>(string.IsNullOrWhiteSpace(search)||(sensor.Name+" "+sensor.DeviceId).Contains(search.Trim(),StringComparison.CurrentCultureIgnoreCase))&&(type.Length==0||sensor.SensorType.ToString()==type);
-    private IEnumerable<Sensor> ModelSensors=>_sensors.Where(s=>Matches(s,_modelSearch,_modelType)).OrderBy(s=>s.Name).ThenBy(s=>s.Id);
-    private int ModelPageCount=>Math.Max(1,(ModelSensors.Count()+9)/10);
-    private int ModelPage=>Math.Clamp(_modelPage,0,ModelPageCount-1);
-    private IEnumerable<Sensor> TelemetrySensors=>_sensors.Where(s=>!IsCamera(s)&&Matches(s,_telemetrySearch,_telemetryType)&&(_telemetryStatus==""||(_telemetryStatus=="live"?IsFresh(s):!IsFresh(s)))).OrderBy(s=>s.Name).ThenBy(s=>s.Id);
+    private IReadOnlyList<Sensor> ModelSensors=>_sensors.Where(s=>MonitoringHealth.Category(s.SensorType.ToString())==_category).ToArray();
+    private IEnumerable<Sensor> TelemetrySensors=>_sensors.Where(s=>MonitoringHealth.Category(s.SensorType.ToString())==_category&&Matches(s,_telemetrySearch,_telemetryType)&&(_telemetryStatus==""||(_telemetryStatus=="live"?IsFresh(s):!IsFresh(s)))).OrderBy(s=>s.Name).ThenBy(s=>s.Id);
     private CancellationTokenSource? _loadCts;
     private readonly Dictionary<(Guid SensorId,string Metric),List<Reading>> _series=[];
     private readonly Dictionary<Guid,(List<double> Values,double? SamplingRate)> _waveforms=[];
@@ -113,20 +100,7 @@ else {
     private IEnumerable<KeyValuePair<(Guid SensorId,string Metric),List<Reading>>> Streams(Sensor s)=>_series.Where(x=>x.Key.SensorId==s.Id&&x.Value.Count>0);
     private IReadOnlyList<double> Waveform(Sensor sensor)=>_waveforms.TryGetValue(sensor.Id,out var waveform)?waveform.Values:[];
     private double? WaveformRate(Sensor sensor)=>_waveforms.TryGetValue(sensor.Id,out var waveform)?waveform.SamplingRate:null;
-    private bool IsFresh(Sensor s)=>Streams(s).Any(x=>x.Value.Last().Time.ToUniversalTime()>=DateTime.UtcNow.AddMinutes(-2));
-    private static string CanonicalMetric(string metric)=>metric switch { "samplingRate"=>"sampling_rate", "sampleCount"=>"sample_count", _=>metric };
-    private IEnumerable<string> MetricsFor(Sensor sensor)=>Streams(sensor).Select(x=>CanonicalMetric(x.Key.Metric)).Concat(sensor.Metrics.Split(',',StringSplitOptions.TrimEntries|StringSplitOptions.RemoveEmptyEntries).Select(CanonicalMetric)).Append(IsWaveformSensor(sensor)?"samples":string.Empty).Where(x=>x.Length>0).Distinct().Order();
-    private static bool IsWaveformSensor(Sensor sensor)=>sensor.SensorType.ToString() is "Accelerometer" or "Vibration";
-    private static string MetricLabel(string metric)=>metric switch { "ric_ok"=>"Okuma durumu", "sampling_rate"=>"Örnekleme hızı", "sample_count"=>"Paket örnek sayısı", _=>metric };
-    private static string MetricUnit(string metric,string fallback)=>metric=="sampling_rate"?"Hz":metric=="sample_count"?"örnek":metric=="ric_ok"?"1=başarılı":fallback;
-    private IEnumerable<string> SelectedMetrics=>_selected is null?[]:MetricsFor(_selected);
-    private IEnumerable<string> AllMetrics=>_sensors.Where(s=>!IsCamera(s)).SelectMany(MetricsFor).Distinct().Order();
-    private string ActiveMetric {get=>SelectedMetrics.Contains(_metric)?_metric:SelectedMetrics.FirstOrDefault()??"";set=>_metric=value;}
-    private string AllActiveMetric {get=>AllMetrics.Contains(_allMetric)?_allMetric:AllMetrics.FirstOrDefault()??"";set=>_allMetric=value;}
-    private static string DeviceFilter(IEnumerable<Sensor> sensors)=>"^("+string.Join("|",sensors.Select(s=>Regex.Escape(s.DeviceId)))+")$";
-    private string AllGrafanaUrl=>GrafanaOpts.Value.BuildPanelUrl(AllActiveMetric=="samples"?84:10,AllActiveMetric,DeviceFilter(_sensors.Where(s=>!IsCamera(s))),Id.ToString(),_allRange);
-    private string SelectedGrafanaUrl=>GrafanaOpts.Value.BuildPanelUrl(ActiveMetric=="samples"?84:10,ActiveMetric,_selected is null?null:DeviceFilter([_selected]),Id.ToString(),_selectedRange);
-
+    private bool IsFresh(Sensor s)=>LastSeen(s) is {} time && time.ToUniversalTime()>=DateTime.UtcNow.AddMinutes(-2) && time.ToUniversalTime()<=DateTime.UtcNow.AddSeconds(30);
     protected override void OnInitialized(){RealtimeState.OnSensorDataReceived+=OnSensor;}
     protected override async Task OnParametersSetAsync()=>await LoadAsync();
     private async Task LoadAsync(){
@@ -144,7 +118,8 @@ else {
             if(structure is null){_error="Baraj bulunamadı.";return;}
             var sensors=await StructuresUC.GetAllSensorsAsync(ct);ct.ThrowIfCancellationRequested();
             ApplyInventory(structure,sensors);
-            _selected=_sensors.FirstOrDefault(s=>!IsCamera(s));_metric="";_allMetric="";_modelPage=0;
+            _popup=false;_telemetryPage=0;_category=MonitoringHealth.Categories.FirstOrDefault(c=>_sensors.Any(s=>!IsCamera(s)&&MonitoringHealth.Category(s.SensorType.ToString())==c))??"Kamera";
+            _selected=_sensors.FirstOrDefault(s=>!IsCamera(s));_telemetrySearch="";_telemetryType="";_telemetryStatus="";
             _loading=false;await InvokeAsync(StateHasChanged);
             if(CanRead){await RefreshAsync(true,ct);if(!ct.IsCancellationRequested)_=PollAsync(ct);}
         }catch(OperationCanceledException){}catch{_error="Baraj verileri alınamadı.";}finally{if(!ct.IsCancellationRequested)_loading=false;}
@@ -177,7 +152,7 @@ else {
     }
     private static string Points(List<Reading> readings){var min=readings.Min(p=>p.Value);var span=readings.Max(p=>p.Value)-min;var start=readings[0].Time;var duration=Math.Max(1,(readings[^1].Time-start).TotalSeconds);return string.Join(" ",readings.Select(p=>FormattableString.Invariant($"{(p.Time-start).TotalSeconds/duration*280:0.##},{(span==0?35:65-(p.Value-min)/span*60):0.##}")));}
     private static string WaveformPoints(IReadOnlyList<double> samples){var min=samples.Min();var span=samples.Max()-min;return string.Join(" ",samples.Select((sample,index)=>FormattableString.Invariant($"{(double)index/Math.Max(1,samples.Count-1)*280:0.##},{(span==0?35:65-(sample-min)/span*60):0.##}")));}
-    private void SelectSensor(Sensor sensor){_selected=sensor;_metric="";if(IsCamera(sensor)&&_canMedia)Navigation.NavigateTo($"/media-dashboard?structureId={Id}&deviceId={Uri.EscapeDataString(sensor.DeviceId)}");}
+    private void SelectSensor(Sensor sensor){_selected=sensor;_popup=true;}
     private void OnSensor(SensorUpdatedEvent value)=>_=InvokeAsync(()=>{if(!CanRead||_loadCts?.IsCancellationRequested!=false||value.StructureId.HasValue&&value.StructureId!=Id)return;var sensor=_sensors.FirstOrDefault(s=>s.DeviceId==value.DeviceId);if(sensor is null)return;Add(sensor,value.Timestamp,value.AllMetrics.Count>0?value.AllMetrics:new Dictionary<string,double>{{value.MetricKey,value.CurrentValue}});StateHasChanged();});
     private sealed record MonitorRow(DateTime Timestamp, Dictionary<string,double> Metrics, List<double>? Samples, double? SamplingRate);
     private async Task<List<MonitorRow>> ReadHistory(Sensor sensor,CancellationToken ct){

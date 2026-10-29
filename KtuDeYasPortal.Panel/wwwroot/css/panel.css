@@ -318,10 +318,10 @@
 }
 
 /* ── Sensör durum renk yardımcıları ───────────────────────────────── */
-.sensor-marker-online  { background: #28a745; }
-.sensor-marker-warning { background: #ffc107; }
-.sensor-marker-alarm   { background: #dc3545; animation: pulse-alarm 1.2s infinite; }
-.sensor-marker-offline { background: #6c757d; }
+.sensor-marker-online,
+.sensor-marker-warning,
+.sensor-marker-alarm,
+.sensor-marker-offline { background: #d1d5db; color: #374151; }
 
 @keyframes pulse-alarm {
     0%, 100% { box-shadow: 0 0 0 0 rgba(220,53,69,0.6); }

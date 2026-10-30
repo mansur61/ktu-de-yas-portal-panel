@@ -61,7 +61,15 @@ else
     private bool _menuOpen;
     private bool _drawerOpen;
 
-    private bool IsTwin   => Navigation.ToBaseRelativePath(Navigation.Uri).Split('?')[0].Trim('/') is "digital-twin";
+    private bool IsTwin
+    {
+        get
+        {
+            var path = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].Trim('/');
+            return path.Equals("digital-twin", StringComparison.OrdinalIgnoreCase)
+                || path.StartsWith("digital-twin/", StringComparison.OrdinalIgnoreCase);
+        }
+    }
     private bool IsOpMap  => Navigation.ToBaseRelativePath(Navigation.Uri).Split('?')[0].Trim('/') is "";
 
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;

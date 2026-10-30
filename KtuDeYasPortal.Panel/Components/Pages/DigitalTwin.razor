@@ -22,7 +22,6 @@ else if (_structure is null) { <div class="dy-empty"><h1>Baraj açılamadı</h1>
 else {
 <section class="twin-page monitor-page structure-detail">
 <header class="monitor-heading"><div><a href="/structures">← Barajlar</a><h1>@_structure.Name</h1><p>@_structure.Province · @_structure.District</p></div></header>
-@if (_dataError is not null) { <div class="alert alert-warning" role="status">@_dataError</div> }
 <div class="saha-category-tabs" aria-label="Sensör kategorisi">@foreach(var category in MonitoringHealth.Categories){<button class="@(_category==category?"selected":"")" aria-pressed="@(_category==category)" @onclick="()=>SetCategory(category)">@category</button>}</div>
 <div class="monitor-workbench">
 <section class="model-section">

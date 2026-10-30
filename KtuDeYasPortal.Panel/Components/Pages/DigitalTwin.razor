@@ -34,19 +34,19 @@ else {
 <section class="live-section"><header><div><span class="monitor-kicker">TELEMETRİ</span><h2>Tüm Sensörlerin Canlı Akışı <small title="Ölçümler 10 saniyede bir yenilenir; her sayfada en fazla 10 sensör gösterilir."><i class="bi bi-info-circle"></i></small></h2></div><span class="refresh-label">10 sn</span></header>
 @if(!CanRead){<p>Ölçümleri görüntüleme yetkisi gerekiyor.</p>}else {
 <div class="sensor-filters telemetry-filters"><input aria-label="Telemetri sensörü ara" placeholder="Sensör adı veya cihaz ara…" @bind="TelemetrySearch" @bind:event="oninput" /><select aria-label="Telemetri sensör türü" @bind="TelemetryType"><option value="">Tüm türler</option>@foreach(var type in SensorTypes){<option value="@type">@type</option>}</select><select aria-label="Telemetri akış durumu" @bind="TelemetryStatus"><option value="">Tüm durumlar</option><option value="live">Akış alınıyor</option><option value="waiting">Veri bekleniyor</option></select></div>
-<div class="telemetry-list"><table class="telemetry-table"><thead><tr><th scope="col">Sensör adı</th><th scope="col">Ölçüm grafiği</th><th scope="col">Durum</th></tr></thead><tbody>
+<nav class="sensor-pagination" aria-label="Sensör sayfaları"><span>@TelemetrySensors.Count() sensör · @(TelemetryPage+1) / @TelemetryPageCount sayfa</span><button disabled="@(TelemetryPage==0)" @onclick="()=>_telemetryPage=TelemetryPage-1">Önceki</button><button disabled="@(TelemetryPage+1>=TelemetryPageCount)" @onclick="()=>_telemetryPage=TelemetryPage+1">Sonraki</button></nav>
+<div class="telemetry-list"><table class="telemetry-table"><thead><tr><th scope="col">Sensör adı</th><th scope="col">Sensör tipi</th><th scope="col">Ölçüm grafiği</th><th scope="col">Durum</th></tr></thead><tbody>
 @foreach(var sensor in TelemetrySensors.Skip(TelemetryPage*10).Take(10)) {
 var waveform=Waveform(sensor);var trend=Streams(sensor).FirstOrDefault(x=>x.Key.Metric is not ("ric_ok" or "sample_count" or "sampling_rate"));
-<tr class="telemetry-row" @key="sensor.Id" @onclick="@(()=>Navigation.NavigateTo(SensorUrl(sensor)))"><td><a class="telemetry-identity" href="@SensorUrl(sensor)"><i class="bi @DamModel3D.Icon(sensor)"></i><strong>@sensor.Name</strong><small>@sensor.DeviceId</small></a></td><td class="telemetry-spark">
+<tr class="telemetry-row" @key="sensor.Id" @onclick="@(()=>Navigation.NavigateTo(SensorUrl(sensor)))"><td><a class="telemetry-identity" href="@SensorUrl(sensor)"><i class="bi @DamModel3D.Icon(sensor)"></i><strong>@SensorDisplay.Name(sensor.Name, sensor.SensorType.ToString())</strong><small>@sensor.DeviceId</small></a></td><td class="telemetry-type">@SensorDisplay.TypeLabel(sensor.SensorType.ToString(), sensor.Name)</td><td class="telemetry-spark">
 @if(IsCamera(sensor)){<span><i class="bi bi-camera-video"></i> Kamera görüntüsü</span>}
 else if(waveform.Count>1){<svg viewBox="0 0 280 70" preserveAspectRatio="none" class="stream-chart @(sensor.SensorType.ToString() is "Accelerometer" or "Vibration" ? "signal-gray" : "")" role="img" aria-label="@($"{sensor.Name} ölçüm grafiği")"><polyline points="@WaveformPoints(waveform)" /></svg>}
 else if(trend.Value is {Count:>1}){<svg viewBox="0 0 280 70" preserveAspectRatio="none" class="stream-chart @(sensor.SensorType.ToString() is "Accelerometer" or "Vibration" ? "signal-gray" : "")" role="img" aria-label="@($"{sensor.Name} ölçüm grafiği")"><polyline points="@Points(trend.Value)" /></svg>}
 else {<small>Grafik için ölçüm bekleniyor</small>}
-</td><td class="health-text @SensorStatus(sensor)">@MonitoringHealth.Label(SensorStatus(sensor)) <i class="bi bi-chevron-right"></i></td></tr>
+</td><td class="health-text @SensorStatus(sensor)">@(SensorStatus(sensor)=="no-data" ? "Güncel veri bekleniyor" : MonitoringHealth.Label(SensorStatus(sensor))) <i class="bi bi-chevron-right"></i></td></tr>
 }
 </tbody></table></div>
 @if(!TelemetrySensors.Any()){<p class="monitor-note">Bu kategori ve filtrelere uygun sensör bulunamadı.</p>}
-<nav class="sensor-pagination" aria-label="Sensör sayfaları"><span>@TelemetrySensors.Count() sensör · @(TelemetryPage+1) / @TelemetryPageCount sayfa</span><button disabled="@(TelemetryPage==0)" @onclick="()=>_telemetryPage=TelemetryPage-1">Önceki</button><button disabled="@(TelemetryPage+1>=TelemetryPageCount)" @onclick="()=>_telemetryPage=TelemetryPage+1">Sonraki</button></nav>
 }
 </section>
 </div></section>

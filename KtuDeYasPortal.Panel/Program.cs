@@ -1,3 +1,4 @@
+using DeYas.DigitalTwin;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.DataProtection;
@@ -151,6 +152,8 @@ app.MapGet("/media-preview/{fileName}", (string fileName, IConfiguration configu
     if (!System.IO.File.Exists(path)) return Results.NotFound();
     return Results.File(path, GetMediaPreviewContentType(path), fileDownloadName: safeName);
 }).RequireAuthorization("platform.admin");
+
+app.MapInstitutionalBackground();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();

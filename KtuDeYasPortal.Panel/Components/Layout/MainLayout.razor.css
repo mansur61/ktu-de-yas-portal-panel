@@ -173,3 +173,21 @@ main {
         right: 0.75rem;
         top: 0.5rem;
     }
+.dt-shell.dt-menu-open > .sidebar {
+    display: flex !important;
+    flex-direction: column;
+    height: calc(100dvh - 62px);
+    overflow: hidden;
+}
+
+.dt-shell.dt-menu-open > .sidebar ::deep .dy-brand {
+    flex-shrink: 0;
+}
+
+.dt-shell.dt-menu-open > .sidebar ::deep .dy-nav {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}

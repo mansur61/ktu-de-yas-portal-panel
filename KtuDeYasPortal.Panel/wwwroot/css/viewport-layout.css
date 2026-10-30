@@ -1,0 +1,74 @@
+/* Shared institutional canvas; content remains readable over the landscape. */
+#main-content{background:linear-gradient(#f3f7fab8,#f3f7fad1),var(--institutional-background,url('/institutional-background')) center top/cover fixed;min-height:calc(100dvh - 76px)}
+#main-content .summary-home,#main-content .panel-twin-screen{background:transparent}
+#main-content .monitor-page{background:transparent;padding:12px 0}
+#main-content .monitor-heading{min-height:0;padding:10px 16px;margin-bottom:10px;border-radius:12px;background:#ffffffdc;gap:12px}
+#main-content .monitor-heading h1{font-size:clamp(20px,1.7vw,28px);margin:4px 0;letter-spacing:-.4px}
+#main-content .monitor-heading p{margin:0;font-size:13px}
+#main-content .monitor-heading .btn{font-size:14px;font-weight:650;background:#234c64;color:white;border-color:#234c64;padding:10px 16px}
+#main-content .monitor-summary{margin-bottom:8px;gap:10px}
+#main-content .monitor-summary article{padding:8px 14px}
+#main-content .saha-category-tabs{margin:8px 0}
+#main-content .saha-category-tabs button{font-size:12px}
+#main-content .model-section .dam-scene{min-height:220px;height:100%;flex:1}
+#main-content .model-world{transform:scale(.65) rotateX(28deg) rotateY(-18deg)}
+#main-content .model-interaction-error{position:absolute;left:18px;bottom:45px;z-index:5;color:#e6f1f5;background:#183849;padding:6px 10px;border-radius:6px;font-size:12px}
+#main-content .model-detail-link{position:absolute;top:16px;right:18px;z-index:5;color:#173c52;background:#edf4f8;border:1px solid #b3c9d5;border-radius:8px;padding:9px 13px;font-size:13px;font-weight:700;text-decoration:none}
+#main-content .model-caption{max-width:calc(100% - 200px)}
+#main-content .model-caption span{color:#d9e5ee;font-size:13px}
+#main-content .model-controls{font-size:12px}
+#main-content .model-perspective{inset:64px 8px 48px}
+#main-content .live-section{display:flex;flex-direction:column;min-height:0;padding:12px}
+#main-content .live-section h2{font-size:clamp(16px,1.3vw,21px);margin:3px 0 8px}
+#main-content .sensor-pagination{order:0;flex:none;margin:0 0 10px;padding:8px;background:#f3f6f9;border-radius:8px;font-size:12px;flex-wrap:wrap}
+#main-content .sensor-pagination button{padding:6px 10px}
+#main-content .telemetry-list{min-height:0;flex:1;overflow:auto}
+#main-content .telemetry-table thead{position:sticky;top:0;background:white;z-index:1}
+#main-content .telemetry-table td{height:clamp(40px,5.5dvh,70px);padding:5px 7px}
+#main-content .telemetry-table .stream-chart{height:clamp(24px,3.8dvh,46px)}
+#main-content .telemetry-identity strong{font-size:12px;line-height:1.3}
+#main-content .telemetry-table .health-text{font-size:11px;font-weight:600}
+#main-content .telemetry-table .health-text.no-data{color:#657586}
+#main-content .telemetry-table th:last-child{width:110px}
+#main-content .telemetry-type{font-size:11px;color:#4d6273;overflow-wrap:anywhere}
+#main-content .telemetry-table th:nth-child(2){width:22%}
+#main-content .monitor-note{margin:4px 0;font-size:11px}
+.measurement-heading{background:#ffffffde;border:1px solid #dce5ed;border-radius:12px;padding:14px 18px;margin-bottom:14px}
+.measurement-heading h1{font-size:24px;margin:0 0 4px;color:#234c64}.measurement-heading p{margin:0;color:#637b88;font-size:13px}
+.measurement-page iframe{height:clamp(240px,calc(100dvh - 330px),800px)!important}
+.archive-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}.archive-grid article{background:white;border:1px solid #dce5ed;border-radius:12px;padding:12px}.archive-grid img{width:100%;height:150px;object-fit:contain;background:#eef2f5}.archive-player{width:100%;max-height:45dvh;background:#13222d}.archive-grid h3{font-size:14px;margin:8px 0}.archive-grid time{font-size:12px;color:#657586}
+@media(min-width:1001px) and (min-height:620px){
+ #main-content .twin-page{height:calc(100dvh - 108px);display:flex;flex-direction:column;min-height:0}
+ #main-content .monitor-workbench{flex:1;min-height:220px;grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+ #main-content .structure-overview .monitor-workbench{grid-template-columns:1fr}
+ #main-content .model-section{min-height:0;display:flex;flex-direction:column}
+ #main-content .panel-twin-screen .twin-page{height:calc(100dvh - 155px)}
+ #main-content .telemetry-list{overflow:hidden}
+ #main-content .telemetry-table{height:100%;display:flex;flex-direction:column}
+ #main-content .telemetry-table thead{display:block;flex:none}
+ #main-content .telemetry-table thead tr,#main-content .telemetry-table .telemetry-row{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.8fr) minmax(0,1fr) minmax(80px,.65fr);gap:6px}
+ #main-content .telemetry-table th:nth-child(2),#main-content .telemetry-table th:last-child{width:auto}
+ #main-content .telemetry-table tbody{display:grid;grid-template-rows:repeat(10,minmax(0,1fr));flex:1;min-height:0}
+ #main-content .telemetry-table .telemetry-row{min-height:0;padding:0}
+ #main-content .telemetry-table td{height:auto;min-height:0;padding:3px 4px;display:flex;align-items:center}
+ #main-content .telemetry-spark{overflow:hidden}
+ #main-content .telemetry-spark .stream-chart{height:clamp(18px,calc((100dvh - 490px)/10),46px);min-height:0}
+ #main-content .telemetry-table .health-text{line-height:1.2}
+ #main-content .summary-home{height:calc(100dvh - 108px);display:flex;flex-direction:column;gap:10px;padding:10px}
+ #main-content .summary-home .operation-heading{min-height:90px;padding:12px 20px;margin:0}
+ #main-content .summary-home .operation-heading h1{font-size:24px;margin:4px 0}
+ #main-content .summary-home .operation-heading p{margin:0}
+ #main-content .summary-home .saha-kpis{margin:0;flex:none}
+ #main-content .summary-home .saha-kpis article{padding:10px 16px}
+ #main-content .summary-home .saha-kpis strong{font-size:27px}
+ #main-content .summary-home .saha-map{flex:1;height:auto;min-height:180px;margin:0}
+ #main-content .summary-home>.btn{align-self:flex-start}
+ #main-content .measurement-page{height:calc(100dvh - 140px);display:flex;flex-direction:column;min-height:0}
+ #main-content .measurement-page>.card:last-child{flex:1;min-height:0;display:flex;flex-direction:column}
+ #main-content .measurement-page>.card:last-child>.card-body{flex:1;min-height:0}
+ #main-content .measurement-page iframe{height:100%!important;min-height:180px}
+ #main-content .measurement-page .table-responsive{max-height:120px!important}
+ #main-content .measurement-page .archive-grid{min-height:0;overflow:auto}
+}
+@media(min-width:1001px) and (max-height:850px){#main-content .telemetry-identity small{display:none}#main-content .telemetry-identity i{display:none}#main-content .telemetry-identity strong{font-size:11px}#main-content .monitor-heading h1{font-size:21px}#main-content .monitor-summary strong{font-size:21px}#main-content .sensor-pagination{margin-bottom:5px;padding:4px}#main-content .telemetry-table th{padding:5px}}
+@media(max-width:1000px){#main-content .model-section .dam-scene{height:clamp(300px,52dvh,600px);min-height:300px;flex:none}#main-content .telemetry-list{max-height:55dvh}#main-content .model-caption{max-width:55%}#main-content .model-detail-link{font-size:11px;padding:7px;right:10px}.archive-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}

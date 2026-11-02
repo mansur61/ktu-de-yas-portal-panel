@@ -154,6 +154,15 @@
     text-overflow: ellipsis;
 }
 
+.structure-card-id {
+    margin-bottom: 6px;
+    color: #87909b;
+    font-size: 0.68rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .structure-card-sub {
     font-size: 0.78rem;
     color: #6c757d;

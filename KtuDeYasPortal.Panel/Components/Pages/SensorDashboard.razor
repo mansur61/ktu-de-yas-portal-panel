@@ -383,8 +383,8 @@ else
                                 </div>
                                 <div class="card-footer py-1 px-2 bg-transparent">
                                     <button class="btn btn-sm w-100 py-0 @(isWaveformActive ? "btn-primary" : "btn-outline-info")"
-                                            style="font-size:0.7rem" @onclick="() => ToggleSampleGrafana(sensor.DeviceId)">
-                                        <span class="bi bi-activity me-1"></span>@(isWaveformActive ? "Waveform Açık" : "Waveform Aç")
+                                            style="font-size:0.7rem" @onclick='() => ToggleGrafana(sensor.DeviceId, "samples")'>
+                                        <span class="bi bi-bar-chart-line me-1"></span>@(isWaveformActive ? "Grafana Açık" : "Grafana")
                                     </button>
                                 </div>
                             </div>
@@ -674,22 +674,18 @@ else
         }
         _grafanaDevice = deviceId;
         _grafanaMetric = metric;
-        _iframeSrc = GrafanaOpts.Value.BuildPanelUrl(
-            panelId: 10,
-            metricVar: metric,
-            deviceVar: deviceId,
-            structureId: _selectedStructureId.ToString(),
-            timeRange: _selectedRange);
+        UpdateGrafanaUrl();
     }
 
-    private void ToggleSampleGrafana(string deviceId)
+    private void UpdateGrafanaUrl()
     {
-        if (_grafanaDevice == deviceId && _grafanaMetric == "samples") { CloseGrafana(); return; }
-        _grafanaDevice = deviceId;
-        _grafanaMetric = "samples";
+        var isSamples = _grafanaMetric == "samples";
         _iframeSrc = GrafanaOpts.Value.BuildPanelUrl(
-            panelId: 84, metricVar: "samples", deviceVar: deviceId,
-            structureId: _selectedStructureId.ToString(), timeRange: _selectedRange);
+            panelId: isSamples ? 84 : 10,
+            metricVar: isSamples ? "samples" : _grafanaMetric,
+            deviceVar: _grafanaDevice,
+            structureId: _selectedStructureId.ToString(),
+            timeRange: _selectedRange);
     }
 
     private void CloseGrafana()
@@ -702,7 +698,7 @@ else
     private void OnRangeChanged()
     {
         if (!string.IsNullOrEmpty(_iframeSrc))
-            ToggleGrafana(_grafanaDevice, _grafanaMetric);
+            UpdateGrafanaUrl();
     }
 
     // ── Refresh ────────────────────────────────────────────────────────────────

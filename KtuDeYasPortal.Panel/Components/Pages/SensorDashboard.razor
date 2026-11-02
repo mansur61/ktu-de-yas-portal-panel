@@ -382,9 +382,9 @@ else
                                     <div class="small mt-2 text-muted">Ölçümler metrik kartına dönüştürülmeden ham örnek dizisi olarak izlenir.</div>
                                 </div>
                                 <div class="card-footer py-1 px-2 bg-transparent">
-                                    <button class="btn btn-sm w-100 py-0 @(isWaveformActive ? "btn-primary" : "btn-outline-info")"
+                                    <button class="btn btn-sm w-100 py-0 @(isWaveformActive ? "btn-primary" : "btn-outline-secondary")"
                                             style="font-size:0.7rem" @onclick='() => ToggleGrafana(sensor.DeviceId, "samples")'>
-                                        <span class="bi bi-bar-chart-line me-1"></span>@(isWaveformActive ? "Grafana Açık" : "Grafana")
+                                        <span class="bi bi-bar-chart-line me-1"></span>@GrafanaActionLabel(isWaveformActive)
                                     </button>
                                 </div>
                             </div>
@@ -460,7 +460,7 @@ else
                                             style="font-size:0.7rem"
                                             @onclick="() => ToggleGrafana(sensor.DeviceId, metric)">
                                         <span class="bi bi-bar-chart-line me-1"></span>
-                                        @(isGrafanaActive ? "Grafana Açık" : "Grafana")
+                                        @GrafanaActionLabel(isGrafanaActive)
                                     </button>
                                 </div>
                             </div>
@@ -676,6 +676,8 @@ else
         _grafanaMetric = metric;
         UpdateGrafanaUrl();
     }
+
+    private static string GrafanaActionLabel(bool isActive) => isActive ? "Grafana Açık" : "Grafana";
 
     private void UpdateGrafanaUrl()
     {

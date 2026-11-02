@@ -18,9 +18,11 @@ public sealed record MediaAsset(
     string Status,
     bool IsProtected);
 
+public sealed record MediaArchivePage(IReadOnlyList<MediaAsset> Items, string? NextCursor, long? TotalCount);
+
 public interface IMediaArchiveClient
 {
-    Task<IReadOnlyList<MediaAsset>> ListAsync(string? structureId, string? deviceId, DateTime? from, DateTime? to, CancellationToken ct = default);
+    Task<MediaArchivePage> ListPageAsync(string? structureId, string? deviceId, DateTime? from, DateTime? to, string? type, string? cursor, int pageSize, CancellationToken ct = default);
     Task SetProtectionAsync(MediaAsset asset, bool isProtected, CancellationToken ct = default);
     Task<string?> GetPresignedUrlAsync(string bucket, string? key, CancellationToken ct = default);
 }
@@ -30,16 +32,21 @@ public sealed class MediaArchiveHttpClient : IMediaArchiveClient
     private readonly HttpClient _http;
     public MediaArchiveHttpClient(KtuDeYasPortal.Panel.Infrastructure.Persistence.PanelApiClients factory) => _http = factory.CreateClient("video-api");
 
-    public async Task<IReadOnlyList<MediaAsset>> ListAsync(string? structureId, string? deviceId, DateTime? from, DateTime? to, CancellationToken ct = default)
+    public async Task<MediaArchivePage> ListPageAsync(
+        string? structureId, string? deviceId, DateTime? from, DateTime? to, string? type, string? cursor, int pageSize, CancellationToken ct = default)
     {
-        var query = $"structureId={Uri.EscapeDataString(structureId ?? string.Empty)}&deviceId={Uri.EscapeDataString(deviceId ?? string.Empty)}&limit=100";
+        var query = $"structureId={Uri.EscapeDataString(structureId ?? string.Empty)}&deviceId={Uri.EscapeDataString(deviceId ?? string.Empty)}&pageSize={pageSize}";
         if (from is not null) query += $"&from={Uri.EscapeDataString(from.Value.ToString("O"))}";
         if (to is not null) query += $"&to={Uri.EscapeDataString(to.Value.ToString("O"))}";
+        if (!string.IsNullOrWhiteSpace(type)) query += $"&type={Uri.EscapeDataString(type)}";
+        if (!string.IsNullOrWhiteSpace(cursor)) query += $"&cursor={Uri.EscapeDataString(cursor)}";
 
-        var videos = await _http.GetFromJsonAsync<List<VideoDto>>($"api/videos?{query}", ct) ?? [];
-        var images = await _http.GetFromJsonAsync<List<ImageDto>>($"api/images?{query}", ct) ?? [];
-        return videos.Select(item => item.ToAsset()).Concat(images.Select(item => item.ToAsset()))
-            .OrderByDescending(item => item.CapturedAt).ToList();
+        var response = await _http.GetFromJsonAsync<MediaArchivePageDto>($"api/media?{query}", ct)
+            ?? throw new InvalidDataException("Media archive returned an empty response.");
+        return new MediaArchivePage(
+            response.Items.Select(item => item.ToAsset()).ToList(),
+            response.NextCursor,
+            response.TotalCount);
     }
 
     public async Task<string?> GetPresignedUrlAsync(string bucket, string? key, CancellationToken ct = default)
@@ -56,6 +63,24 @@ public sealed class MediaArchiveHttpClient : IMediaArchiveClient
     }
 
     private sealed class PresignDto { public string? Url { get; set; } }
+    private sealed class MediaArchivePageDto
+    {
+        public List<MediaDto> Items { get; set; } = [];
+        public string? NextCursor { get; set; }
+        public long? TotalCount { get; set; }
+    }
+    private sealed class MediaDto
+    {
+        public Guid Id { get; set; } public string DeviceId { get; set; } = ""; public string LocationId { get; set; } = "";
+        public DateTime CapturedAt { get; set; } public string Kind { get; set; } = "";
+        public int? DurationSeconds { get; set; } public int? Width { get; set; } public int? Height { get; set; }
+        public string? Format { get; set; } public long? FileSizeBytes { get; set; }
+        public string Bucket { get; set; } = ""; public string? ObjectKey { get; set; }
+        public string? ThumbnailBucket { get; set; } public string? ThumbnailKey { get; set; }
+        public string Status { get; set; } = ""; public bool IsProtected { get; set; }
+        public MediaAsset ToAsset() => new(Id, DeviceId, LocationId, CapturedAt, Kind, DurationSeconds, Format, FileSizeBytes,
+            Bucket, ObjectKey, ThumbnailBucket, ThumbnailKey, Status, IsProtected);
+    }
     private sealed class VideoDto
     {
         public Guid Id { get; set; } public string DeviceId { get; set; } = ""; public string LocationId { get; set; } = "";

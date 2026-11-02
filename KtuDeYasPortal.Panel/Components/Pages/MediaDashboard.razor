@@ -26,10 +26,6 @@
 <div class="card shadow-sm mb-3"><div class="card-body"><div class="row g-2 align-items-end">
     <div class="col-lg-3 col-md-6"><label class="form-label small">Yapı</label><select class="form-select" @bind="_structureId" @bind:after="OnStructureFilterChanged"><option value="">Tüm yapılar</option>@foreach (var item in _structures) { <option value="@item.Id">@item.Name</option> }</select></div>
     <div class="col-lg-3 col-md-6"><label class="form-label small">Kamera</label><select class="form-select" @bind="_deviceId"><option value="">Tüm kameralar</option>@foreach (var item in Cameras) { <option value="@item.DeviceId">@item.EffectiveDisplayName (@item.DeviceId)</option> }</select></div>
-    @if (_tab == MediaTab.Archive)
-    {
-        <div class="col-lg-2 col-md-6"><label class="form-label small">Medya tipi</label><select class="form-select" @bind="_mediaType"><option value="">Tümü</option><option value="video">Video</option><option value="image">Fotoğraf</option></select></div>
-    }
     <div class="col-lg-2 col-md-6"><label class="form-label small">Arşiv başlangıcı</label><input class="form-control" type="datetime-local" @bind="_from" /></div>
     <div class="col-lg-2 col-md-6"><label class="form-label small">Arşiv bitişi</label><input class="form-control" type="datetime-local" @bind="_to" /></div>
     <div class="col-lg-2 col-md-6 d-grid"><button class="btn btn-primary" @onclick="LoadAsync">Filtrele</button></div>
@@ -37,7 +33,13 @@
 
 <div class="nav nav-tabs mb-3">
     <button class="nav-link @(_tab == MediaTab.Live ? "active" : "")" @onclick="() => SelectTabAsync(MediaTab.Live)">Canlı görüntü</button>
-    <button class="nav-link @(_tab == MediaTab.Archive ? "active" : "")" @onclick="() => SelectTabAsync(MediaTab.Archive)">Medya Arşivi (@_assets.Count)</button>
+    <button class="nav-link @(_tab == MediaTab.Archive ? "active" : "")" @onclick="() => SelectTabAsync(MediaTab.Archive)">
+        Medya Arşivi
+        @if (_archiveTotalCount.GetValueOrDefault() > 0)
+        {
+            <span class="badge rounded-pill text-bg-secondary ms-2" aria-label="@($"{_archiveTotalCount.GetValueOrDefault():N0} medya kaydı")">@_archiveTotalCount.GetValueOrDefault().ToString("N0")</span>
+        }
+    </button>
 </div>
 
 @if (_tab == MediaTab.Live)
@@ -68,12 +70,21 @@
 @if (!string.IsNullOrWhiteSpace(_error)) { <div class="alert alert-danger">@_error</div> }
 @if (_loading) { <div class="text-center py-5"><span class="spinner-border text-primary"></span></div> }
 else if (_tab == MediaTab.Archive && !VisibleAssets.Any()) { <div class="alert alert-light border"><span class="bi bi-camera-video me-2"></span>Bu filtrede merkezi arşive ulaşmış medya kaydı yok.</div> }
-else if (_tab == MediaTab.Archive) { <div class="row g-3">
+else if (_tab == MediaTab.Archive) {
+    @if (_page > 0 || _nextCursor is not null)
+    {
+        <nav class="d-flex justify-content-end align-items-center gap-2 mb-3" aria-label="Medya arşivi sayfaları">
+            <span class="small text-muted me-2">Sayfa @(_page + 1) · @_assets.Count kayıt</span>
+            <button class="btn btn-sm btn-outline-secondary" disabled="@(_loading || _page == 0)" @onclick="PreviousPageAsync">Önceki</button>
+            <button class="btn btn-sm btn-outline-secondary" disabled="@(_loading || _nextCursor is null)" @onclick="NextPageAsync">Sonraki</button>
+        </nav>
+    }
+    <div class="row g-3">
     @foreach (var asset in VisibleAssets)
     {
         <div class="col-sm-6 col-xl-3"><article class="card h-100 shadow-sm">
             <div class="card-body">
-                <div class="d-flex justify-content-between"><span class="badge @(asset.Kind == "video" ? "text-bg-primary" : "text-bg-success")">@(asset.Kind == "video" ? "Klip" : "Snapshot")</span><small class="text-muted">@asset.CapturedAt.ToLocalTime().ToString("dd.MM HH:mm:ss")</small></div>
+                <div class="d-flex justify-content-between"><span class="badge text-bg-primary">Klip</span><small class="text-muted">@asset.CapturedAt.ToLocalTime().ToString("dd.MM HH:mm:ss")</small></div>
                 <h6 class="mt-3 mb-1 text-truncate"><span class="bi bi-camera me-1"></span>@asset.DeviceId</h6>
                 <div class="small text-muted">@asset.LocationId · @ArchiveStatus(asset.Status)</div>
                 <div class="small text-muted mt-2">@FormatSize(asset.FileSizeBytes)@(asset.DurationSeconds is not null ? $" · {asset.DurationSeconds} sn" : "")</div>
@@ -85,7 +96,8 @@ else if (_tab == MediaTab.Archive) { <div class="row g-3">
             <div class="card-footer bg-white border-0 pt-0"><button class="btn btn-sm btn-outline-primary w-100" @onclick="() => OpenAsync(asset)"><span class="bi bi-play-circle me-1"></span>Görüntüle</button></div>
         </article></div>
     }
-</div>}
+    </div>
+}
 
 @if (_selected is not null)
 {
@@ -157,7 +169,6 @@ else if (_tab == MediaTab.Archive) { <div class="row g-3">
             _to = DateTime.Now;
             if (_from > _to) _from = _to.Value.AddHours(-24);
             _tab = MediaTab.Archive;
-            _mediaType = "video";
             await LoadAsync();
         }
         catch (Exception ex) { _error = ex.Message; }
@@ -169,18 +180,61 @@ else if (_tab == MediaTab.Archive) { <div class="row g-3">
     private List<MediaAsset> _assets = [];
     private string _structureId = "", _deviceId = "";
     private DateTime? _from = DateTime.Now.AddHours(-24), _to = DateTime.Now;
-    private string _mediaType = string.Empty;
     private bool _loading, _previewLoading; private string? _error, _previewUrl, _previewError; private MediaAsset? _selected;
+    private long? _archiveTotalCount;
     private Guid? _protectionInfoAssetId;
     private MediaTab _tab = MediaTab.Live;
-    private IEnumerable<MediaAsset> VisibleAssets => _assets.Where(asset =>
-        string.IsNullOrWhiteSpace(_mediaType) ||
-        (string.Equals(_mediaType, "video", StringComparison.OrdinalIgnoreCase)
-            ? string.Equals(asset.Kind, "video", StringComparison.OrdinalIgnoreCase)
-            : !string.Equals(asset.Kind, "video", StringComparison.OrdinalIgnoreCase)));
+    private const int ArchivePageSize = 50;
+    private List<string?> _cursorStack = [null];
+    private string? _nextCursor;
+    private int _page;
+    private IEnumerable<MediaAsset> VisibleAssets => _assets;
     private IEnumerable<StructureSensor> Cameras => _structures.Where(s => string.IsNullOrWhiteSpace(_structureId) || s.Id.ToString() == _structureId).SelectMany(s => s.Sensors).Where(s => s.SensorType.Equals("Camera", StringComparison.OrdinalIgnoreCase));
     protected override async Task OnInitializedAsync() { _mediaAccess = await Access.GetAsync(BarajPermissions.Media, PortalMenuPermissions.Media); _manageAccess = await Access.GetAsync(BarajPermissions.Manage, PortalMenuPermissions.Media); _structures = (await StructureUC.GetAllAsync()).Where(s => _mediaAccess.IsAdmin || _mediaAccess.StructureIds.Contains(s.Id)).ToList(); foreach (var s in _structures) { var detail = await StructureUC.GetByIdAsync(s.Id); if (detail is not null) s.Sensors = detail.Sensors; } if(_structures.Any(s=>s.Id==QueryStructureId)) { _structureId=QueryStructureId!.Value.ToString(); if(Cameras.Any(c=>c.DeviceId==QueryDeviceId))_deviceId=QueryDeviceId!; } await LoadAsync(); if (QueryStructureId is not null && !string.IsNullOrWhiteSpace(QueryDeviceId) && CanLive) await StartLiveAsync(); }
-    private async Task LoadAsync() { _loading = true; _error = null; try { _assets = (await MediaArchive.ListAsync(_structureId, _deviceId, _from?.ToUniversalTime(), _to?.ToUniversalTime())).ToList(); } catch (Exception ex) { _error = $"Medya arşivi okunamadı: {ex.Message}"; } finally { _loading = false; } }
+    private async Task LoadAsync()
+    {
+        _cursorStack = [null];
+        _page = 0;
+        _archiveTotalCount = null;
+        await LoadPageAsync(null);
+    }
+    private async Task<bool> LoadPageAsync(string? cursor)
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            var result = await MediaArchive.ListPageAsync(
+                _structureId, _deviceId, _from?.ToUniversalTime(), _to?.ToUniversalTime(),
+                "video", cursor, ArchivePageSize);
+            _assets = result.Items.ToList();
+            _nextCursor = result.NextCursor;
+            if (result.TotalCount.HasValue) _archiveTotalCount = result.TotalCount;
+            return true;
+        }
+        catch (Exception ex) { _assets = []; _nextCursor = null; _archiveTotalCount = null; _error = $"Medya arşivi okunamadı: {ex.Message}"; return false; }
+        finally { _loading = false; }
+    }
+    private async Task NextPageAsync()
+    {
+        if (_nextCursor is null) return;
+        var cursor = _nextCursor;
+        if (_cursorStack.Count > _page + 1)
+            _cursorStack.RemoveRange(_page + 1, _cursorStack.Count - _page - 1);
+        _cursorStack.Add(cursor);
+        _page++;
+        if (!await LoadPageAsync(cursor))
+        {
+            _cursorStack.RemoveAt(_cursorStack.Count - 1);
+            _page--;
+        }
+    }
+    private async Task PreviousPageAsync()
+    {
+        if (_page == 0) return;
+        _page--;
+        if (!await LoadPageAsync(_cursorStack[_page])) _page++;
+    }
     private Task OnStructureFilterChanged()
     {
         if (!Cameras.Any(camera => camera.DeviceId == _deviceId)) _deviceId = string.Empty;

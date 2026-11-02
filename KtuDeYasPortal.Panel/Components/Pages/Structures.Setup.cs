@@ -136,7 +136,7 @@ public partial class Structures
             }
             _newStructureSensors = structure.Sensors.Select(s => new Sensor
             {
-                Id = s.SensorId, Name = s.Name, DeviceId = s.DeviceId, ProtocolType = s.ProtocolType,
+                Id = s.SensorId, Name = s.Name, DisplayName = s.DisplayName, DeviceId = s.DeviceId, ProtocolType = s.ProtocolType,
                 IpAddress = s.IpAddress, Port = s.Port, TimeoutMs = s.TimeoutMs, Unit = s.Unit,
                 Metrics = s.Metrics, Topic = s.Topic, Description = s.Description,
                 SensorType = Enum.TryParse<DeYas.Contracts.Sensors.SensorType>(s.SensorType, out var type) ? type : DeYas.Contracts.Sensors.SensorType.Generic,

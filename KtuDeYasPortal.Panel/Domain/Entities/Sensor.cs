@@ -18,6 +18,8 @@ public class Sensor
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public string Name { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+    public string EffectiveDisplayName => DeYas.Contracts.SensorDisplay.ResolveName(DisplayName, Name, SensorType.ToString());
     public string DeviceId { get; set; } = string.Empty;
     public string LocationId { get; set; } = "default";
     public SensorType SensorType { get; set; } = SensorType.Generic;

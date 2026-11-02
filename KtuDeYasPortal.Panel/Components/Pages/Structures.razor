@@ -445,12 +445,12 @@
                   @foreach (var sensor in wizPaged) {
                     var wizIdx = _newStructureSensors.IndexOf(sensor);
                     <tr>
-                      <td><strong>@sensor.Name</strong><div class="dy-subtle small">@SensorSourceLabel(sensor)</div></td>
+                      <td><strong>@sensor.EffectiveDisplayName</strong><div class="dy-subtle small">@SensorSourceLabel(sensor)</div></td>
                       <td>@GetSensorTypeLabel(sensor.SensorType.ToString())</td>
                       <td><span class="@(sensor.ImagePositionX.HasValue ? "text-success" : "text-muted") small">@(sensor.ImagePositionX.HasValue ? "✓ Konumlandırıldı" : "Seçilmedi (isteğe bağlı)")</span></td>
                       <td class="text-nowrap">
                         <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => PlaceWizardSensorAsync(sensor)">Görselde yerleştir</button>
-                        <button class="btn btn-sm btn-outline-danger" @onclick="() => RemoveWizardSensor(wizIdx)" aria-label="@($"{sensor.Name} sensörünü barajdan kaldır")">Kaldır</button>
+                        <button class="btn btn-sm btn-outline-danger" @onclick="() => RemoveWizardSensor(wizIdx)" aria-label="@($"{sensor.EffectiveDisplayName} sensörünü barajdan kaldır")">Kaldır</button>
                       </td>
                     </tr>
                   }
@@ -595,7 +595,7 @@
                     <option value="">Konumu belirlenmemiş sensör seçin</option>
                     @foreach (var sensor in _editingStructure.Sensors.Where(s => !s.ImagePositionX.HasValue || !s.ImagePositionY.HasValue))
                     {
-                        <option value="@sensor.SensorId">@sensor.Name (@sensor.DeviceId)</option>
+                        <option value="@sensor.SensorId">@sensor.EffectiveDisplayName (@sensor.DeviceId)</option>
                     }
                 </select>
             </div>
@@ -731,7 +731,7 @@
                                 <tr>
                                     <td class="text-center">@icon</td>
                                     <td>
-                                        @ss.Name
+                                        @ss.EffectiveDisplayName
                                         @if (!string.IsNullOrEmpty(ss.SourceKind)) {
                                             <span class="badge bg-light text-muted border ms-1" style="font-size:0.6rem">@ss.SourceKind.ToUpperInvariant()</span>
                                         }
@@ -1323,7 +1323,6 @@
         new("DEYAS_BRIDGE_LOCATION_ID", "Bridge Konum Kimliği", "Hedef MQTT topic'indeki location_id bölümü.", "default"),
         new("DEYAS_BRIDGE_DEVICE_ID_PREFIX", "Device ID Öneki", "Eşleme yoksa üretilecek otomatik deviceId öneki.", "stream-"),
         new("DEYAS_BRIDGE_DEVICE_MAP", "Kaynak Stream/Metrik → Device ID Eşlemesi", "Bridge'in oluşturduğu stream'i sistemdeki kalıcı cihaz kimliğine bağlayan isteğe bağlı JSON nesnesidir. Çoklu scalar örneği: {\"mqtt/temperature\":\"baca-sicaklik\",\"mqtt/humidity\":\"baca-nem\"}. Eşleme yazılmazsa deviceId otomatik olarak stream-mqtt-temperature gibi üretilir.", "{}"),
-        new("DEYAS_BRIDGE_SENSOR_ID_MAP", "Stream → Sensor UUID Eşlemesi", "İsteğe bağlı JSON nesnesi; boş bırakılabilir. Örn: {\"mqtt/temperature\":\"11111111-1111-1111-1111-111111111111\"}.", "{}"),
         new("DEYAS_BRIDGE_MQTT_TOPIC_TEMPLATE", "Yerel Hedef MQTT Topic Şablonu", "Bridge'in yerel emqx'e yazdığı sözleşme topic'i; edge-layer uyumluluğu için varsayılanı değiştirmeyin.", "edge/sensors/{location_id}/{device_id}/data"),
         new("DEYAS_BRIDGE_MQTT_QOS", "Yerel Hedef MQTT QoS", "Bridge → yerel EMQX yayın QoS seviyesi.", "1"),
         new("DEYAS_BRIDGE_MQTT_CLIENT_ID", "Bridge MQTT Client ID", "Yerel MQTT bağlantısının istemci kimliği.", "deyas-saha-bridge"),
@@ -2450,7 +2449,8 @@
         structure.NodeRedUrl = BuildDeploymentPublicUrl(_newNodeRedUrl, _samePcDeployment ? _samePcNodeRedPort : null);
         structure.EdgeApiUrl = BuildDeploymentPublicUrl(_newEdgeApiUrl, _samePcDeployment ? _samePcEdgePort : null);
         var edgeConfig = BuildEdgeConfigJson(structure);
-        var environment = BuildSiteEnvironmentEnv();
+        var sensorIdMap = BuildSensorIdMap(structure.Sensors);
+        var environment = BuildSiteEnvironmentEnv(sensorIdMap);
         await using var output = new MemoryStream();
         using (var archive = new System.IO.Compression.ZipArchive(output, System.IO.Compression.ZipArchiveMode.Create, true))
         {
@@ -2599,10 +2599,8 @@
         var bindings=ReadSensorBindings();
         if(bindings.Remove(removedId,out var binding)) {
             SetEnv("DEYAS_SETUP_SENSOR_BINDINGS",System.Text.Json.JsonSerializer.Serialize(bindings,SourceJson));
-            foreach(var key in new[]{"DEYAS_BRIDGE_DEVICE_MAP","DEYAS_BRIDGE_SENSOR_ID_MAP"}) {
-                var map=System.Text.Json.JsonSerializer.Deserialize<Dictionary<string,string>>(string.IsNullOrWhiteSpace(GetEnv(key))?"{}":GetEnv(key))??[];
-                map.Remove(binding.SourceKey+"/"+binding.StreamKey);SetEnv(key,System.Text.Json.JsonSerializer.Serialize(map));
-            }
+            var deviceMap=System.Text.Json.JsonSerializer.Deserialize<Dictionary<string,string>>(string.IsNullOrWhiteSpace(GetEnv("DEYAS_BRIDGE_DEVICE_MAP"))?"{}":GetEnv("DEYAS_BRIDGE_DEVICE_MAP"))??[];
+            deviceMap.Remove(binding.SourceKey+"/"+binding.StreamKey);SetEnv("DEYAS_BRIDGE_DEVICE_MAP",System.Text.Json.JsonSerializer.Serialize(deviceMap));
         }
         var points=SensorLocations();points.Remove(removedId);SetEnv("DEYAS_SETUP_SENSOR_LOCATIONS",System.Text.Json.JsonSerializer.Serialize(points,SourceJson));
         _removedWizardSensorIds.Add(removedId);
@@ -2806,7 +2804,7 @@
         {
             id             = ss.Id.ToString(),
             deviceId       = ss.DeviceId,
-            name           = ss.Name,
+            name           = ss.EffectiveDisplayName,
             sensorType     = ss.SensorType,
             unit           = ss.Unit,
             topic          = ss.Topic,
@@ -2894,7 +2892,7 @@
                 if(sensor is not null) {
                     await StructureUC.UpdateSensorImagePositionAsync(existingId,x,y);
                     sensor.ImagePositionX=x; sensor.ImagePositionY=y;
-                    _setupNotice=$"{sensor.Name} görselde konumlandırıldı.";
+                    _setupNotice=$"{sensor.EffectiveDisplayName} görselde konumlandırıldı.";
                 }
                 _wizardPlacingSensorId=null; _wizardImageInitialized=false;
             } else {
@@ -3225,7 +3223,7 @@
                 private string GetEnv(string key) => _siteEnvironment.TryGetValue(key, out var value) ? value ?? string.Empty : string.Empty;
                 private void SetEnv(string key, string? value) => _siteEnvironment[key] = value ?? string.Empty;
 
-                private string BuildSiteEnvironmentEnv()
+                private string BuildSiteEnvironmentEnv(string sensorIdMap)
                 {
                     var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                     {
@@ -3234,7 +3232,8 @@
                         ["STRUCTURE_SLUG"] = ToStructureSlug(_setupName),
                         ["STRUCTURE_NAME"] = _setupName.Trim(),
                         ["DEYAS_BRIDGE_STRUCTURE_ID"] = _createdStructureId.ToString(),
-                        ["DEYAS_BRIDGE_TCP_SOURCES"] = BuildTcpSourcesJson()
+                        ["DEYAS_BRIDGE_TCP_SOURCES"] = BuildTcpSourcesJson(),
+                        ["DEYAS_BRIDGE_SENSOR_ID_MAP"] = sensorIdMap
                     };
 
                     foreach (var field in SiteEnvironmentFields)
@@ -3312,6 +3311,24 @@
                         lines.Add($"{key}={value}");
 
                     return string.Join(Environment.NewLine, lines) + Environment.NewLine;
+                }
+
+                private string BuildSensorIdMap(IEnumerable<StructureSensor> structureSensors)
+                {
+                    var sensorsById = structureSensors
+                        .GroupBy(sensor => sensor.SensorId)
+                        .ToDictionary(group => group.Key, group => group.First());
+                    var sensorIdMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var (sensorId, binding) in ReadSensorBindings())
+                    {
+                        if (!sensorsById.TryGetValue(sensorId, out var sensor))
+                            continue;
+
+                        var streamKey = $"{binding.SourceKey}/{binding.StreamKey}";
+                        sensorIdMap[streamKey] = sensor.SensorId.ToString();
+                    }
+
+                    return System.Text.Json.JsonSerializer.Serialize(sensorIdMap, SourceJson);
                 }
 
                 private static string ToStructureSlug(string name)
@@ -3533,6 +3550,7 @@
             {
                 Id = createdSensor.Id,
                 Name = createdSensor.Name,
+                DisplayName = createdSensor.DisplayName,
                 DeviceId = createdSensor.DeviceId,
                 SensorType = createdSensor.SensorType,
                 Description = createdSensor.Description,

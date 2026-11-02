@@ -67,10 +67,9 @@ public partial class Structures
             var bindings=ReadSensorBindings();
             bindings[sensor.Id]=new(_sensorSourceKind,_sourceHost.Trim(),_sourcePort,_sourceTopic.Trim(),_bindingStreamKey.Trim(),deviceId,CurrentSourceKey);
             SetEnv("DEYAS_SETUP_SENSOR_BINDINGS",JsonSerializer.Serialize(bindings,SourceJson));
-            foreach(var (env,value) in new[]{("DEYAS_BRIDGE_DEVICE_MAP",deviceId),("DEYAS_BRIDGE_SENSOR_ID_MAP",sensor.Id.ToString())}) {
-                var map=JsonSerializer.Deserialize<Dictionary<string,string>>(string.IsNullOrWhiteSpace(GetEnv(env))?"{}":GetEnv(env))??[];
-                map[CurrentSourceKey+"/"+_bindingStreamKey.Trim()]=value;SetEnv(env,JsonSerializer.Serialize(map));
-            }
+            var deviceMap=JsonSerializer.Deserialize<Dictionary<string,string>>(string.IsNullOrWhiteSpace(GetEnv("DEYAS_BRIDGE_DEVICE_MAP"))?"{}":GetEnv("DEYAS_BRIDGE_DEVICE_MAP"))??[];
+            deviceMap[CurrentSourceKey+"/"+_bindingStreamKey.Trim()]=deviceId;
+            SetEnv("DEYAS_BRIDGE_DEVICE_MAP",JsonSerializer.Serialize(deviceMap));
         }
         _wizardImageInitialized=false;
     }
@@ -109,7 +108,7 @@ public partial class Structures
         _deploymentSecrets[source.UsernameEnv]=_sourceUsername;_deploymentSecrets[source.PasswordEnv]=_sourcePassword;
         SetEnv("DEYAS_BRIDGE_MQTT_SOURCES",JsonSerializer.Serialize(sources,SourceJson));
         if(oldKey!=source.Key) {
-            foreach(var env in new[]{"DEYAS_BRIDGE_DEVICE_MAP","DEYAS_BRIDGE_SENSOR_ID_MAP"}) {
+            foreach(var env in new[]{"DEYAS_BRIDGE_DEVICE_MAP"}) {
                 var map=JsonSerializer.Deserialize<Dictionary<string,string>>(string.IsNullOrWhiteSpace(GetEnv(env))?"{}":GetEnv(env))??[];
                 foreach(var pair in map.Where(p=>p.Key.StartsWith(oldKey+"/",StringComparison.Ordinal)).ToList()){map.Remove(pair.Key);map[source.Key+pair.Key[oldKey.Length..]]=pair.Value;}
                 SetEnv(env,JsonSerializer.Serialize(map));

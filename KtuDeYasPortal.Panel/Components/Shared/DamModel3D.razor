@@ -17,7 +17,7 @@
 }
 </svg>
 @foreach(var sensor in Positioned){
-<button @key="sensor.Id" title="@sensor.Name" aria-label="@($"{sensor.Name} sensör bilgisini aç")" class="model-pin model-pin--@Status(sensor) @(IsLive(sensor)?"is-live":"") @(sensor.Id==SelectedId?"selected":"")" style="@FormattableString.Invariant($"left:{sensor.ImagePositionX}%;top:{sensor.ImagePositionY}%;--depth:{Math.Clamp(sensor.PositionZ,-30,80)}px")" @onclick="()=>OnSelect.InvokeAsync(sensor)"><i class="bi @Icon(sensor)" aria-hidden="true"></i></button>
+<button @key="sensor.Id" title="@sensor.EffectiveDisplayName" aria-label="@($"{sensor.EffectiveDisplayName} sensör bilgisini aç")" class="model-pin model-pin--@Status(sensor) @(IsLive(sensor)?"is-live":"") @(sensor.Id==SelectedId?"selected":"")" style="@FormattableString.Invariant($"left:{sensor.ImagePositionX}%;top:{sensor.ImagePositionY}%;--depth:{Math.Clamp(sensor.PositionZ,-30,80)}px")" @onclick="()=>OnSelect.InvokeAsync(sensor)"><i class="bi @Icon(sensor)" aria-hidden="true"></i></button>
 }
 <div class="site-computer"><i class="bi bi-pc-display"></i><span>Saha bilgisayarı</span><small>@Positioned.Count(IsLive) sensörden güncel veri</small></div>
 </div></div>

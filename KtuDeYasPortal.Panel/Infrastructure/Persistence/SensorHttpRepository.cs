@@ -84,7 +84,27 @@ public class SensorHttpRepository : ISensorRepository
     {
         var response = await _http.PostAsJsonAsync("api/tcp-sensors", request, _json, ct);
         response.EnsureSuccessStatusCode();
-        return (await response.Content.ReadFromJsonAsync<Sensor>(_json, ct))!;
+        var created = await response.Content.ReadFromJsonAsync<TcpSensorCreateResponse>(_json, ct)
+            ?? throw new InvalidOperationException("TCP sensör oluşturma yanıtı boş.");
+        return new Sensor
+        {
+            Id = created.SensorId,
+            Name = created.Name,
+            DisplayName = created.DisplayName,
+            DeviceId = created.DeviceId,
+            LocationId = created.LocationId,
+            SensorType = Enum.TryParse<SensorType>(created.SensorType, true, out var sensorType)
+                ? sensorType
+                : SensorType.Generic,
+            Topic = created.Topic,
+            Description = created.Description,
+            Metrics = created.Metrics,
+            ProtocolType = created.ProtocolType,
+            IpAddress = created.IpAddress,
+            Port = created.Port,
+            TimeoutMs = created.TimeoutMs,
+            PollingIntervalMs = created.PollingIntervalMs
+        };
     }
 
     public async Task<ConnectedSensorResponse> CreateConnectedSensorAsync(
@@ -181,5 +201,23 @@ public class SensorHttpRepository : ISensorRepository
         var resp = await _http.PostAsync(
             $"api/sensors/{sensorId}/lifecycle/reset", null, ct);
         resp.EnsureSuccessStatusCode();
+    }
+
+    private sealed class TcpSensorCreateResponse
+    {
+        public Guid SensorId { get; init; }
+        public string Name { get; init; } = string.Empty;
+        public string DisplayName { get; init; } = string.Empty;
+        public string DeviceId { get; init; } = string.Empty;
+        public string LocationId { get; init; } = "default";
+        public string SensorType { get; init; } = "Generic";
+        public string Topic { get; init; } = string.Empty;
+        public string Description { get; init; } = string.Empty;
+        public string Metrics { get; init; } = string.Empty;
+        public string ProtocolType { get; init; } = "TCP";
+        public string? IpAddress { get; init; }
+        public int? Port { get; init; }
+        public int? TimeoutMs { get; init; }
+        public int PollingIntervalMs { get; init; }
     }
 }

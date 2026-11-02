@@ -35,7 +35,7 @@ else
         {
             var sensorAssignment = GetAssignment(sensor.Id);
             <tr>
-                <td><strong>@sensor.Name</strong><br /><code>@sensor.Id</code></td>
+                <td><strong>@sensor.EffectiveDisplayName</strong><br /><code>@sensor.Id</code></td>
                 <td><span class="badge bg-primary">@sensor.SensorType</span></td>
                 <td><code>@sensor.DeviceId</code><br /><small>@sensor.LocationId</small></td>
                 <td>
@@ -57,7 +57,7 @@ else
                     {
                         <button class="btn btn-sm btn-primary me-1" @onclick="() => OpenAssign(sensor)">Baraja bağla</button>
                     }
-                    <button class="btn btn-sm btn-outline-danger me-1" title="Sensörü ve tüm bağlantı/tcp ayarlarını sil" aria-label="Sensörü sil" @onclick="() => ConfirmDeleteSensorAsync(sensor.Id, sensor.Name)"><span class="bi bi-trash"></span></button>
+                    <button class="btn btn-sm btn-outline-danger me-1" title="Sensörü ve tüm bağlantı/tcp ayarlarını sil" aria-label="Sensörü sil" @onclick="() => ConfirmDeleteSensorAsync(sensor.Id, sensor.EffectiveDisplayName)"><span class="bi bi-trash"></span></button>
                     <button class="btn btn-sm btn-outline-secondary" @onclick="() => OpenChannel(sensor)">Port / Serial ekle</button>
                     <button class="btn btn-sm btn-outline-info ms-1" @onclick="() => _expandedSensorId = _expandedSensorId == sensor.Id ? null : sensor.Id">Kanalları test et</button>
                 </td>
@@ -83,14 +83,14 @@ else
 
 @if (_selected is not null && _mode == "assign")
 {
-    <div class="modal fade show d-block" style="background:#0008"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5>@_selected.Name — baraj seç</h5><button class="btn-close" @onclick="Close"></button></div><div class="modal-body">
+    <div class="modal fade show d-block" style="background:#0008"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5>@_selected.EffectiveDisplayName — baraj seç</h5><button class="btn-close" @onclick="Close"></button></div><div class="modal-body">
         <select class="form-select" @bind="_structureId"><option value="">Aktif baraj seçin</option>@foreach(var s in _structures){<option value="@s.Id">@s.Name (@s.StructureType)</option>}</select>
     </div><div class="modal-footer"><button class="btn btn-secondary" @onclick="Close">Vazgeç</button><button class="btn btn-primary" disabled="@string.IsNullOrWhiteSpace(_structureId)" @onclick="AssignAsync">İlişkilendir</button></div></div></div></div>
 }
 
 @if (_selected is not null && _mode == "channel")
 {
-    <div class="modal fade show d-block" style="background:#0008"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5>@_selected.Name — port / serial kanal</h5><button class="btn-close" @onclick="Close"></button></div><div class="modal-body row g-2">
+    <div class="modal fade show d-block" style="background:#0008"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5>@_selected.EffectiveDisplayName — port / serial kanal</h5><button class="btn-close" @onclick="Close"></button></div><div class="modal-body row g-2">
         <div class="col-6"><label class="form-label">Kanal anahtarı</label><input class="form-control" @bind="_channel.ChannelKey" placeholder="x" /></div>
         <div class="col-6"><label class="form-label">Kanal adı</label><input class="form-control" @bind="_channel.ChannelName" placeholder="X ekseni" /></div>
         <div class="col-8"><label class="form-label">IP adresi</label><input class="form-control" @bind="_channel.IpAddress" placeholder="192.168.30.243" /></div>
@@ -115,7 +115,7 @@ else
     private void OpenAssign(SensorDto s){_selected=s;_mode="assign";_structureId="";}
     private void OpenChannel(SensorDto s){_selected=s;_mode="channel";_channel=new();}
     private void Close(){_selected=null;_mode=null;_testResult=null;}
-    private async Task AssignAsync(){if(_selected is null||!Guid.TryParse(_structureId,out var id))return; await Api.PostAsync($"api/sensors/{_selected.Id}/structures/{id}",null); Close(); await LoadAsync();}
+    private async Task AssignAsync(){if(_selected is null||!Guid.TryParse(_structureId,out var id))return; var response=await Api.PostAsync($"api/sensors/{_selected.Id}/structures/{id}",null);if(!response.IsSuccessStatusCode){_error=await response.Content.ReadAsStringAsync();return;}Close();await LoadAsync();}
     private async Task RemoveAssignmentAsync(Guid sensorId, Guid structureId){ var response=await Api.DeleteAsync($"api/sensors/{sensorId}/structures/{structureId}"); if(!response.IsSuccessStatusCode){_error=await response.Content.ReadAsStringAsync();return;} await LoadAsync(); }
     private async Task DeleteSensorAsync(Guid sensorId){ var response=await Api.DeleteAsync($"api/sensors/{sensorId}"); if(!response.IsSuccessStatusCode){_error=await response.Content.ReadAsStringAsync();return;} await LoadAsync(); }
     private void ConfirmDeleteSensorAsync(Guid id, string name) { _deletingId = id; _deletingName = name; }
@@ -123,7 +123,7 @@ else
     private async Task CommitDeleteSensorAsync() { if (_deletingId is null) return; var id = _deletingId.Value; CancelDelete(); var response = await Api.DeleteAsync($"api/sensors/{id}"); if (!response.IsSuccessStatusCode) { _error = await response.Content.ReadAsStringAsync(); return; } await LoadAsync(); }
     private async Task AddChannelAsync(){if(_selected is null)return; var r=await Api.PostAsJsonAsync($"api/sensors/{_selected.Id}/tcp-configurations",_channel,_json); if(!r.IsSuccessStatusCode){_error=await r.Content.ReadAsStringAsync();return;} Close(); await LoadAsync();}
     private async Task TestChannelAsync(ChannelDto c){ var r=await Api.PostAsJsonAsync("api/tcp-sensors/test-connection",new { ipAddress=c.IpAddress, port=c.Port??0, connectionMode="Client", profile=c.Profile, timeoutMs=5000, encoding=c.Encoding, reconnectEnabled=c.ReconnectEnabled },_json);_testResult=await r.Content.ReadAsStringAsync();}
-    private sealed class SensorDto { public Guid Id{get;set;} public string Name{get;set;}=""; public string DeviceId{get;set;}=""; public string LocationId{get;set;}=""; public string SensorType{get;set;}=""; public List<ChannelDto> TcpConfigurations{get;set;}=[]; }
+    private sealed class SensorDto { public Guid Id{get;set;} public string Name{get;set;}=""; public string DisplayName{get;set;}=""; public string EffectiveDisplayName=>DeYas.Contracts.SensorDisplay.ResolveName(DisplayName,Name,SensorType); public string DeviceId{get;set;}=""; public string LocationId{get;set;}=""; public string SensorType{get;set;}=""; public List<ChannelDto> TcpConfigurations{get;set;}=[]; }
     private sealed class ChannelDto { public string ChannelKey{get;set;}=""; public string? ChannelName{get;set;} public string Profile{get;set;}="JsonTcp"; public string ConnectionMode{get;set;}="Client"; public string Encoding{get;set;}="utf-8"; public bool ReconnectEnabled{get;set;}=true; public string? IpAddress{get;set;} public int? Port{get;set;} public string? SerialPort{get;set;} public int? BaudRate{get;set;} public int PollingIntervalMs{get;set;}=1000; }
     private sealed class StructureDto { public Guid Id{get;set;} public string Name{get;set;}=""; public string StructureType{get;set;}=""; public bool IsActive{get;set;} public List<Guid> SensorIds{get;set;}=[]; }
 }

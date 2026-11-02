@@ -31,7 +31,7 @@ public sealed class PanelTwinSource : IDigitalTwinSource, IDisposable
             var definitions=await _structures.GetAllSensorsAsync(ct);
             foreach(var attached in detail?.Sensors??[]){
                 var definition=definitions.FirstOrDefault(s=>s.Id==attached.SensorId);
-                sensors.Add(new(attached.SensorId,chosen.Id,attached.DeviceId,definition?.Name??attached.Name,definition?.SensorType.ToString()??attached.SensorType,definition?.Unit??attached.Unit,definition?.IsEnabled??attached.IsActive,definition?.ImagePositionX??attached.ImagePositionX,definition?.ImagePositionY??attached.ImagePositionY,definition?.CreatedAt??DateTime.MinValue));
+                sensors.Add(new(attached.SensorId,chosen.Id,attached.DeviceId,definition?.EffectiveDisplayName??attached.EffectiveDisplayName,definition?.SensorType.ToString()??attached.SensorType,definition?.Unit??attached.Unit,definition?.IsEnabled??attached.IsActive,definition?.ImagePositionX??attached.ImagePositionX,definition?.ImagePositionY??attached.ImagePositionY,definition?.CreatedAt??DateTime.MinValue));
             }
         }
         var locations=TwinLocations.FromEnvironment(chosen?.SiteEnvironmentJson);

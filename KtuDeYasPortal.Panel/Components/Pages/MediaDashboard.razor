@@ -25,7 +25,7 @@
 
 <div class="card shadow-sm mb-3"><div class="card-body"><div class="row g-2 align-items-end">
     <div class="col-lg-3 col-md-6"><label class="form-label small">Yapı</label><select class="form-select" @bind="_structureId" @bind:after="OnStructureFilterChanged"><option value="">Tüm yapılar</option>@foreach (var item in _structures) { <option value="@item.Id">@item.Name</option> }</select></div>
-    <div class="col-lg-3 col-md-6"><label class="form-label small">Kamera</label><select class="form-select" @bind="_deviceId"><option value="">Tüm kameralar</option>@foreach (var item in Cameras) { <option value="@item.DeviceId">@item.Name (@item.DeviceId)</option> }</select></div>
+    <div class="col-lg-3 col-md-6"><label class="form-label small">Kamera</label><select class="form-select" @bind="_deviceId"><option value="">Tüm kameralar</option>@foreach (var item in Cameras) { <option value="@item.DeviceId">@item.EffectiveDisplayName (@item.DeviceId)</option> }</select></div>
     @if (_tab == MediaTab.Archive)
     {
         <div class="col-lg-2 col-md-6"><label class="form-label small">Medya tipi</label><select class="form-select" @bind="_mediaType"><option value="">Tümü</option><option value="video">Video</option><option value="image">Fotoğraf</option></select></div>

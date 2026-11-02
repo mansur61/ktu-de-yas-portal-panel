@@ -42,6 +42,7 @@ public sealed class ConnectedSensorResponse
     public Guid    SensorId               { get; set; }
     public Guid?   StructureSensorId      { get; set; }
     public string  Name                   { get; set; } = string.Empty;
+    public string  DisplayName            { get; set; } = string.Empty;
     public string  DeviceId               { get; set; } = string.Empty;
     public string  ProtocolType           { get; set; } = "TCP";
     public string  LifecycleStatus        { get; set; } = "Draft";

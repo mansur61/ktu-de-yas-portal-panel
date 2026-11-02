@@ -31,7 +31,7 @@
 <label for="image-sensor" class="form-label">Sensör</label>
 <select id="image-sensor" class="form-select mb-3" @bind="_sensorId" disabled="@_busy">
 <option value="">Sensör seçin</option>
-@foreach (var sensor in _sensors) { <option value="@sensor.Id">@sensor.Name · @sensor.DeviceId</option> }
+@foreach (var sensor in _sensors) { <option value="@sensor.Id">@sensor.EffectiveDisplayName · @sensor.DeviceId</option> }
 </select>
 @if (Selected?.ImageUrl is { Length: > 0 } url) { <img src="@url" alt="Seçili sensörün fotoğrafı" class="asset-preview" /> }
 else { <div class="asset-preview d-flex align-items-center justify-content-center text-muted">Henüz fotoğraf eklenmedi</div> }

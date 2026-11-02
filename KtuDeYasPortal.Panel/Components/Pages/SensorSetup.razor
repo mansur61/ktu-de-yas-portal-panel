@@ -54,7 +54,7 @@ else
             </button>
             @foreach (var sensor in _sensors.Take(10))
             {
-                <button class="btn btn-sm @(_selectedSensorId == sensor.SensorId ? "btn-primary" : "btn-outline-secondary")" @onclick="() => SelectSensor(sensor.SensorId)">@sensor.Name</button>
+                <button class="btn btn-sm @(_selectedSensorId == sensor.SensorId ? "btn-primary" : "btn-outline-secondary")" @onclick="() => SelectSensor(sensor.SensorId)">@sensor.EffectiveDisplayName</button>
             }
             @if (_sensors.Count > 10)
             {
@@ -62,7 +62,7 @@ else
                     <option value="">Diğer sensörü seç…</option>
                     @foreach (var sensor in _sensors.Skip(10))
                     {
-                        <option value="@sensor.SensorId">@sensor.Name</option>
+                        <option value="@sensor.SensorId">@sensor.EffectiveDisplayName</option>
                     }
                 </select>
             }
@@ -79,7 +79,7 @@ else
                 var isTcp = sensor.SourceKind.Equals("tcp", StringComparison.OrdinalIgnoreCase)
                             || (string.IsNullOrEmpty(sensor.SourceKind)
                                 && (!string.IsNullOrWhiteSpace(sensor.IpAddress) && sensor.Port.HasValue));
-                <tr><td><strong>@sensor.Name</strong><details><summary class="dy-subtle">Teknik bilgiler</summary><small>@GetSourceType(sensor) · @GetEndpoint(sensor)<br />@sensor.DeviceId</small></details></td>
+                <tr><td><strong>@sensor.EffectiveDisplayName</strong><details><summary class="dy-subtle">Teknik bilgiler</summary><small>@GetSourceType(sensor) · @GetEndpoint(sensor)<br />@sensor.DeviceId</small></details></td>
                 <td><span class="dy-chip neutral">Kaydedildi</span><small class="d-block">@(ready is null ? "Çalışma durumu alınamadı" : LifecycleLabel(ready.LifecycleStatus))</small></td>
                 @if (isTcp) {
                     <td>@(ready is null ? "Bilinmiyor" : ready.ConnectionValid ? "✓ Doğrulandı" : "○ Kontrol gerekiyor")</td>

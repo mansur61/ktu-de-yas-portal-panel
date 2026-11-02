@@ -8,6 +8,8 @@ public class StructureSensor
     public int     SensorOrder    { get; set; }
     public string  DeviceId       { get; set; } = string.Empty;
     public string  Name           { get; set; } = string.Empty;
+    public string  DisplayName    { get; set; } = string.Empty;
+    public string  EffectiveDisplayName => DeYas.Contracts.SensorDisplay.ResolveName(DisplayName, Name, SensorType);
     public string  SensorType     { get; set; } = string.Empty;
     public string  Unit           { get; set; } = string.Empty;
     public string  Topic          { get; set; } = string.Empty;

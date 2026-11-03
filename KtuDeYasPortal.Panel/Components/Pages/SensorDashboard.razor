@@ -1,3 +1,4 @@
+@using DeYas.Contracts
 @page "/sensor-dashboard"
 @rendermode InteractiveServer
 @implements IAsyncDisposable
@@ -291,6 +292,15 @@ else
             }
             @* ── Sensör Filtresi (pill butonlar) ────────────────────────────── *@
             <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                <label class="small" for="analysis-type">Sensör türü</label>
+                <select id="analysis-type" class="form-select form-select-sm" style="width:auto" @bind="_analysisType" @bind:after="AnalysisTypeChanged">
+                    <option value="">Tümü</option>
+                    <option value="camera">Kamera</option>
+                    @foreach (var type in _structureSensors.Where(s => !IsMediaSensor(s)).Select(s => s.SensorType).Distinct().Order())
+                    {
+                        <option value="@type">@type</option>
+                    }
+                </select>
                 <small class="text-muted fw-semibold me-1">Sensör:</small>
 
                 @* "Tümü" butonu *@
@@ -307,6 +317,7 @@ else
                     var liveCheck  = SensorDataState.GetLatest(s.DeviceId);
                     var dotColor   = liveCheck is not null ? "success" : "secondary";
                     <button class="btn btn-sm @(isSelected ? "btn-primary" : "btn-outline-secondary")"
+                            disabled="@(!SensorAnalysisPolicy.CanSelect(s.SensorType, _analysisType))"
                             @onclick="() => SelectSensor(s.SensorId)">
                         <span class="bi bi-circle-fill text-@dotColor me-1" style="font-size:0.45rem;vertical-align:middle"></span>
                         @s.EffectiveDisplayName
@@ -320,7 +331,7 @@ else
                         <option value="">Diğer sensörü seç…</option>
                         @foreach (var s in _structureSensors.Skip(10))
                         {
-                            <option value="@s.SensorId">@s.EffectiveDisplayName</option>
+                            <option value="@s.SensorId" disabled="@(!SensorAnalysisPolicy.CanSelect(s.SensorType, _analysisType))">@s.EffectiveDisplayName</option>
                         }
                     </select>
                 }
@@ -347,6 +358,7 @@ else
                 {
                     var metrics  = GetSensorMetrics(sensor);
                     var liveData = SensorDataState.GetLatest(sensor.DeviceId);
+                    if (liveData?.StructureId != _selectedStructureId) liveData = null;
 
                     @if (IsMediaSensor(sensor))
                     {
@@ -494,14 +506,7 @@ else
                         </div>
                     </div>
                     <div class="card-body p-0">
-                        <iframe src="@_iframeSrc"
-                                width="100%"
-                                height="600"
-                                frameborder="0"
-                                title="Grafana"
-                                allow="fullscreen"
-                                style="display:block;">
-                        </iframe>
+                        <DeYas.DigitalTwin.AnalysisFrame Src="@_iframeSrc" />
                     </div>
                 </div>
             }
@@ -611,14 +616,18 @@ else
     }
 
     // ── Load structure detail with sensors ────────────────────────────────────
+    private int _structureGeneration;
     private async Task LoadStructureDetailAsync(Guid structureId)
     {
+        var generation = ++_structureGeneration;
+        _analysisType = string.Empty;
         _structureSensors.Clear();
         _structureDeviceSet.Clear();
         _selectedSensorId   = null;
         _sensorReadinessMap = new();
 
         var detail = await DashboardUC.GetStructureByIdAsync(structureId);
+        if (generation != _structureGeneration || structureId != _selectedStructureId) return;
         _selectedStructure = detail;
         if (detail is null) return;
 
@@ -631,7 +640,7 @@ else
             _structureDeviceSet.Add(s.DeviceId);
 
         // Lifecycle panel'i arka planda yükle
-        _ = RefreshLifecycleAsync();
+        if (_showLifecyclePanel) _ = RefreshLifecycleAsync();
     }
 
     // ── Tab selection ──────────────────────────────────────────────────────────
@@ -653,6 +662,7 @@ else
     // ── Sensor filter ──────────────────────────────────────────────────────────
     private void SelectSensor(Guid? sensorId)
     {
+        if (sensorId.HasValue && !_structureSensors.Any(s => s.SensorId == sensorId && SensorAnalysisPolicy.CanSelect(s.SensorType, _analysisType))) return;
         _selectedSensorId = sensorId;
         // Grafana'yı kapat — seçim değişince eski iframe geçersiz
         CloseGrafana();
@@ -681,6 +691,7 @@ else
 
     private void UpdateGrafanaUrl()
     {
+        if (!_structureSensors.Any(s => s.DeviceId == _grafanaDevice && !IsMediaSensor(s))) { CloseGrafana(); return; }
         var isSamples = _grafanaMetric == "samples";
         _iframeSrc = GrafanaOpts.Value.BuildPanelUrl(
             panelId: isSamples ? 84 : 10,
@@ -854,10 +865,12 @@ else
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────
+    private string _analysisType = string.Empty;
+    private void AnalysisTypeChanged() { _selectedSensorId = null; CloseGrafana(); }
     private IEnumerable<Domain.Entities.StructureSensor> GetVisibleSensors() =>
-        _selectedSensorId.HasValue
-            ? _structureSensors.Where(s => s.SensorId == _selectedSensorId.Value)
-            : _structureSensors;
+        _structureSensors.Where(s => SensorAnalysisPolicy.CanSelect(s.SensorType, _analysisType))
+            .Where(s => string.IsNullOrEmpty(_analysisType) || _analysisType == "camera" || s.SensorType == _analysisType)
+            .Where(s => !_selectedSensorId.HasValue || s.SensorId == _selectedSensorId);
 
     private static List<string> GetSensorMetrics(Domain.Entities.StructureSensor sensor)
     {
@@ -871,10 +884,7 @@ else
                   .ToList();
     }
 
-    private static bool IsMediaSensor(Domain.Entities.StructureSensor sensor) =>
-        sensor.SensorType.Contains("camera", StringComparison.OrdinalIgnoreCase) ||
-        sensor.SensorType.Contains("video", StringComparison.OrdinalIgnoreCase) ||
-        sensor.SensorType.Contains("stream", StringComparison.OrdinalIgnoreCase);
+    private static bool IsMediaSensor(Domain.Entities.StructureSensor sensor) => SensorAnalysisPolicy.IsCamera(sensor.SensorType);
 
     private static bool IsSampleSensor(Domain.Entities.StructureSensor sensor) =>
         sensor.SensorType.Contains("vibration", StringComparison.OrdinalIgnoreCase) ||

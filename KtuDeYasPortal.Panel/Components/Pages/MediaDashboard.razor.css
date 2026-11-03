@@ -1,0 +1,4 @@
+.archive-protection-info{display:inline-grid;place-items:center;width:32px;height:32px;padding:0;border:1px solid #e1e5e9;border-radius:50%;background:#fff;color:#e2a600;font-size:18px;flex:none}
+.archive-protection-info:focus-visible{outline:2px solid #8c6c16;outline-offset:3px}
+.archive-protection-help{max-width:min(360px,calc(100vw - 32px));border:1px solid #dce3e8;border-radius:12px;padding:20px;background:#fff;color:#243e49;box-shadow:0 12px 40px #102c4026}
+.archive-protection-help p{margin:10px 0 0;line-height:1.6}

@@ -40,9 +40,10 @@
             <span class="badge rounded-pill text-bg-secondary ms-2" aria-label="@($"{_archiveTotalCount.GetValueOrDefault():N0} medya kaydı")">@_archiveTotalCount.GetValueOrDefault().ToString("N0")</span>
         }
     </button>
-    <button class="btn btn-link text-warning" popovertarget="archive-help" aria-label="Medya arşivi bilgisi"><i class="bi bi-info-circle-fill"></i></button>
-    <div id="archive-help" popover="auto" class="alert alert-warning" style="max-width:360px"><strong>Video arşivi</strong><p>Rozet, uygulanan yapı, kamera ve tarih filtrelerine uyan video sayısını gösterir. Canlı görüntü yalnız Başlat düğmesiyle açılır. Araştırma için korunan kayıtlar saklama süresi dolunca otomatik silinmez. Silmek için önce korumayı kaldırın.</p></div>
+
 </div>
+
+<div id="archive-help" popover="auto" class="archive-protection-help"><strong>Araştırma koruması</strong><p>Koruma açıkken saklama süresi dolsa bile kayıt otomatik silinmez. Korumayı kaldırdığınızda normal saklama politikası yeniden uygulanır. Kaydı elle silmek için de önce korumayı kaldırmanız gerekir.</p></div>
 
 @if (_tab == MediaTab.Live)
 {
@@ -89,6 +90,7 @@ else if (_tab == MediaTab.Archive) {
             DurationSeconds="asset.DurationSeconds" PreviewUrl="@_thumbnails.GetValueOrDefault(asset.Id)" OnOpen="() => OpenAsync(asset)">
             <Actions>
                 @if (asset.IsProtected) { <span class="badge text-bg-warning">Araştırma için korunuyor</span> }
+                <button type="button" class="archive-protection-info" popovertarget="archive-help" aria-label="Araştırma koruması bilgisi"><i class="bi bi-info-circle-fill" aria-hidden="true"></i></button>
                 @if (CanProtect(asset))
                 {
                     <button class="btn btn-sm btn-outline-secondary" @onclick="() => ToggleProtectionAsync(asset)">@(asset.IsProtected ? "Korumayı kaldır" : "Araştırma için koru")</button>

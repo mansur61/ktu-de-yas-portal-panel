@@ -16,7 +16,7 @@
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div>
         <h4 class="mb-0 fw-bold">Medya Arşivi</h4>
-        <small class="text-muted">Sahadan merkeze aktarılan kamera fotoğrafları ve klipleri</small>
+        <small class="text-muted">Sahadan merkeze aktarılan video kayıtları</small>
     </div>
     <button class="btn btn-outline-primary" @onclick="LoadAsync" disabled="@_loading">
         <span class="bi bi-arrow-clockwise me-1"></span> Yenile
@@ -25,7 +25,7 @@
 
 <div class="card shadow-sm mb-3"><div class="card-body"><div class="row g-2 align-items-end">
     <div class="col-lg-3 col-md-6"><label class="form-label small">Yapı</label><select class="form-select" @bind="_structureId" @bind:after="OnStructureFilterChanged"><option value="">Tüm yapılar</option>@foreach (var item in _structures) { <option value="@item.Id">@item.Name</option> }</select></div>
-    <div class="col-lg-3 col-md-6"><label class="form-label small">Kamera</label><select class="form-select" @bind="_deviceId"><option value="">Tüm kameralar</option>@foreach (var item in Cameras) { <option value="@item.DeviceId">@item.EffectiveDisplayName (@item.DeviceId)</option> }</select></div>
+    <div class="col-lg-3 col-md-6"><label class="form-label small">Kamera</label><select class="form-select" @bind="_deviceId" @bind:after="StopLiveAsync"><option value="">Tüm kameralar</option>@foreach (var item in Cameras) { <option value="@item.DeviceId">@item.EffectiveDisplayName (@item.DeviceId)</option> }</select></div>
     <div class="col-lg-2 col-md-6"><label class="form-label small">Arşiv başlangıcı</label><input class="form-control" type="datetime-local" @bind="_from" /></div>
     <div class="col-lg-2 col-md-6"><label class="form-label small">Arşiv bitişi</label><input class="form-control" type="datetime-local" @bind="_to" /></div>
     <div class="col-lg-2 col-md-6 d-grid"><button class="btn btn-primary" @onclick="LoadAsync">Filtrele</button></div>
@@ -35,11 +35,13 @@
     <button class="nav-link @(_tab == MediaTab.Live ? "active" : "")" @onclick="() => SelectTabAsync(MediaTab.Live)">Canlı görüntü</button>
     <button class="nav-link @(_tab == MediaTab.Archive ? "active" : "")" @onclick="() => SelectTabAsync(MediaTab.Archive)">
         Medya Arşivi
-        @if (_archiveTotalCount.GetValueOrDefault() > 0)
+        @if (_archiveTotalCount.HasValue)
         {
             <span class="badge rounded-pill text-bg-secondary ms-2" aria-label="@($"{_archiveTotalCount.GetValueOrDefault():N0} medya kaydı")">@_archiveTotalCount.GetValueOrDefault().ToString("N0")</span>
         }
     </button>
+    <button class="btn btn-link text-warning" popovertarget="archive-help" aria-label="Medya arşivi bilgisi"><i class="bi bi-info-circle-fill"></i></button>
+    <div id="archive-help" popover="auto" class="alert alert-warning" style="max-width:360px"><strong>Video arşivi</strong><p>Rozet, uygulanan yapı, kamera ve tarih filtrelerine uyan video sayısını gösterir. Canlı görüntü yalnız Başlat düğmesiyle açılır. Araştırma için korunan kayıtlar saklama süresi dolunca otomatik silinmez. Silmek için önce korumayı kaldırın.</p></div>
 </div>
 
 @if (_tab == MediaTab.Live)
@@ -47,7 +49,7 @@
     <div class="card shadow-sm mb-3"><div class="card-body">
         <div class="d-flex flex-wrap align-items-end gap-2">
             <div><label class="form-label small">Video süresi (saniye)</label><input type="number" min="1" max="60" class="form-control" style="width:150px" @bind="_recordSeconds" disabled="@_capturing" /></div>
-            <button class="btn btn-primary" @onclick="StartLiveAsync" disabled="@(!CanLive || _liveStarting || _liveSession is not null)">@(_liveStarting ? "Bağlanıyor…" : "Canlı görüntüyü aç")</button>
+            <button class="btn btn-primary" @onclick="StartLiveAsync" disabled="@(!CanLive || _liveStarting || _liveSession is not null)">@(_liveStarting ? "Bağlanıyor…" : "Canlı görüntüyü başlat")</button>
             @if (_liveSession is not null) { <button class="btn btn-outline-danger" @onclick="StopLiveAsync">Yayını kapat</button> }
             <button class="btn btn-success" @onclick="CaptureAsync" disabled="@(!CanCapture || _capturing)">@(_capturing ? "Kayıt alınıyor…" : "Seçili kameradan video al")</button>
         </div>
@@ -79,24 +81,23 @@ else if (_tab == MediaTab.Archive) {
             <button class="btn btn-sm btn-outline-secondary" disabled="@(_loading || _nextCursor is null)" @onclick="NextPageAsync">Sonraki</button>
         </nav>
     }
-    <div class="row g-3">
+    <p>Toplam @(_archiveTotalCount?.ToString("N0") ?? "—") kayıt · Bu sayfada @_assets.Count</p>
+    <MediaArchiveGrid ItemCount="_assets.Count" CapacityChanged="ArchiveCapacityChanged">
     @foreach (var asset in VisibleAssets)
     {
-        <div class="col-sm-6 col-xl-3"><article class="card h-100 shadow-sm">
-            <div class="card-body">
-                <div class="d-flex justify-content-between"><span class="badge text-bg-primary">Klip</span><small class="text-muted">@asset.CapturedAt.ToLocalTime().ToString("dd.MM HH:mm:ss")</small></div>
-                <h6 class="mt-3 mb-1 text-truncate"><span class="bi bi-camera me-1"></span>@asset.DeviceId</h6>
-                <div class="small text-muted">@asset.LocationId · @ArchiveStatus(asset.Status)</div>
-                <div class="small text-muted mt-2">@FormatSize(asset.FileSizeBytes)@(asset.DurationSeconds is not null ? $" · {asset.DurationSeconds} sn" : "")</div>
-            </div>
-            @if (asset.IsProtected) { <span class="badge text-bg-warning ms-3 mb-2">Araştırma için korunuyor</span> }
-            <button class="btn btn-sm btn-link text-secondary mb-2 p-0 ms-2" title="Koruma bilgisini göster" aria-label="Koruma bilgisini göster" @onclick="() => ToggleProtectionInfo(asset.Id)"><span class="bi bi-info-circle" aria-hidden="true"></span></button>
-            @if (_protectionInfoAssetId == asset.Id) { <div class="alert alert-warning small mx-3 mb-2 py-2"><strong>Araştırma koruması:</strong> Bu kayıt merkezi arşivde saklanır. Koruma açıkken, otomatik saklama süresi dolsa bile kayıt silinmez. Gerek kalmadığında <em>Korumayı kaldır</em> ile normal saklama politikasına döndürebilirsiniz.</div> }
-            @if (CanProtect(asset)) { <button class="btn btn-sm btn-outline-secondary mx-3 mb-2" @onclick="() => ToggleProtectionAsync(asset)">@(asset.IsProtected ? "Korumayı kaldır" : "Araştırma için koru")</button> }
-            <div class="card-footer bg-white border-0 pt-0"><button class="btn btn-sm btn-outline-primary w-100" @onclick="() => OpenAsync(asset)"><span class="bi bi-play-circle me-1"></span>Görüntüle</button></div>
-        </article></div>
+        <MediaArchiveCard @key="asset.Id" SensorName="@CameraName(asset)" RecordId="asset.Id" Timestamp="asset.CapturedAt" Kind="video"
+            DurationSeconds="asset.DurationSeconds" PreviewUrl="@_thumbnails.GetValueOrDefault(asset.Id)" OnOpen="() => OpenAsync(asset)">
+            <Actions>
+                @if (asset.IsProtected) { <span class="badge text-bg-warning">Araştırma için korunuyor</span> }
+                @if (CanProtect(asset))
+                {
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => ToggleProtectionAsync(asset)">@(asset.IsProtected ? "Korumayı kaldır" : "Araştırma için koru")</button>
+                    <button class="btn btn-sm btn-outline-danger" disabled="@(asset.IsProtected || _deleting)" title="@(asset.IsProtected ? "Silmek için önce korumayı kaldırın" : "Video kaydını sil")" aria-label="Video kaydını sil" @onclick="() => DeleteAsync(asset)"><i class="bi bi-trash"></i></button>
+                }
+            </Actions>
+        </MediaArchiveCard>
     }
-    </div>
+    </MediaArchiveGrid>
 }
 
 @if (_selected is not null)
@@ -113,6 +114,7 @@ else if (_tab == MediaTab.Archive) {
     private bool _capturing;
     private int _recordSeconds = 10;
     private bool _liveStarting;
+    private int _liveRequestGeneration;
     private LiveCameraSession? _liveSession;
     private string? _liveError;
     private string? _liveExpiresLocal;
@@ -126,22 +128,30 @@ else if (_tab == MediaTab.Archive) {
     private async Task StartLiveAsync()
     {
         if (!CanLive || _liveStarting || _liveSession is not null) return;
+        var request = ++_liveRequestGeneration;
+        var targetStructure = SelectedStructure!.Id;
+        var targetDevice = _deviceId;
         _liveStarting = true; _liveError = null;
         try
         {
-            var session = await LiveCamera.StartAsync(SelectedStructure!.Id, _deviceId);
+            var session = await LiveCamera.StartAsync(targetStructure, targetDevice);
+            if (request != _liveRequestGeneration || SelectedStructure?.Id != targetStructure || _deviceId != targetDevice)
+            { await LiveCamera.StopAsync(targetStructure, session.SessionId); return; }
             _liveSession = session;
+            _liveStructureId = targetStructure;
             _liveExpiresLocal = await JS.InvokeAsync<string>("deyasLiveCamera.formatExpiry", session.ExpiresAt.ToString("O"));
             await InvokeAsync(StateHasChanged);
             await Task.Delay(100);
+            if (request != _liveRequestGeneration) return;
             await JS.InvokeVoidAsync("deyasLiveCamera.start", "live-camera-video", session.WhepUrl, session.ViewerToken);
         }
         catch (Exception ex)
         {
+            if (request != _liveRequestGeneration) return;
             _liveError = ex.Message.Split("\n")[0];
             if (_liveSession is not null)
             {
-                try { await LiveCamera.StopAsync(SelectedStructure!.Id, _liveSession.SessionId); } catch { }
+                try { await LiveCamera.StopAsync(targetStructure, _liveSession.SessionId); } catch { }
                 _liveSession = null;
             }
         }
@@ -150,12 +160,13 @@ else if (_tab == MediaTab.Archive) {
 
     private async Task StopLiveAsync()
     {
+        _liveRequestGeneration++;
         var session = _liveSession;
         _liveSession = null;
         if (session is null) return;
         try { await JS.InvokeVoidAsync("deyasLiveCamera.stop", "live-camera-video"); }
         catch { }
-        try { await LiveCamera.StopAsync(Guid.Parse(_structureId), session.SessionId); }
+        try { await LiveCamera.StopAsync(_liveStructureId!.Value, session.SessionId); }
         catch (Exception ex) { _liveError = $"Yayın durdurma isteği iletilemedi: {ex.Message}"; }
     }
     private async Task CaptureAsync()
@@ -184,15 +195,20 @@ else if (_tab == MediaTab.Archive) {
     private long? _archiveTotalCount;
     private Guid? _protectionInfoAssetId;
     private MediaTab _tab = MediaTab.Live;
-    private const int ArchivePageSize = 50;
+    private int ArchivePageSize = 4;
+    private readonly Dictionary<Guid, string?> _thumbnails = new();
+    private bool _deleting;
+    private int _loadGeneration;
+    private Guid? _liveStructureId;
     private List<string?> _cursorStack = [null];
     private string? _nextCursor;
     private int _page;
     private IEnumerable<MediaAsset> VisibleAssets => _assets;
     private IEnumerable<StructureSensor> Cameras => _structures.Where(s => string.IsNullOrWhiteSpace(_structureId) || s.Id.ToString() == _structureId).SelectMany(s => s.Sensors).Where(s => s.SensorType.Equals("Camera", StringComparison.OrdinalIgnoreCase));
-    protected override async Task OnInitializedAsync() { _mediaAccess = await Access.GetAsync(BarajPermissions.Media, PortalMenuPermissions.Media); _manageAccess = await Access.GetAsync(BarajPermissions.Manage, PortalMenuPermissions.Media); _structures = (await StructureUC.GetAllAsync()).Where(s => _mediaAccess.IsAdmin || _mediaAccess.StructureIds.Contains(s.Id)).ToList(); foreach (var s in _structures) { var detail = await StructureUC.GetByIdAsync(s.Id); if (detail is not null) s.Sensors = detail.Sensors; } if(_structures.Any(s=>s.Id==QueryStructureId)) { _structureId=QueryStructureId!.Value.ToString(); if(Cameras.Any(c=>c.DeviceId==QueryDeviceId))_deviceId=QueryDeviceId!; } await LoadAsync(); if (QueryStructureId is not null && !string.IsNullOrWhiteSpace(QueryDeviceId) && CanLive) await StartLiveAsync(); }
+    protected override async Task OnInitializedAsync() { _mediaAccess = await Access.GetAsync(BarajPermissions.Media, PortalMenuPermissions.Media); _manageAccess = await Access.GetAsync(BarajPermissions.Manage, PortalMenuPermissions.Media); _structures = (await StructureUC.GetAllAsync()).Where(s => _mediaAccess.IsAdmin || _mediaAccess.StructureIds.Contains(s.Id)).ToList(); foreach (var s in _structures) { var detail = await StructureUC.GetByIdAsync(s.Id); if (detail is not null) s.Sensors = detail.Sensors; } if(_structures.Any(s=>s.Id==QueryStructureId)) { _structureId=QueryStructureId!.Value.ToString(); if(Cameras.Any(c=>c.DeviceId==QueryDeviceId))_deviceId=QueryDeviceId!; } await LoadAsync();  }
     private async Task LoadAsync()
     {
+        if (_liveSession is not null) await StopLiveAsync();
         _cursorStack = [null];
         _page = 0;
         _archiveTotalCount = null;
@@ -200,6 +216,7 @@ else if (_tab == MediaTab.Archive) {
     }
     private async Task<bool> LoadPageAsync(string? cursor)
     {
+        var generation = ++_loadGeneration;
         _loading = true;
         _error = null;
         try
@@ -207,13 +224,21 @@ else if (_tab == MediaTab.Archive) {
             var result = await MediaArchive.ListPageAsync(
                 _structureId, _deviceId, _from?.ToUniversalTime(), _to?.ToUniversalTime(),
                 "video", cursor, ArchivePageSize);
-            _assets = result.Items.ToList();
+            if (generation != _loadGeneration) return false;
+            _assets = result.Items.Where(a => a.Kind == "video").ToList();
+            _thumbnails.Clear();
+            foreach (var asset in _assets.Where(a => !string.IsNullOrWhiteSpace(a.ThumbnailKey)))
+            {
+                try { _thumbnails[asset.Id] = await MediaArchive.GetPresignedUrlAsync(asset.ThumbnailBucket ?? asset.Bucket, asset.ThumbnailKey); }
+                catch { /* The shared card provides a fallback when preview is unavailable. */ }
+                if (generation != _loadGeneration) return false;
+            }
             _nextCursor = result.NextCursor;
             if (result.TotalCount.HasValue) _archiveTotalCount = result.TotalCount;
             return true;
         }
-        catch (Exception ex) { _assets = []; _nextCursor = null; _archiveTotalCount = null; _error = $"Medya arşivi okunamadı: {ex.Message}"; return false; }
-        finally { _loading = false; }
+        catch (Exception ex) { if (generation == _loadGeneration) { _assets = []; _nextCursor = null; _archiveTotalCount = null; _error = $"Medya arşivi okunamadı: {ex.Message}"; } return false; }
+        finally { if (generation == _loadGeneration) _loading = false; }
     }
     private async Task NextPageAsync()
     {
@@ -235,16 +260,33 @@ else if (_tab == MediaTab.Archive) {
         _page--;
         if (!await LoadPageAsync(_cursorStack[_page])) _page++;
     }
-    private Task OnStructureFilterChanged()
+    private async Task OnStructureFilterChanged()
     {
+        await StopLiveAsync();
         if (!Cameras.Any(camera => camera.DeviceId == _deviceId)) _deviceId = string.Empty;
-        return Task.CompletedTask;
+        _archiveTotalCount = null; _assets = [];
     }
-    private async Task SelectTabAsync(MediaTab tab) { _tab = tab; if (tab == MediaTab.Archive) await LoadAsync(); }
+    private async Task SelectTabAsync(MediaTab tab) { if (tab == MediaTab.Archive) await StopLiveAsync(); _tab = tab; if (tab == MediaTab.Archive) await LoadAsync(); }
     private async Task OpenAsync(MediaAsset asset) { _selected = asset; _previewUrl = null; _previewError = null; _previewLoading = true; try { _previewUrl = await MediaArchive.GetPresignedUrlAsync(asset.Bucket, asset.ObjectKey); } catch { _previewError = "Kayıt açılırken merkezi arşive ulaşılamadı. Birkaç saniye sonra yeniden deneyin."; } finally { _previewLoading = false; } }
     private bool CanProtect(MediaAsset asset) => _manageAccess.IsAdmin || _structures.Any(s => _manageAccess.StructureIds.Contains(s.Id) && s.Sensors.Any(c => c.DeviceId == asset.DeviceId));
     private async Task ToggleProtectionAsync(MediaAsset asset) { try { await MediaArchive.SetProtectionAsync(asset, !asset.IsProtected); await LoadAsync(); } catch { _error = "Kayıt koruması değiştirilemedi; yapı yönetim yetkisi gerekir."; } }
     private void ToggleProtectionInfo(Guid assetId) => _protectionInfoAssetId = _protectionInfoAssetId == assetId ? null : assetId;
+    private string CameraName(MediaAsset asset) => Cameras.FirstOrDefault(c => c.DeviceId == asset.DeviceId)?.EffectiveDisplayName ?? asset.DeviceId;
+    private async Task ArchiveCapacityChanged(int size)
+    {
+        if (size == ArchivePageSize) return;
+        ArchivePageSize = size;
+        await LoadAsync();
+    }
+    private async Task DeleteAsync(MediaAsset asset)
+    {
+        if (_deleting || asset.IsProtected || !CanProtect(asset)) return;
+        if (!await JS.InvokeAsync<bool>("confirm", $"{CameraName(asset)} video kaydı kalıcı olarak silinsin mi?")) return;
+        _deleting = true;
+        try { await MediaArchive.DeleteAsync(asset); await LoadAsync(); }
+        catch { _error = "Video silinemedi. Kayıt korumasını, yetkinizi ve arşiv bağlantısını kontrol edin."; }
+        finally { _deleting = false; }
+    }
     private void PreviewLoadFailed() => _previewError = "Kayıt görüntülenemedi. Merkezi arşiv bağlantısını kontrol edip yeniden deneyin.";
     private void Close() { _selected = null; _previewUrl = null; _previewError = null; }
     public async ValueTask DisposeAsync() { if (_liveSession is not null) await StopLiveAsync(); }

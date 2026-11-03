@@ -23,6 +23,7 @@ public sealed record MediaArchivePage(IReadOnlyList<MediaAsset> Items, string? N
 public interface IMediaArchiveClient
 {
     Task<MediaArchivePage> ListPageAsync(string? structureId, string? deviceId, DateTime? from, DateTime? to, string? type, string? cursor, int pageSize, CancellationToken ct = default);
+    Task DeleteAsync(MediaAsset asset, CancellationToken ct = default);
     Task SetProtectionAsync(MediaAsset asset, bool isProtected, CancellationToken ct = default);
     Task<string?> GetPresignedUrlAsync(string bucket, string? key, CancellationToken ct = default);
 }
@@ -54,6 +55,12 @@ public sealed class MediaArchiveHttpClient : IMediaArchiveClient
         if (string.IsNullOrWhiteSpace(key)) return null;
         var response = await _http.GetFromJsonAsync<PresignDto>($"api/presign?bucket={Uri.EscapeDataString(bucket)}&key={Uri.EscapeDataString(key)}", ct);
         return response?.Url;
+    }
+
+    public async Task DeleteAsync(MediaAsset asset, CancellationToken ct = default)
+    {
+        using var response = await _http.DeleteAsync($"api/media/{asset.Kind}/{asset.Id}", ct);
+        response.EnsureSuccessStatusCode();
     }
 
     public async Task SetProtectionAsync(MediaAsset asset, bool isProtected, CancellationToken ct = default)

@@ -83,3 +83,8 @@ body::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;ba
 
 /* Paint the landscape on the body, including the outer gutters and page bottom. */
 .dy-shell,.dy-shell>main,.dy-shell>main>#main-content{background:transparent!important}
+
+/* Use the available workspace width instead of a centered, capped content column. */
+#main-content.content{width:100%;max-width:none;margin-inline:0;box-sizing:border-box;padding-inline:12px!important}
+#main-content>.container,#main-content>.container-fluid,#main-content>.saha-dashboard,#main-content>.monitor-page{width:100%;max-width:none;margin-inline:0;box-sizing:border-box;padding-inline:0!important}
+@media(max-width:640px){#main-content.content{padding-inline:8px!important}}

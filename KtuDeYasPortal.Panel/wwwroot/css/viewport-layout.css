@@ -115,3 +115,24 @@ body::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;ba
 
 /* ── twin-page and monitor-page clip ────────────────────────────────── */
 .page>main>article#main-content>.monitor-page{flex:1;min-height:0;overflow:hidden}
+
+/* ── Wizard: viewport height, internal scroll, no page scroll ───────── */
+@media(min-width:641px){
+  /* Wizard panel fills available height */
+  .page>main>article#main-content .create-structure-panel{
+    display:flex;flex-direction:column;
+    max-height:calc(100dvh - 130px);
+    overflow:hidden;
+  }
+  .page>main>article#main-content .create-structure-panel>.alert{flex:none}
+  .page>main>article#main-content .create-structure-panel>.create-panel-header{flex:none}
+  .page>main>article#main-content .create-structure-panel>.create-steps{flex:none}
+  /* p-4 is the scrollable body */
+  .page>main>article#main-content .create-structure-panel>.p-4{
+    flex:1;min-height:0;overflow-y:auto;overflow-x:hidden
+  }
+  /* Sensor table inside wizard step 2: fixed height with scroll */
+  .page>main>article#main-content .create-structure-panel .wizard-sensor-table-wrap{
+    max-height:calc(100dvh - 480px);min-height:120px;overflow-y:auto
+  }
+}

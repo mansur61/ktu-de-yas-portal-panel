@@ -397,7 +397,7 @@
                     <small class="text-muted">@wizFiltered.Count / @_newStructureSensors.Count sensör</small>
                     <small class="text-muted ms-1">— bağlantı testi yapılmış, DB'ye yazılmış</small>
                   </div>
-                  <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Sensör</th><th>Ölçüm türü</th><th>Görsel konumu</th><th></th></tr></thead><tbody>
+                  <div class="table-responsive wizard-sensor-table-wrap"><table class="table table-sm"><thead><tr><th>Sensör</th><th>Ölçüm türü</th><th>Görsel konumu</th><th></th></tr></thead><tbody>
                   @foreach (var sensor in wizPaged) {
                     var wizIdx = _newStructureSensors.IndexOf(sensor);
                     <tr>

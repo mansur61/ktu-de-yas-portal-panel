@@ -180,22 +180,40 @@ public partial class Structures
     private async Task SaveBasicInfoAndContinueAsync()
     {
         if (_isSaving) return;
-        if (_createdStructureId == Guid.Empty) { await SaveStructureAndOpenSetupAsync(); return; }
         if (string.IsNullOrWhiteSpace(_newName) || string.IsNullOrWhiteSpace(_newProvince) || !_newType.HasValue) { _saveError = "Baraj adını, ili ve ilçeyi doldurun."; return; }
         if (string.IsNullOrWhiteSpace(_newDistrict)) { _saveError = "İlçe seçimi zorunludur."; return; }
+
+        // Daha önce kaydedilmiş yapıyı güncelle — yeni yapı oluşturma
+        if (_createdStructureId == Guid.Empty) { await SaveStructureAndOpenSetupAsync(); return; }
+
         _isSaving = true; _saveError = null;
         try {
             var structure = await StructureUC.GetByIdAsync(_createdStructureId);
-            if (structure is null) { _saveError = "Baraj kaydı bulunamadı."; return; }
-            structure.Name = _setupName = _newName.Trim();
-            structure.Description = _newDescription.Trim();
-            structure.Province = _newProvince; structure.District = _newDistrict;
-            structure.Address = _newAddress; structure.Latitude = _newLat; structure.Longitude = _newLng;
-            structure.StructureType = _newType.Value; _setupStructureType = _newType.Value.ToString();
-            structure.IsActive = _newIsActive; structure.NodeRedUrl = _newNodeRedUrl;
-            await StructureUC.UpdateAsync(structure.Id, structure, structure.Sensors.Where(s => s.IsActive).Select(s => s.SensorId).Distinct().ToList());
+            if (structure is null) { _saveError = "Baraj kaydı bulunamadı. Listeden yeniden açın."; return; }
+            structure.Name           = _setupName = _newName.Trim();
+            structure.Description    = _newDescription.Trim();
+            structure.Province       = _newProvince;
+            structure.District       = _newDistrict;
+            structure.Address        = _newAddress;
+            structure.Latitude       = _newLat;
+            structure.Longitude      = _newLng;
+            structure.StructureType  = _newType.Value;
+            _setupStructureType      = _newType.Value.ToString();
+            structure.IsActive       = _newIsActive;
+            structure.NodeRedUrl     = _newNodeRedUrl;
+            // Sensör listesini değiştirme — sadece temel bilgileri güncelle
+            var activeSensorIds = structure.Sensors
+                .Where(s => s.IsActive)
+                .Select(s => s.SensorId)
+                .Distinct()
+                .ToList();
+            await StructureUC.UpdateAsync(structure.Id, structure, activeSensorIds);
             OpenSetupStep();
-        } catch (Exception ex) { _saveError = $"Baraj bilgileri kaydedilemedi. {ex.Message}"; }
+        }
+        catch (HttpRequestException ex) when ((int?)ex.StatusCode == 409) {
+            _saveError = "Bu isimde başka bir yapı var. Lütfen farklı bir ad kullanın.";
+        }
+        catch (Exception ex) { _saveError = $"Baraj bilgileri kaydedilemedi. {ex.Message}"; }
         finally { _isSaving = false; }
     }
 

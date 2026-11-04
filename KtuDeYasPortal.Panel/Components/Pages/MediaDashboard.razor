@@ -106,7 +106,7 @@ else if (_tab == MediaTab.Archive) {
 {
     <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.55)"><div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content">
         <div class="modal-header"><h5 class="modal-title">@_selected.DeviceId · @_selected.CapturedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss")</h5><button class="btn-close" @onclick="Close"></button></div>
-        <div class="modal-body text-center bg-dark">@if (_previewLoading) { <span class="spinner-border text-light my-5"></span> } else if (_previewUrl is null || _previewError is not null) { <p class="text-light m-4">@(_previewError ?? "Medya bağlantısı üretilemedi.")</p> } else if (_selected.Kind == "video") { <video src="@_previewUrl" controls class="w-100" style="max-height:65vh" @onerror="PreviewLoadFailed"></video> } else { <img src="@_previewUrl" class="img-fluid" style="max-height:65vh" @onerror="PreviewLoadFailed" /> }</div>
+        <div class="modal-body text-center bg-dark">@if (_previewLoading) { <span class="spinner-border text-light my-5"></span> } else if (_previewUrl is null || _previewError is not null) { <p class="text-light m-4">@(_previewError ?? "Medya bağlantısı üretilemedi.")</p> } else if (_selected.Kind == "video") { <video src="@_previewUrl" controls autoplay muted playsinline class="w-100" style="max-height:65vh" @onerror="PreviewLoadFailed"></video> } else { <img src="@_previewUrl" class="img-fluid" style="max-height:65vh" @onerror="PreviewLoadFailed" /> }</div>
     </div></div></div>
 }
 

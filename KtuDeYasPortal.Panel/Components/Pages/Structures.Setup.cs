@@ -193,7 +193,7 @@ public partial class Structures
             structure.Address = _newAddress; structure.Latitude = _newLat; structure.Longitude = _newLng;
             structure.StructureType = _newType.Value; _setupStructureType = _newType.Value.ToString();
             structure.IsActive = _newIsActive; structure.NodeRedUrl = _newNodeRedUrl;
-            await StructureUC.UpdateAsync(structure.Id, structure, structure.Sensors.Select(s => s.SensorId).ToList());
+            await StructureUC.UpdateAsync(structure.Id, structure, structure.Sensors.Where(s => s.IsActive).Select(s => s.SensorId).Distinct().ToList());
             OpenSetupStep();
         } catch (Exception ex) { _saveError = $"Baraj bilgileri kaydedilemedi. {ex.Message}"; }
         finally { _isSaving = false; }

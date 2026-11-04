@@ -89,22 +89,22 @@ body::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;ba
 #main-content>.container,#main-content>.container-fluid,#main-content>.saha-dashboard,#main-content>.monitor-page{width:100%;max-width:none;margin-inline:0;box-sizing:border-box;padding-inline:0!important}
 @media(max-width:640px){#main-content.content{padding-inline:8px!important}}
 
-/* ── No page scroll — only the content area clips, not html/body ─────── */
-.dy-shell>main{display:flex;flex-direction:column;height:100dvh;overflow:hidden}
-.dy-shell>main>#main-content{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}
-.dy-shell>main>#main-content>.monitor-page{flex:1;min-height:0;overflow:hidden}
+/* ── No page scroll: clip at page level, not body ───────────────────── */
+/* Blazor layout: .page (flex row) > .sidebar (sticky) + main (flex col) > .top-row + article#main-content */
+@media(min-width:641px){
+  .page{height:100dvh;overflow:hidden}
+  .page>main{overflow:hidden;display:flex;flex-direction:column;height:100%}
+  .page>main>.top-row{flex:none}
+  .page>main>article#main-content{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}
+  /* Remove user-experience.css padding that causes overflow */
+  .page>main>article#main-content.content{padding-top:0!important;padding-bottom:0!important}
+  /* Wizard and popups scroll internally, not the page */
+  .page>main>article#main-content .create-structure-panel{overflow:hidden;display:flex;flex-direction:column;max-height:calc(100dvh - 130px)}
+  .page>main>article#main-content .create-panel-body,
+  .page>main>article#main-content .p-4{overflow-y:auto}
+}
 
-/* Panel normal layout: .page > main > article#main-content */
-/* sidebar sticky 100vh + main fills rest */
-.dy-shell.page{height:100dvh;overflow:hidden}
-.dy-shell.page>main{overflow:hidden;display:flex;flex-direction:column;height:100%}
-.dy-shell.page>main>.top-row{flex:none}
-.dy-shell.page>main>article#main-content{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}
-
-/* ── /structures: full-height card grid without scroll ──────────────── */
-/* Override user-experience.css padding that causes scroll */
-.dy-shell.page>main>article#main-content.content{padding-top:0!important;padding-bottom:0!important}
-
+/* ── /structures: fill remaining height with card grid ──────────────── */
 @media(min-width:1001px){
   .structures-page{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px;padding:16px 0 0;overflow:hidden}
   .structures-page .structures-header{flex:none}
@@ -112,3 +112,6 @@ body::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;ba
   .structures-page .adaptive-pagination{flex:none}
   .structures-page .responsive-grid{flex:1;min-height:0;overflow:hidden}
 }
+
+/* ── twin-page and monitor-page clip ────────────────────────────────── */
+.page>main>article#main-content>.monitor-page{flex:1;min-height:0;overflow:hidden}

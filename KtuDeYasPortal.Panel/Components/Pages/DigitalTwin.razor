@@ -9,6 +9,7 @@
 @inject PanelApiClients Clients
 @inject SensorDataState RealtimeState
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 @implements IDisposable
 
 @using KtuDeYasPortal.Panel.Components.Shared
@@ -21,7 +22,7 @@
 else if (_structure is null) { <div class="dy-empty"><h1>Baraj açılamadı</h1><p>@_error</p><a href="structures">Tüm barajlar</a></div> }
 else {
 <section class="twin-page monitor-page structure-detail">
-<header class="monitor-heading"><div><a href="/structures">← Barajlar</a><h1>@_structure.Name</h1><p>@_structure.Province · @_structure.District</p></div></header>
+<header class="monitor-heading"><div><button class="btn btn-sm btn-outline-secondary" @onclick="GoBack"><i class="bi bi-chevron-left" aria-hidden="true"></i> Barajlar</button><h1>@_structure.Name</h1><p>@_structure.Province · @_structure.District</p></div></header>
 <div class="saha-category-tabs" aria-label="Sensör kategorisi">@foreach(var category in MonitoringHealth.Categories){<button class="@(_category==category?"selected":"")" aria-pressed="@(_category==category)" @onclick="()=>SetCategory(category)">@category</button>}</div>
 <div class="monitor-workbench">
 <section class="model-section">
@@ -87,6 +88,10 @@ else {<small>Grafik için ölçüm bekleniyor</small>}
     private bool _canRead, _canMedia;
     private List<Structure> _sites=[];
     private void ChangeSite(ChangeEventArgs e){if(Guid.TryParse(e.Value?.ToString(),out var id))Navigation.NavigateTo($"/digital-twin/{id}");}
+    private async Task GoBack() {
+        await using var module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/DeYas.DigitalTwin/adaptive-layout.js");
+        await module.InvokeVoidAsync("back", "/structures");
+    }
     private int FreshCount=>_sensors.Count(s=>!IsCamera(s)&&IsFresh(s));
     private static bool IsCamera(Sensor s)=>s.SensorType.ToString()=="Camera";
     private static bool HasPosition(Sensor s)=>s.ImagePositionX is >=0 and <=100 && s.ImagePositionY is >=0 and <=100;

@@ -93,10 +93,7 @@
     }
     else
     {
-        <div class="row g-3">
-            @foreach (var s in _structures)
-            {
-                <div class="col-sm-6 col-xl-4">
+        <ResponsiveGrid Items="_structures" ItemHeight="360" MinimumWidth="300" Context="s"><ItemTemplate>
                     <div class="structure-card @(s.IsActive ? "" : "opacity-60")" @onclick="() => OpenStructureDetail(s.Id)">
                         <img src="@(!string.IsNullOrEmpty(s.ImageUrl) ? s.ImageUrl : GetStructureImagePath(s.StructureType))"
                              class="structure-card-img" alt="@s.Name"
@@ -133,10 +130,8 @@
                                         @(localPipelineEnabled ? "Saha yerel akış aktif" : "Saha yerel akış durduruldu")
                                     </span>
                                 }
-                                else if (s.IsActive)
-                                { <span class="badge bg-secondary">Envanterde</span> }
                                 else
-                                { <span class="badge bg-secondary">Envanter dışı</span> }
+                                { <span class="badge bg-light text-dark border" title="@(string.IsNullOrWhiteSpace(s.EdgeApiUrl) ? "Saha bağlantısı tanımlanmamış; akış durumu doğrulanamıyor." : "Saha akış durumu alınamadı; akışın durduğu doğrulanmış değil.")">Saha akışı yok</span> }
                                 @if (_forwardingStates.TryGetValue(s.Id, out var forwarding))
                                 {
                                     <span class="badge @(forwarding ? "bg-info text-dark" : "bg-secondary")">
@@ -171,66 +166,18 @@
                                 }
                             </div>
                             <div class="structure-card-actions mt-3">
-                                @if (IsLocalPipelineEnabled(s.Id))
-                                {
-                                    <button class="btn btn-sm btn-outline-danger"
-                                            @onclick="() => StopStructureSimulationAsync(s.Id)"
-                                            @onclick:stopPropagation="true"
-                                            disabled="@_stoppingStructureIds.Contains(s.Id)">
-                                        @if (_stoppingStructureIds.Contains(s.Id))
-                                        {
-                                            <span class="spinner-border spinner-border-sm me-1"></span>
-                                        }
-                                        else
-                                        {
-                                            <span class="bi bi-stop-fill me-1"></span>
-                                        }
-                                        Durdur
-                                    </button>
+                                @if (IsLocalPipelineEnabled(s.Id)) {
+                                    <IconActionButton Icon="bi-stop-fill" Label="Saha yerel akışını durdur" Disabled="_stoppingStructureIds.Contains(s.Id)" OnClick="() => StopStructureSimulationAsync(s.Id)" />
                                 }
-                                <button class="btn btn-sm btn-success"
-                                        @onclick="() => StartStructureSimulationAsync(s.Id)"
-                                        @onclick:stopPropagation="true"
-                                        disabled="@(_startingStructureIds.Contains(s.Id) || IsLocalPipelineEnabled(s.Id) || GetStartDisabled(s))"
-                                        title="@GetStartTooltip(s)">
-                                    @if (_startingStructureIds.Contains(s.Id))
-                                    {
-                                        <span class="spinner-border spinner-border-sm me-1"></span>
-                                    }
-                                    else
-                                    {
-                                        <span class="bi bi-play-fill me-1"></span>
-                                    }
-                                    @if (s.SensorCount == 0)
-                                    {
-                                        <span>Sensör yok</span>
-                                    }
-                                    else if (_isProdMode && !s.CanStart && s.TotalSensorCount > 0 && string.IsNullOrWhiteSpace(s.EdgeApiUrl))
-                                    {
-                                        <span>Hazır değil</span>
-                                    }
-                                    else
-                                    {
-                                        @(IsLocalPipelineEnabled(s.Id) ? "Veri toplama açık" : "Veri toplamayı başlat")
-                                    }
-                                </button>
-                                @if (s.SensorCount > 0)
-                                {
-                                <button class="btn btn-sm @( _forwardingStates.TryGetValue(s.Id, out var isForwardingActive) && isForwardingActive ? "btn-outline-secondary" : "btn-outline-primary")"
-                                        @onclick="() => SetStructureForwardingAsync(s.Id, !(_forwardingStates.TryGetValue(s.Id, out var current) && current))"
-                                        @onclick:stopPropagation="true"
-                                        title="Yerel akışı değiştirmeden merkez aktarımını açar veya kapatır.">
-                                    <span class="bi bi-cloud-arrow-@( _forwardingStates.TryGetValue(s.Id, out var state) && state ? "down" : "up") me-1"></span>
-                                    @( _forwardingStates.TryGetValue(s.Id, out var enabled) && enabled ? "Merkeze iletimi durdur" : "Merkeze ilet")
-                                </button>
+                                <IconActionButton Icon="bi-play-fill" Label="@GetStartTooltip(s)" Disabled="@(_startingStructureIds.Contains(s.Id) || IsLocalPipelineEnabled(s.Id) || GetStartDisabled(s))" OnClick="() => StartStructureSimulationAsync(s.Id)" />
+                                @if (s.SensorCount > 0) {
+                                    <IconActionButton Icon="bi-cloud-arrow-up" Label="@(_forwardingStates.TryGetValue(s.Id, out var forwardingActive) && forwardingActive ? "Merkeze iletimi durdur" : "Merkeze ilet")" OnClick="() => SetStructureForwardingAsync(s.Id, !(_forwardingStates.TryGetValue(s.Id, out var current) && current))" />
                                 }
-                                <button class="btn btn-sm btn-outline-primary" @onclick="() => DownloadSavedPackageAsync(s.Id)" @onclick:stopPropagation="true">Saha ZIP’ini indir</button>
+                                <IconActionButton Icon="bi-file-earmark-zip" Label="Saha ZIP’ini indir" OnClick="() => DownloadSavedPackageAsync(s.Id)" />
                             </div>
                         </div>
                     </div>
-                </div>
-            }
-        </div>
+        </ItemTemplate></ResponsiveGrid>
     }
 }
 

@@ -88,3 +88,19 @@ body::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;ba
 #main-content.content{width:100%;max-width:none;margin-inline:0;box-sizing:border-box;padding-inline:12px!important}
 #main-content>.container,#main-content>.container-fluid,#main-content>.saha-dashboard,#main-content>.monitor-page{width:100%;max-width:none;margin-inline:0;box-sizing:border-box;padding-inline:0!important}
 @media(max-width:640px){#main-content.content{padding-inline:8px!important}}
+
+/* ── No page scroll (sidebar scrolls internally via dy-nav) ─────────── */
+html,body{overflow:hidden;height:100%}
+.dy-shell{height:100dvh;overflow:hidden;display:flex}
+.dy-shell>main{flex:1;min-width:0;overflow:hidden;display:flex;flex-direction:column}
+.dy-shell>main>#main-content{flex:1;min-height:0;overflow:hidden}
+
+/* ── /structures: full-height card grid without scroll ──────────────── */
+@media(min-width:1001px){
+  #main-content.content:has(.structures-page){padding-top:0!important;padding-bottom:0!important;height:100%;display:flex;flex-direction:column}
+  .structures-page{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+  .structures-page .structures-header{flex:none;padding-top:16px}
+  .structures-page .responsive-collection{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+  .structures-page .adaptive-pagination{flex:none}
+  .structures-page .responsive-grid{flex:1;min-height:0;overflow:hidden}
+}

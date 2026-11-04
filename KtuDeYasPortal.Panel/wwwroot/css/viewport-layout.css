@@ -94,13 +94,19 @@ body::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;ba
 .dy-shell>main>#main-content{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}
 .dy-shell>main>#main-content>.monitor-page{flex:1;min-height:0;overflow:hidden}
 
+/* Panel normal layout: .page > main > article#main-content */
+/* sidebar sticky 100vh + main fills rest */
+.dy-shell.page{height:100dvh;overflow:hidden}
+.dy-shell.page>main{overflow:hidden;display:flex;flex-direction:column;height:100%}
+.dy-shell.page>main>.top-row{flex:none}
+.dy-shell.page>main>article#main-content{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}
+
 /* ── /structures: full-height card grid without scroll ──────────────── */
 /* Override user-experience.css padding that causes scroll */
-.dy-shell>main>#main-content.content{padding-top:0!important;padding-bottom:0!important}
-.dy-shell>main>#main-content.content .structures-page{padding-top:16px}
+.dy-shell.page>main>article#main-content.content{padding-top:0!important;padding-bottom:0!important}
 
 @media(min-width:1001px){
-  .structures-page{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px;overflow:hidden}
+  .structures-page{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px;padding:16px 0 0;overflow:hidden}
   .structures-page .structures-header{flex:none}
   .structures-page .responsive-collection{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
   .structures-page .adaptive-pagination{flex:none}

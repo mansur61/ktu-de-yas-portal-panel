@@ -1980,7 +1980,11 @@
         }
         catch (Exception ex)
         {
-            _simulationErrorMessage = $"Simülasyon başlatılamadı: {ex.Message}";
+            var msg = ex.Message;
+            if (msg.Contains("başka bir structureId") || msg.Contains("provision edildi"))
+                _simulationErrorMessage = $"Saha Edge bağlantısı başka bir yapıya bağlı. \"{structureName}\" için ayrı bir Edge kurulumu yapılmalı veya mevcut bağlantı serbest bırakılmalıdır.";
+            else
+                _simulationErrorMessage = $"Simülasyon başlatılamadı: {msg}";
         }
         finally
         {

@@ -91,7 +91,8 @@ body::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;ba
 
 /* ── No page scroll — only the content area clips, not html/body ─────── */
 .dy-shell>main{display:flex;flex-direction:column;height:100dvh;overflow:hidden}
-.dy-shell>main>#main-content{flex:1;min-height:0;overflow:hidden}
+.dy-shell>main>#main-content{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}
+.dy-shell>main>#main-content>.monitor-page{flex:1;min-height:0;overflow:hidden}
 
 /* ── /structures: full-height card grid without scroll ──────────────── */
 @media(min-width:1001px){

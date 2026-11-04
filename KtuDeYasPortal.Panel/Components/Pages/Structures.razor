@@ -49,6 +49,7 @@
    ══════════════════════════════════════════════════════════════════ *@
 @if (_editingStructure == null && !_showCreateWizard)
 {
+<div class="structures-page">
     @if (!string.IsNullOrWhiteSpace(_simulationStatusMessage))
     {
         <div class="alert @_simulationStatusAlertClass d-flex align-items-center gap-2 mb-3 py-2">
@@ -64,7 +65,7 @@
         </div>
     }
 
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-2 structures-header">
         <div>
             <div class="dy-eyebrow">Baraj ve Sensör Yönetimi</div><h1 class="mb-2">Barajlar ve saha kurulumu</h1>
             <small class="text-muted">Barajı tanımlayın, sensörleri ekleyin ve sahaya götürülecek paketi hazırlayın.</small>
@@ -179,6 +180,7 @@
                     </div>
         </ItemTemplate></ResponsiveGrid>
     }
+</div>
 }
 
 @* ══════════════════════════════════════════════════════════════════

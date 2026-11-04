@@ -95,10 +95,13 @@ body::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;ba
 .dy-shell>main>#main-content>.monitor-page{flex:1;min-height:0;overflow:hidden}
 
 /* ── /structures: full-height card grid without scroll ──────────────── */
+/* Override user-experience.css padding that causes scroll */
+.dy-shell>main>#main-content.content{padding-top:0!important;padding-bottom:0!important}
+.dy-shell>main>#main-content.content .structures-page{padding-top:16px}
+
 @media(min-width:1001px){
-  #main-content.content:has(.structures-page){padding-top:0!important;padding-bottom:0!important;height:100%;display:flex;flex-direction:column}
-  .structures-page{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
-  .structures-page .structures-header{flex:none;padding-top:16px}
+  .structures-page{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px;overflow:hidden}
+  .structures-page .structures-header{flex:none}
   .structures-page .responsive-collection{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
   .structures-page .adaptive-pagination{flex:none}
   .structures-page .responsive-grid{flex:1;min-height:0;overflow:hidden}

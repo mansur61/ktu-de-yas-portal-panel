@@ -194,7 +194,7 @@
 
         <div class="create-steps">
           <button class="create-step @(_wizardStep == 2 ? "active" : "done")" @onclick="BackFromStep3" aria-expanded="@(_wizardStep == 2)"><span class="create-step-num">1</span>Baraj bilgileri</button>
-          <button class="create-step @(_wizardStep == 4 ? "active" : "")" @onclick="SaveBasicInfoAndContinueAsync" disabled="@(_createdStructureId == Guid.Empty || _isSaving)" aria-expanded="@(_wizardStep == 4)"><span class="create-step-num">2</span>Sensörler ve veri kaynakları</button>
+          <button class="create-step @(_wizardStep == 4 ? "active" : "")" @onclick="SaveBasicInfoAndContinueAsync" disabled="@(_createdStructureId == Guid.Empty || _isSaving || string.IsNullOrWhiteSpace(_newProvince) || string.IsNullOrWhiteSpace(_newDistrict))" aria-expanded="@(_wizardStep == 4)"><span class="create-step-num">2</span>Sensörler ve veri kaynakları</button>
           <button class="create-step @(_wizardStep == 5 ? "active" : "")" @onclick="GoToDeploymentStep" disabled="@(_createdStructureId == Guid.Empty || _setupSaving)" aria-expanded="@(_wizardStep == 5)"><span class="create-step-num">3</span>Saha ZIP’ini hazırla</button>
         </div>
 
@@ -331,7 +331,14 @@
                         </div>
                     </div></details></div>
                 </div>
-                <div class="d-flex align-items-center justify-content-between gap-3 mt-4"><span class="dy-subtle">Kaydettikten sonra bu barajın kurulumuna listeden devam edebilirsiniz.</span><button class="btn btn-primary" disabled="@(string.IsNullOrWhiteSpace(_newName) || string.IsNullOrWhiteSpace(_newProvince) || _isSaving)" @onclick="SaveBasicInfoAndContinueAsync">@(_isSaving ? "Kaydediliyor…" : "Kaydet ve sensör ekle →")</button></div>
+                <div class="d-flex align-items-center justify-content-between gap-3 mt-4">
+                    @if (string.IsNullOrWhiteSpace(_newProvince) || string.IsNullOrWhiteSpace(_newDistrict)) {
+                        <small class="text-danger"><i class="bi bi-exclamation-circle me-1"></i>@(string.IsNullOrWhiteSpace(_newProvince) ? "İl seçimi zorunludur." : "İlçe seçimi zorunludur.")</small>
+                    } else {
+                        <span class="dy-subtle">Kaydettikten sonra bu barajın kurulumuna listeden devam edebilirsiniz.</span>
+                    }
+                    <button class="btn btn-primary" disabled="@(string.IsNullOrWhiteSpace(_newName) || string.IsNullOrWhiteSpace(_newProvince) || string.IsNullOrWhiteSpace(_newDistrict) || _isSaving)" @onclick="SaveBasicInfoAndContinueAsync">@(_isSaving ? "Kaydediliyor…" : "Kaydet ve sensör ekle →")</button>
+                </div>
             </div>
 
             <div hidden="@(_wizardStep != 4)">

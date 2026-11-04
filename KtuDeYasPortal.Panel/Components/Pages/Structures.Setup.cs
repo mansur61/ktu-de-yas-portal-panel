@@ -181,7 +181,8 @@ public partial class Structures
     {
         if (_isSaving) return;
         if (_createdStructureId == Guid.Empty) { await SaveStructureAndOpenSetupAsync(); return; }
-        if (string.IsNullOrWhiteSpace(_newName) || string.IsNullOrWhiteSpace(_newProvince) || !_newType.HasValue) { _saveError = "Baraj adını ve ili doldurun."; return; }
+        if (string.IsNullOrWhiteSpace(_newName) || string.IsNullOrWhiteSpace(_newProvince) || !_newType.HasValue) { _saveError = "Baraj adını, ili ve ilçeyi doldurun."; return; }
+        if (string.IsNullOrWhiteSpace(_newDistrict)) { _saveError = "İlçe seçimi zorunludur."; return; }
         _isSaving = true; _saveError = null;
         try {
             var structure = await StructureUC.GetByIdAsync(_createdStructureId);

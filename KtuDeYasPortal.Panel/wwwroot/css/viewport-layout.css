@@ -89,10 +89,8 @@ body::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;ba
 #main-content>.container,#main-content>.container-fluid,#main-content>.saha-dashboard,#main-content>.monitor-page{width:100%;max-width:none;margin-inline:0;box-sizing:border-box;padding-inline:0!important}
 @media(max-width:640px){#main-content.content{padding-inline:8px!important}}
 
-/* ── No page scroll (sidebar scrolls internally via dy-nav) ─────────── */
-html,body{overflow:hidden;height:100%}
-.dy-shell{height:100dvh;overflow:hidden;display:flex}
-.dy-shell>main{flex:1;min-width:0;overflow:hidden;display:flex;flex-direction:column}
+/* ── No page scroll — only the content area clips, not html/body ─────── */
+.dy-shell>main{display:flex;flex-direction:column;height:100dvh;overflow:hidden}
 .dy-shell>main>#main-content{flex:1;min-height:0;overflow:hidden}
 
 /* ── /structures: full-height card grid without scroll ──────────────── */

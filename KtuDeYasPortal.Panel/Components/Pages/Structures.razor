@@ -536,7 +536,7 @@
         </div>
 
         @* ── Görsel Overlay — JS initStructureImage() doldurur ── *@
-        <div class="structure-image-wrapper" id="structure-image">
+        <div class="structure-image-wrapper" id="structure-image" style="max-height:180px;overflow:hidden">
             @* JS tarafından doldurulur *@
         </div>
         <div class="structure-image-click-hint">
@@ -2243,6 +2243,31 @@
         _saveError = null;
         try
         {
+            // Zaten kaydedilmiş yapıyı güncelle — yeni kayıt oluşturma
+            if (_createdStructureId != Guid.Empty)
+            {
+                var existing = await StructureUC.GetByIdAsync(_createdStructureId);
+                if (existing is not null)
+                {
+                    existing.Name          = _setupName = _newName.Trim();
+                    existing.Description   = _newDescription.Trim();
+                    existing.IsActive      = _newIsActive;
+                    existing.Province      = _newProvince;
+                    existing.District      = _newDistrict;
+                    existing.Address       = _newAddress.Trim();
+                    existing.Latitude      = _newLat;
+                    existing.Longitude     = _newLng;
+                    existing.StructureType = _newType.Value;
+                    existing.NodeRedUrl    = string.IsNullOrWhiteSpace(_newNodeRedUrl) ? existing.NodeRedUrl : _newNodeRedUrl.Trim();
+                    var keepIds = existing.Sensors.Where(s => s.IsActive).Select(s => s.SensorId).Distinct().ToList();
+                    await StructureUC.UpdateAsync(existing.Id, existing, keepIds);
+                    _setupStructureType = _newType.Value.ToString();
+                    OpenSetupStep();
+                    StateHasChanged();
+                    return;
+                }
+            }
+
             var structure = new Structure
             {
                 Name = _newName.Trim(),

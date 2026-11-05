@@ -7,6 +7,4 @@
   <rect x="360" y="250" width="40" height="100" fill="#495057" rx="2"/>
   <rect x="440" y="250" width="40" height="100" fill="#495057" rx="2"/>
   <rect x="520" y="250" width="40" height="100" fill="#495057" rx="2"/>
-  <text x="400" y="100" font-size="28" text-anchor="middle" fill="#495057" font-weight="bold">Baraj Yapısı</text>
-  <text x="400" y="460" font-size="14" text-anchor="middle" fill="#6c757d">Baraj Görseli</text>
 </svg>

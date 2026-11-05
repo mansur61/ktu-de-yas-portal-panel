@@ -201,17 +201,23 @@ public partial class Structures
             _setupStructureType      = _newType.Value.ToString();
             structure.IsActive       = _newIsActive;
             structure.NodeRedUrl     = _newNodeRedUrl;
-            // Sensör listesini değiştirme — sadece temel bilgileri güncelle
-            var activeSensorIds = structure.Sensors
-                .Where(s => s.IsActive)
-                .Select(s => s.SensorId)
+            // Wizard sensör listesini kullan — API response SensorId deserialize sorunlarından kaçın
+            var sensorIds = _newStructureSensors
+                .Select(s => s.Id)
                 .Distinct()
                 .ToList();
-            await StructureUC.UpdateAsync(structure.Id, structure, activeSensorIds);
+            // Wizard boşsa mevcut aktif sensörleri koru
+            if (sensorIds.Count == 0)
+                sensorIds = structure.Sensors
+                    .Where(s => s.IsActive)
+                    .Select(s => s.SensorId)
+                    .Distinct()
+                    .ToList();
+            await StructureUC.UpdateAsync(structure.Id, structure, sensorIds);
             OpenSetupStep();
         }
-        catch (HttpRequestException ex) when ((int?)ex.StatusCode == 409) {
-            _saveError = "Bu isimde başka bir yapı var. Lütfen farklı bir ad kullanın.";
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Conflict) {
+            _saveError = "Güncelleme kaydedilemedi. Sunucu çakışma hatası döndürdü. Sensör listesini kontrol edin.";
         }
         catch (Exception ex) { _saveError = $"Baraj bilgileri kaydedilemedi. {ex.Message}"; }
         finally { _isSaving = false; }

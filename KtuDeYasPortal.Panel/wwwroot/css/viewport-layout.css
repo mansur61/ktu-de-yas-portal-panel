@@ -172,3 +172,16 @@ body::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;ba
     min-height:120px
   }
 }
+
+/* ── Structure detail image: compact when sensors tab active ────────── */
+.page>main>article#main-content .structure-image-wrapper{
+  max-height:200px;overflow:hidden;flex:none
+}
+.page>main>article#main-content .structure-image-full{
+  max-height:200px;min-height:0
+}
+.page>main>article#main-content .structure-image-full-placeholder{
+  min-height:80px;font-size:2rem
+}
+/* Remove Baraj Yapısı watermark text if it appears as model-caption */
+.page>main>article#main-content .model-caption span{display:none}

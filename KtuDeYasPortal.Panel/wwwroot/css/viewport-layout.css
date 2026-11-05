@@ -136,3 +136,39 @@ body::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;ba
     max-height:calc(100dvh - 480px);min-height:120px;overflow-y:auto
   }
 }
+
+/* ── Structure detail panel: fill available height, scroll internally ── */
+@media(min-width:641px){
+  /* Detail panel stays within viewport — no page scroll */
+  .page>main>article#main-content .structure-detail-panel{
+    max-height:calc(100dvh - 130px);
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+  }
+  .page>main>article#main-content .structure-detail-panel .structure-detail-header{flex:none}
+  .page>main>article#main-content .structure-detail-panel .structure-detail-info{flex:none}
+  /* Tab bar */
+  .page>main>article#main-content .structure-detail-panel .nav-tabs{flex:none}
+  /* Tab content scrolls */
+  .page>main>article#main-content .structure-detail-panel .px-3{
+    flex:1;min-height:0;overflow-y:auto;overflow-x:hidden
+  }
+  /* Sensor table: uses available height, sticky thead */
+  .page>main>article#main-content .structure-detail-panel .table-responsive{
+    max-height:calc(100dvh - 400px);overflow-y:auto
+  }
+  .page>main>article#main-content .structure-detail-panel thead th{
+    position:sticky;top:0;background:#f8f9fa;z-index:1
+  }
+  /* Image section: limit height */
+  .page>main>article#main-content .structure-detail-panel .structure-image-wrapper{
+    max-height:30vh;flex:none
+  }
+  .page>main>article#main-content .structure-detail-panel .structure-image-full{
+    max-height:30vh;min-height:0
+  }
+  .page>main>article#main-content .structure-detail-panel .structure-image-full-placeholder{
+    min-height:120px
+  }
+}

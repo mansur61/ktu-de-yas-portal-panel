@@ -17,6 +17,9 @@ public class Structure
     public StructureType StructureType { get; set; } = StructureType.Other;
     public string? ImageUrl { get; set; }
 
+    /// <summary>Yapıya özgü 3D model URL'i (GLB/GLTF/OBJ/FBX).</summary>
+    public string? ModelUrl { get; set; }
+
     /// <summary>
     /// Yapıya özgü Node-RED instance URL'i.
     /// Null → ortak instance (appsettings NodeRed:BaseUrl).

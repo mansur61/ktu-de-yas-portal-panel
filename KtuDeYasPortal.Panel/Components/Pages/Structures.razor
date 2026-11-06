@@ -95,7 +95,7 @@
     else
     {
         @* ── Filtreleme satırı ── *@
-        <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+        <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
             <div class="input-group input-group-sm" style="max-width:220px">
                 <span class="input-group-text"><span class="bi bi-search"></span></span>
                 <input class="form-control" placeholder="Yapı adı…"
@@ -128,6 +128,7 @@
             }
         </div>
 
+        <div class="pb-4">
         <ResponsiveGrid Items="FilteredStructures" ItemHeight="360" MinimumWidth="300" Context="s"><ItemTemplate>
                     <div class="structure-card @(s.IsActive ? "" : "opacity-60")" @onclick="() => OpenStructureDetail(s.Id)">
                         <img src="@(!string.IsNullOrEmpty(s.ImageUrl) ? s.ImageUrl : GetStructureImagePath(s.StructureType))"
@@ -213,6 +214,7 @@
                         </div>
                     </div>
         </ItemTemplate></ResponsiveGrid>
+        </div>
     }
 </div>
 }

@@ -94,7 +94,41 @@
     }
     else
     {
-        <ResponsiveGrid Items="_structures" ItemHeight="360" MinimumWidth="300" Context="s"><ItemTemplate>
+        @* ── Filtreleme satırı ── *@
+        <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+            <div class="input-group input-group-sm" style="max-width:220px">
+                <span class="input-group-text"><span class="bi bi-search"></span></span>
+                <input class="form-control" placeholder="Yapı adı…"
+                       @bind="_structureSearch" @bind:event="oninput" />
+                @if (!string.IsNullOrEmpty(_structureSearch)) {
+                    <button class="btn btn-outline-secondary" @onclick="() => _structureSearch = string.Empty"><span class="bi bi-x"></span></button>
+                }
+            </div>
+            <div class="input-group input-group-sm" style="max-width:160px">
+                <span class="input-group-text"><span class="bi bi-geo-alt"></span></span>
+                <input class="form-control" placeholder="İl…"
+                       @bind="_structureProvinceFilter" @bind:event="oninput" />
+                @if (!string.IsNullOrEmpty(_structureProvinceFilter)) {
+                    <button class="btn btn-outline-secondary" @onclick="() => _structureProvinceFilter = string.Empty"><span class="bi bi-x"></span></button>
+                }
+            </div>
+            <div class="input-group input-group-sm" style="max-width:280px">
+                <span class="input-group-text"><span class="bi bi-hash"></span></span>
+                <input class="form-control" placeholder="Yapı ID…"
+                       @bind="_structureIdFilter" @bind:event="oninput" />
+                @if (!string.IsNullOrEmpty(_structureIdFilter)) {
+                    <button class="btn btn-outline-secondary" @onclick="() => _structureIdFilter = string.Empty"><span class="bi bi-x"></span></button>
+                }
+            </div>
+            @if (!string.IsNullOrEmpty(_structureSearch) || !string.IsNullOrEmpty(_structureProvinceFilter) || !string.IsNullOrEmpty(_structureIdFilter)) {
+                <button class="btn btn-sm btn-outline-secondary" @onclick="ClearStructureFilters">
+                    <span class="bi bi-x-circle me-1"></span>Filtreleri temizle
+                </button>
+                <small class="text-muted">@FilteredStructures.Count / @_structures.Count yapı</small>
+            }
+        </div>
+
+        <ResponsiveGrid Items="FilteredStructures" ItemHeight="360" MinimumWidth="300" Context="s"><ItemTemplate>
                     <div class="structure-card @(s.IsActive ? "" : "opacity-60")" @onclick="() => OpenStructureDetail(s.Id)">
                         <img src="@(!string.IsNullOrEmpty(s.ImageUrl) ? s.ImageUrl : GetStructureImagePath(s.StructureType))"
                              class="structure-card-img" alt="@s.Name"
@@ -1213,6 +1247,19 @@
     private bool             _isProdMode = true;
     private Guid?            _deletingId;
     private string?          _saveError;
+
+    // ── Yapı listesi filtreleme ───────────────────────────────────────────────
+    private string _structureSearch          = string.Empty;
+    private string _structureProvinceFilter  = string.Empty;
+    private string _structureIdFilter        = string.Empty;
+
+    private List<Structure> FilteredStructures => _structures is null ? [] : _structures.Where(s =>
+        (string.IsNullOrEmpty(_structureSearch)         || s.Name.Contains(_structureSearch, StringComparison.OrdinalIgnoreCase)) &&
+        (string.IsNullOrEmpty(_structureProvinceFilter) || s.Province.Contains(_structureProvinceFilter, StringComparison.OrdinalIgnoreCase)) &&
+        (string.IsNullOrEmpty(_structureIdFilter)       || s.Id.ToString().Contains(_structureIdFilter, StringComparison.OrdinalIgnoreCase))
+    ).ToList();
+
+    private void ClearStructureFilters() { _structureSearch = string.Empty; _structureProvinceFilter = string.Empty; _structureIdFilter = string.Empty; }
     private string?          _simulationStatusMessage;
     private string?          _simulationErrorMessage;
     private HashSet<Guid>    _startingStructureIds = new();

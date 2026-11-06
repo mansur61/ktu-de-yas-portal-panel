@@ -137,6 +137,14 @@
                         <div class="structure-card-img-placeholder" style="display:none">
                             <span>@GetStructureEmoji(s.StructureType)</span>
                         </div>
+                        @* Silme ikonu — sağ üst köşe, kart tıklamasını geçirmez *@
+                        <button class="structure-card-delete-btn"
+                                title="Yapıyı sil"
+                                aria-label="@($"{s.Name} yapısını sil")"
+                                @onclick="() => ConfirmDelete(s.Id)"
+                                @onclick:stopPropagation="true">
+                            <span class="bi bi-trash"></span>
+                        </button>
                         <div class="structure-card-body">
                             <div class="structure-card-title">@s.Name</div>
                             <div class="structure-card-id">Yapı No: @s.Id</div>

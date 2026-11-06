@@ -20,82 +20,71 @@
     </div>
 </div>
 
-@if (_error is not null)   { <div class="alert alert-danger mb-3 py-2"  role="alert">@_error</div> }
-@if (_success is not null) { <div class="alert alert-success mb-3 py-2" role="status">@_success</div> }
+@if (_error is not null)   { <div class="alert alert-danger mb-3 py-2"  role="alert">@_error <button type="button" class="btn-close float-end" @onclick="() => _error = null"></button></div> }
+@if (_success is not null) { <div class="alert alert-success mb-3 py-2" role="status">@_success <button type="button" class="btn-close float-end" @onclick="() => _success = null"></button></div> }
 
-@* ── Yapı seçimi ── *@
-<div class="card p-3 mb-3">
-    <div class="d-flex align-items-center gap-3 flex-wrap">
-        <div style="flex:1;min-width:240px">
+<div class="row g-3">
+
+    @* ── Yapı görseli — seçici kartta ── *@
+    <div class="col-lg-4 col-md-6">
+        <section class="card p-3 h-100">
+            <div class="d-flex align-items-center gap-2 mb-2">
+                <span class="bi bi-image text-success fs-5"></span>
+                <h2 class="h5 mb-0">Yapı görseli</h2>
+            </div>
             <label class="form-label small fw-semibold mb-1">Yapı seçin</label>
-            <select class="form-select form-select-sm" @bind="_structureId" @bind:after="OnStructureChanged" disabled="@_busy">
-                <option value="">— Varsayılanlar (tüm yapılar için fallback) —</option>
+            <select class="form-select form-select-sm mb-3" @bind="_imageStructureId" disabled="@_busy">
+                <option value="">— Varsayılan (tüm yapılar için fallback) —</option>
                 @foreach (var s in _structures)
                 {
                     <option value="@s.Id">@s.Name · @s.Province</option>
                 }
             </select>
-        </div>
-        @if (SelectedStructure is { } sel)
-        {
-            <div class="d-flex align-items-center gap-2 text-muted small">
-                <span class="bi bi-building"></span>
-                <span>@sel.StructureType · @sel.Province@(string.IsNullOrEmpty(sel.District) ? "" : " / " + sel.District)</span>
-            </div>
-        }
-    </div>
-</div>
-
-<div class="row g-3">
-
-    @* ── Yapı görseli ── *@
-    <div class="col-lg-4 col-md-6">
-        <section class="card p-3 h-100">
-            <div class="d-flex align-items-center gap-2 mb-2">
-                <span class="bi bi-image text-success fs-5"></span>
-                <h2 class="h5 mb-0">
-                    @(SelectedStructure is null ? "Varsayılan baraj görseli" : $"{SelectedStructure.Name} görseli")
-                </h2>
-            </div>
             <p class="text-muted small mb-3">
-                @(SelectedStructure is null
+                @(ImageStructure is null
                     ? "Yeni oluşturulan yapılarda gösterilir. Mevcut yapıların görseli değişmez."
                     : "Yalnızca bu yapının görselini değiştirir.")
             </p>
-            <img src="@(CurrentImageUrl ?? "/images/structures/dam.svg")"
+            <img src="@(ImageStructure?.ImageUrl ?? _defaultImageUrl ?? "/images/structures/dam.svg")"
                  alt="Yapı görseli" class="asset-preview mb-3" />
             <label class="form-label small">PNG veya JPEG yükle</label>
             <InputFile OnChange="UploadImage" accept="image/png,image/jpeg" disabled="@_busy" class="form-control form-control-sm" />
         </section>
     </div>
 
-    @* ── 3D Model (GLB / GLTF / OBJ / FBX) ── *@
+    @* ── 3D Model — seçici kartta ── *@
     <div class="col-lg-4 col-md-6">
         <section class="card p-3 h-100">
             <div class="d-flex align-items-center gap-2 mb-2">
                 <span class="bi bi-box text-success fs-5"></span>
-                <h2 class="h5 mb-0">
-                    @(SelectedStructure is null ? "Varsayılan 3D model" : $"{SelectedStructure.Name} 3D modeli")
-                </h2>
+                <h2 class="h5 mb-0">Yapı 3D modeli</h2>
                 <span class="badge bg-light text-dark border ms-auto" style="font-size:10px">GLB · GLTF · OBJ · FBX</span>
             </div>
+            <label class="form-label small fw-semibold mb-1">Yapı seçin</label>
+            <select class="form-select form-select-sm mb-3" @bind="_modelStructureId" disabled="@_busy">
+                <option value="">— Varsayılan (tüm yapılar için fallback) —</option>
+                @foreach (var s in _structures)
+                {
+                    <option value="@s.Id">@s.Name · @s.Province</option>
+                }
+            </select>
             <p class="text-muted small mb-3">
-                @(SelectedStructure is null
+                @(ModelStructure is null
                     ? "Dijital ikizde yapı bazında model yoksa kullanılır. En fazla 50 MB."
                     : "Bu yapının dijital ikiz görünümünde kullanılır. En fazla 50 MB.")
             </p>
-
-            @if (!string.IsNullOrWhiteSpace(CurrentModelUrl))
+            @{ var modelUrl = ModelStructure?.ModelUrl ?? _defaultModelUrl; }
+            @if (!string.IsNullOrWhiteSpace(modelUrl))
             {
                 <div class="asset-preview-3d mb-3 d-flex flex-column align-items-center justify-content-center gap-2">
-                    <span class="bi bi-box-seam" style="font-size:48px;color:#9cba9d"></span>
+                    <span class="bi bi-box-seam" style="font-size:42px;color:#9cba9d"></span>
                     <div class="text-center">
                         <div class="fw-semibold small text-success">3D Model Yüklü</div>
-                        <div class="text-muted" style="font-size:11px;word-break:break-all">
-                            @(Uri.TryCreate(CurrentModelUrl, UriKind.Absolute, out var mu) ? System.IO.Path.GetFileName(mu.LocalPath) : CurrentModelUrl)
+                        <div class="text-muted" style="font-size:10px;word-break:break-all">
+                            @(Uri.TryCreate(modelUrl, UriKind.Absolute, out var mu) ? System.IO.Path.GetFileName(mu.LocalPath) : modelUrl)
                         </div>
                     </div>
-                    <a href="@CurrentModelUrl" target="_blank" class="btn btn-sm btn-outline-secondary">
+                    <a href="@modelUrl" target="_blank" class="btn btn-sm btn-outline-secondary py-0">
                         <span class="bi bi-download me-1"></span>İndir
                     </a>
                 </div>
@@ -103,21 +92,58 @@
             else
             {
                 <div class="asset-preview-3d mb-3 d-flex flex-column align-items-center justify-content-center gap-2 text-muted">
-                    <span class="bi bi-box" style="font-size:48px;opacity:.3"></span>
+                    <span class="bi bi-box" style="font-size:42px;opacity:.3"></span>
                     <span class="small">Henüz 3D model yüklenmedi</span>
                 </div>
             }
-
             <label class="form-label small">GLB, GLTF, OBJ veya FBX yükle</label>
             <InputFile OnChange="UploadModel" accept=".glb,.gltf,.obj,.fbx" disabled="@_busy" class="form-control form-control-sm" />
             <div class="mt-2 p-2 rounded" style="background:#f4f6f0;font-size:11px;color:#586d65">
-                <span class="bi bi-info-circle me-1"></span>
-                GLB veya GLTF önerilir — Three.js/Babylon.js ile doğrudan çalışır. OBJ/FBX dönüştürme gerektirebilir.
+                <span class="bi bi-info-circle me-1"></span>GLB veya GLTF önerilir — Three.js ile doğrudan çalışır.
             </div>
         </section>
     </div>
 
-    @* ── Kurumsal arka plan (her zaman global) ── *@
+    @* ── Sensör fotoğrafı — yapı + sensör seçici kartta ── *@
+    <div class="col-lg-4 col-md-6">
+        <section class="card p-3 h-100">
+            <div class="d-flex align-items-center gap-2 mb-2">
+                <span class="bi bi-cpu text-success fs-5"></span>
+                <h2 class="h5 mb-0">Sensör fotoğrafı</h2>
+            </div>
+            <label class="form-label small fw-semibold mb-1">Yapı seçin</label>
+            <select class="form-select form-select-sm mb-2" @bind="_sensorStructureId" @bind:after="OnSensorStructureChanged" disabled="@_busy">
+                <option value="">— Yapı seçin —</option>
+                @foreach (var s in _structures)
+                {
+                    <option value="@s.Id">@s.Name · @s.Province</option>
+                }
+            </select>
+            <label class="form-label small fw-semibold mb-1">Sensör seçin</label>
+            <select class="form-select form-select-sm mb-3" @bind="_sensorId" disabled="@(_busy || string.IsNullOrEmpty(_sensorStructureId))">
+                <option value="">— Sensör seçin —</option>
+                @foreach (var sensor in FilteredSensors)
+                {
+                    <option value="@sensor.Id">@sensor.EffectiveDisplayName · @sensor.DeviceId</option>
+                }
+            </select>
+            @if (SelectedSensor?.ImageUrl is { Length: > 0 } surl)
+            {
+                <img src="@surl" alt="Sensör fotoğrafı" class="asset-preview mb-3" />
+            }
+            else
+            {
+                <div class="asset-preview mb-3 d-flex align-items-center justify-content-center text-muted small">
+                    @(string.IsNullOrEmpty(_sensorStructureId) ? "Önce yapı seçin" : string.IsNullOrEmpty(_sensorId) ? "Sensör seçin" : "Henüz fotoğraf eklenmedi")
+                </div>
+            }
+            <label class="form-label small">PNG veya JPEG yükle</label>
+            <InputFile OnChange="UploadSensor" accept="image/png,image/jpeg"
+                       disabled="@(_busy || SelectedSensor is null)" class="form-control form-control-sm" />
+        </section>
+    </div>
+
+    @* ── Kurumsal arka plan — global, select yok ── *@
     <div class="col-lg-4 col-md-6">
         <section class="card p-3 h-100">
             <div class="d-flex align-items-center gap-2 mb-2">
@@ -133,38 +159,6 @@
         </section>
     </div>
 
-    @* ── Sensör fotoğrafı ── *@
-    <div class="col-lg-4 col-md-6">
-        <section class="card p-3 h-100">
-            <div class="d-flex align-items-center gap-2 mb-2">
-                <span class="bi bi-cpu text-success fs-5"></span>
-                <h2 class="h5 mb-0">Sensör fotoğrafı</h2>
-            </div>
-            <p class="text-muted small mb-2">Yalnızca seçtiğiniz sensörün fotoğrafı değişir.</p>
-            <label for="image-sensor" class="form-label small">Sensör</label>
-            <select id="image-sensor" class="form-select form-select-sm mb-3" @bind="_sensorId" disabled="@_busy">
-                <option value="">Sensör seçin</option>
-                @foreach (var sensor in FilteredSensors)
-                {
-                    <option value="@sensor.Id">@sensor.EffectiveDisplayName · @sensor.DeviceId</option>
-                }
-            </select>
-            @if (SelectedSensor?.ImageUrl is { Length: > 0 } surl)
-            {
-                <img src="@surl" alt="Seçili sensörün fotoğrafı" class="asset-preview mb-3" />
-            }
-            else
-            {
-                <div class="asset-preview mb-3 d-flex align-items-center justify-content-center text-muted small">
-                    Henüz fotoğraf eklenmedi
-                </div>
-            }
-            <label class="form-label small">PNG veya JPEG yükle</label>
-            <InputFile OnChange="UploadSensor" accept="image/png,image/jpeg"
-                       disabled="@(_busy || SelectedSensor is null)" class="form-control form-control-sm" />
-        </section>
-    </div>
-
 </div>
 
 @if (_busy) { <p class="mt-3 text-muted small" role="status"><span class="spinner-border spinner-border-sm me-1"></span>Dosya kaydediliyor…</p> }
@@ -172,51 +166,61 @@
 </div>
 
 <style>
-    .asset-preview { width:100%; height:150px; object-fit:contain; border-radius:10px; background:#f1f5f7; }
-    .asset-preview-3d { width:100%; height:150px; border-radius:10px; background:#f1f5f7; border:1px dashed #c8d5c9; }
+    .asset-preview     { width:100%; height:140px; object-fit:contain; border-radius:10px; background:#f1f5f7; }
+    .asset-preview-3d  { width:100%; height:140px; border-radius:10px; background:#f1f5f7; border:1px dashed #c8d5c9; }
 </style>
 
 @code {
+    // ── State ──────────────────────────────────────────────────────────────
     private List<Structure> _structures = [];
     private List<Sensor>    _sensors    = [];
-    private string  _structureId = "";
-    private string  _sensorId    = "";
+
+    // Her kart kendi structure seçimini bağımsız tutar
+    private string _imageStructureId  = "";
+    private string _modelStructureId  = "";
+    private string _sensorStructureId = "";
+    private string _sensorId          = "";
+
     private string? _defaultImageUrl, _defaultModelUrl, _error, _success;
     private bool    _busy;
     private long    _backgroundVersion = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-    private Structure? SelectedStructure => _structures.FirstOrDefault(s => s.Id.ToString() == _structureId);
-    private Sensor?    SelectedSensor    => _sensors.FirstOrDefault(s => s.Id.ToString() == _sensorId);
+    private Structure? ImageStructure  => _structures.FirstOrDefault(s => s.Id.ToString() == _imageStructureId);
+    private Structure? ModelStructure  => _structures.FirstOrDefault(s => s.Id.ToString() == _modelStructureId);
+    private Structure? SensorStructure => _structures.FirstOrDefault(s => s.Id.ToString() == _sensorStructureId);
+    private Sensor?    SelectedSensor  => _sensors.FirstOrDefault(s => s.Id.ToString() == _sensorId);
 
-    // Yapı seçiliyse o yapının sensörlerini filtrele
-    private IEnumerable<Sensor> FilteredSensors => SelectedStructure is { } sel
+    private IEnumerable<Sensor> FilteredSensors => SensorStructure is { } sel
         ? _sensors.Where(s => sel.Sensors.Any(ss => ss.SensorId == s.Id))
-        : _sensors;
-
-    // Aktif görsel: yapı seçiliyse yapının ImageUrl'i, yoksa global default
-    private string? CurrentImageUrl => SelectedStructure?.ImageUrl ?? _defaultImageUrl;
-    // Aktif model: yapı seçiliyse yapının ModelUrl'i, yoksa global default
-    private string? CurrentModelUrl => SelectedStructure?.ModelUrl ?? _defaultModelUrl;
+        : [];
 
     private sealed record ImageResult(string? ImageUrl);
     private sealed record ModelResult(string? ModelUrl);
     private sealed record ErrorResult(string? Error);
 
+    // ── Init ───────────────────────────────────────────────────────────────
     protected override async Task OnInitializedAsync()
     {
         try
         {
-            var api       = Clients.CreateClient("timeseries-api");
-            _structures   = await Structures.GetAllAsync();
-            _sensors      = await Sensors.GetAllAsync();
+            var api      = Clients.CreateClient("timeseries-api");
+            _structures  = await Structures.GetAllAsync();
+            _sensors     = await Sensors.GetAllAsync();
             _defaultImageUrl = (await api.GetFromJsonAsync<ImageResult>("api/image-assets/default"))?.ImageUrl;
-            _defaultModelUrl = (await api.GetFromJsonAsync<ModelResult>("api/image-assets/default-model"))?.ModelUrl;
         }
-        catch { _error = "Görsel ayarları yüklenemedi. Bağlantıyı kontrol edip sayfayı yenileyin."; }
+        catch (Exception ex) { _error = $"Görsel ayarları yüklenemedi: {ex.Message}"; return; }
+
+        try   // yeni endpoint — eski sunucuda 404 gelebilir
+        {
+            _defaultModelUrl = (await Clients.CreateClient("timeseries-api")
+                .GetFromJsonAsync<ModelResult>("api/image-assets/default-model"))?.ModelUrl;
+        }
+        catch { /* eski sunucu */ }
     }
 
-    private void OnStructureChanged() { _sensorId = ""; }
+    private void OnSensorStructureChanged() => _sensorId = "";
 
+    // ── Upload: yapı görseli ───────────────────────────────────────────────
     private async Task UploadImage(InputFileChangeEventArgs e)
     {
         if (_busy) return;
@@ -230,19 +234,12 @@
             using var content = new StreamContent(stream);
             form.Add(content, "file", file.Name);
 
-            string endpoint;
-            if (SelectedStructure is { } sel)
-                endpoint = $"api/image-assets/sensor?sensorId={sel.Id}"; // yapı görseli için sensor endpoint yok — PUT ile update
-            else
-                endpoint = "api/image-assets/default";
-
-            // Yapıya özel görsel yüklemek için structure update endpoint'i kullan
-            if (SelectedStructure is { } selStr)
+            if (ImageStructure is { } sel)
             {
-                using var resp = await Clients.CreateClient("timeseries-api").PostAsync($"api/image-assets/structure-image?structureId={selStr.Id}", form);
+                using var resp = await Clients.CreateClient("timeseries-api")
+                    .PostAsync($"api/image-assets/structure-image?structureId={sel.Id}", form);
                 if (!resp.IsSuccessStatusCode) { _error = (await resp.Content.ReadFromJsonAsync<ErrorResult>())?.Error ?? "Yüklenemedi."; return; }
-                var result = await resp.Content.ReadFromJsonAsync<ImageResult>();
-                selStr.ImageUrl = result?.ImageUrl;
+                sel.ImageUrl = (await resp.Content.ReadFromJsonAsync<ImageResult>())?.ImageUrl;
             }
             else
             {
@@ -256,6 +253,57 @@
         finally { _busy = false; }
     }
 
+    // ── Upload: 3D model ──────────────────────────────────────────────────
+    private async Task UploadModel(InputFileChangeEventArgs e)
+    {
+        if (_busy) return;
+        _busy = true; _error = null; _success = null;
+        try
+        {
+            var file = e.File;
+            if (file.Size > 50 * 1024 * 1024) { _error = "3D model en fazla 50 MB olabilir."; return; }
+            using var form    = new MultipartFormDataContent();
+            using var stream  = file.OpenReadStream(50 * 1024 * 1024);
+            using var content = new StreamContent(stream);
+            form.Add(content, "file", file.Name);
+            var endpoint = ModelStructure is { } sel
+                ? $"api/image-assets/model?structureId={sel.Id}"
+                : "api/image-assets/model";
+            using var response = await Clients.CreateClient("timeseries-api").PostAsync(endpoint, form);
+            if (!response.IsSuccessStatusCode) { _error = (await response.Content.ReadFromJsonAsync<ErrorResult>())?.Error ?? "Yüklenemedi."; return; }
+            var url = (await response.Content.ReadFromJsonAsync<ModelResult>())?.ModelUrl;
+            if (ModelStructure is { } selStr) selStr.ModelUrl = url;
+            else _defaultModelUrl = url;
+            _success = "3D model kaydedildi.";
+        }
+        catch { _error = "3D model kaydedilemedi."; }
+        finally { _busy = false; }
+    }
+
+    // ── Upload: sensör fotoğrafı ───────────────────────────────────────────
+    private async Task UploadSensor(InputFileChangeEventArgs e)
+    {
+        if (_busy || SelectedSensor is null) return;
+        _busy = true; _error = null; _success = null;
+        try
+        {
+            var file = e.File;
+            if (file.Size > 5 * 1024 * 1024) { _error = "Fotoğraf en fazla 5 MB olabilir."; return; }
+            using var form    = new MultipartFormDataContent();
+            using var stream  = file.OpenReadStream(5 * 1024 * 1024);
+            using var content = new StreamContent(stream);
+            form.Add(content, "file", file.Name);
+            using var response = await Clients.CreateClient("timeseries-api")
+                .PostAsync($"api/image-assets/sensor?sensorId={SelectedSensor.Id}", form);
+            if (!response.IsSuccessStatusCode) { _error = (await response.Content.ReadFromJsonAsync<ErrorResult>())?.Error ?? "Yüklenemedi."; return; }
+            SelectedSensor.ImageUrl = (await response.Content.ReadFromJsonAsync<ImageResult>())?.ImageUrl;
+            _success = "Sensör fotoğrafı kaydedildi.";
+        }
+        catch { _error = "Sensör fotoğrafı kaydedilemedi."; }
+        finally { _busy = false; }
+    }
+
+    // ── Upload: kurumsal arka plan ─────────────────────────────────────────
     private async Task UploadBackground(InputFileChangeEventArgs e)
     {
         if (_busy) return;
@@ -275,53 +323,6 @@
             _success = "Arka plan kaydedildi.";
         }
         catch { _error = "Arka plan kaydedilemedi."; }
-        finally { _busy = false; }
-    }
-
-    private async Task UploadSensor(InputFileChangeEventArgs e)
-    {
-        if (_busy || SelectedSensor is null) return;
-        _busy = true; _error = null; _success = null;
-        try
-        {
-            var file = e.File;
-            if (file.Size > 5 * 1024 * 1024) { _error = "Fotoğraf en fazla 5 MB olabilir."; return; }
-            using var form    = new MultipartFormDataContent();
-            using var stream  = file.OpenReadStream(5 * 1024 * 1024);
-            using var content = new StreamContent(stream);
-            form.Add(content, "file", file.Name);
-            using var response = await Clients.CreateClient("timeseries-api").PostAsync($"api/image-assets/sensor?sensorId={SelectedSensor.Id}", form);
-            if (!response.IsSuccessStatusCode) { _error = (await response.Content.ReadFromJsonAsync<ErrorResult>())?.Error ?? "Yüklenemedi."; return; }
-            SelectedSensor.ImageUrl = (await response.Content.ReadFromJsonAsync<ImageResult>())?.ImageUrl;
-            _success = "Sensör fotoğrafı kaydedildi.";
-        }
-        catch { _error = "Sensör fotoğrafı kaydedilemedi."; }
-        finally { _busy = false; }
-    }
-
-    private async Task UploadModel(InputFileChangeEventArgs e)
-    {
-        if (_busy) return;
-        _busy = true; _error = null; _success = null;
-        try
-        {
-            var file = e.File;
-            if (file.Size > 50 * 1024 * 1024) { _error = "3D model dosyası en fazla 50 MB olabilir."; return; }
-            using var form    = new MultipartFormDataContent();
-            using var stream  = file.OpenReadStream(50 * 1024 * 1024);
-            using var content = new StreamContent(stream);
-            form.Add(content, "file", file.Name);
-            var endpoint = SelectedStructure is { } sel
-                ? $"api/image-assets/model?structureId={sel.Id}"
-                : "api/image-assets/model";
-            using var response = await Clients.CreateClient("timeseries-api").PostAsync(endpoint, form);
-            if (!response.IsSuccessStatusCode) { _error = (await response.Content.ReadFromJsonAsync<ErrorResult>())?.Error ?? "Yüklenemedi."; return; }
-            var result = (await response.Content.ReadFromJsonAsync<ModelResult>())?.ModelUrl;
-            if (SelectedStructure is { } selStr) selStr.ModelUrl = result;
-            else _defaultModelUrl = result;
-            _success = "3D model kaydedildi.";
-        }
-        catch { _error = "3D model kaydedilemedi."; }
         finally { _busy = false; }
     }
 }

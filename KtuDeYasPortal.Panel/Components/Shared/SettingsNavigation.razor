@@ -1,9 +1,15 @@
-<div class="dy-eyebrow">Genel Ayarlar</div>
+<div class="dy-eyebrow mb-1">Genel Ayarlar</div>
 <nav class="dy-settings-tabs" aria-label="Genel ayarlar sekmeleri">
-<NavLink href="settings" Match="NavLinkMatch.All">Genel bakış</NavLink>
-<NavLink href="permissions">Üyeler ve erişim</NavLink><NavLink href="menu-permissions">Menü yetkileri</NavLink>
-<NavLink href="workspaces">Çalışma alanları</NavLink><NavLink href="node-red-config">Veri akışları (Node-RED)</NavLink>
-<NavLink href="alert-rules">Alarm kuralları</NavLink><NavLink href="alert-contacts">Bildirim kişileri</NavLink>
-<NavLink href="image-settings">Görseller</NavLink>
-<NavLink href="dsi-regions">DSİ bölgeleri</NavLink>
+    <NavLink href="settings" Match="NavLinkMatch.All"><span class="bi bi-grid-3x3-gap me-1"></span>Genel bakış</NavLink>
+    <NavLink href="image-settings"><span class="bi bi-images me-1"></span>Görseller</NavLink>
+    <NavLink href="permissions"><span class="bi bi-people me-1"></span>Üyeler ve erişim</NavLink>
+    <NavLink href="menu-permissions"><span class="bi bi-list-check me-1"></span>Menü yetkileri</NavLink>
+    <NavLink href="workspaces"><span class="bi bi-box-seam me-1"></span>Çalışma alanları</NavLink>
+    <NavLink href="node-red-config"><span class="bi bi-diagram-3 me-1"></span>Veri akışları</NavLink>
+    <NavLink href="alert-rules"><span class="bi bi-bell me-1"></span>Alarm kuralları</NavLink>
+    <NavLink href="alert-contacts"><span class="bi bi-person-lines-fill me-1"></span>Bildirim kişileri</NavLink>
+    <NavLink href="dsi-regions"><span class="bi bi-map me-1"></span>DSİ bölgeleri</NavLink>
 </nav>
+<style>
+    .dy-settings-tabs::-webkit-scrollbar { display: none; }
+</style>

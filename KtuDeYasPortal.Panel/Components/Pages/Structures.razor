@@ -196,8 +196,8 @@
 
         <div class="create-steps">
           <button class="create-step @(_wizardStep == 2 ? "active" : "done")" @onclick="BackFromStep3" aria-expanded="@(_wizardStep == 2)"><span class="create-step-num">1</span>Baraj bilgileri</button>
-          <button class="create-step @(_wizardStep == 4 ? "active" : "")" @onclick="SaveBasicInfoAndContinueAsync" disabled="@(_createdStructureId == Guid.Empty || _isSaving || string.IsNullOrWhiteSpace(_newProvince) || string.IsNullOrWhiteSpace(_newDistrict))" aria-expanded="@(_wizardStep == 4)"><span class="create-step-num">2</span>Sensörler ve veri kaynakları</button>
-          <button class="create-step @(_wizardStep == 5 ? "active" : "")" @onclick="GoToDeploymentStep" disabled="@(_createdStructureId == Guid.Empty || _setupSaving)" aria-expanded="@(_wizardStep == 5)"><span class="create-step-num">3</span>Saha ZIP’ini hazırla</button>
+          <button class="create-step @(_wizardStep == 4 ? "active" : "")" @onclick="OpenSetupStep" disabled="@(_createdStructureId == Guid.Empty || _isSaving || string.IsNullOrWhiteSpace(_newProvince) || string.IsNullOrWhiteSpace(_newDistrict))" aria-expanded="@(_wizardStep == 4)"><span class="create-step-num">2</span>Sensörler ve veri kaynakları</button>
+          <button class="create-step @(_wizardStep == 5 ? "active" : "")" @onclick="OpenDeploymentStep" disabled="@(_createdStructureId == Guid.Empty || _setupSaving)" aria-expanded="@(_wizardStep == 5)"><span class="create-step-num">3</span>Saha ZIP’ini hazırla</button>
         </div>
 
         <div class="p-4">
@@ -536,7 +536,7 @@
         </div>
 
         @* ── Görsel Overlay — JS initStructureImage() doldurur ── *@
-        <div class="structure-image-wrapper" id="structure-image" style="max-height:180px;overflow:hidden">
+        <div class="structure-image-wrapper" id="structure-image">
             @* JS tarafından doldurulur *@
         </div>
         <div class="structure-image-click-hint">
@@ -626,7 +626,7 @@
             } catch { /* JSON parse hatası — sessizce atla */ }
         }
 
-        <div class="px-3 pt-2 pb-0">
+        <div class="px-3 pt-2 pb-0 structure-detail-tabs">
             <ul class="nav nav-tabs nav-tabs-sm border-0" role="tablist">
                 <li class="nav-item">
                     <button class="nav-link @(_detailTab == "sensors" ? "active" : "")"
@@ -649,7 +649,7 @@
 
         @* ── Tab içeriği: Sensörler ── *@
         @if (_detailTab == "sensors") {
-        <div class="px-3 pb-3">
+        <div class="px-3 pb-3 structure-detail-tab-content">
             @if (allDetailSensors.Count > 0) {
                 <div class="d-flex align-items-center gap-2 py-2">
                     <div class="input-group input-group-sm" style="max-width:280px">
@@ -746,7 +746,7 @@
 
         @* ── Tab içeriği: Veri kaynakları ── *@
         @if (_detailTab == "sources") {
-        <div class="px-3 pb-3 pt-2">
+        <div class="px-3 pb-3 pt-2 structure-detail-tab-content">
             @if (detailSources.Count > 0) {
                 @foreach (var src in detailSources) {
                     <div class="dy-source-row">
@@ -2202,6 +2202,8 @@
         _wizardStep = 4;
     }
 
+    private void OpenDeploymentStep() { if (_createdStructureId != Guid.Empty) { _packageSection = 1; _wizardStep = 5; _saveError = null; } }
+
     private async Task GoToDeploymentStep()
     {
         if (_wizardStep == 2) { await SaveBasicInfoAndContinueAsync(); if (!string.IsNullOrEmpty(_saveError)) return; }
@@ -2266,6 +2268,8 @@
                     StateHasChanged();
                     return;
                 }
+                _saveError = "Düzenlenen baraj kaydı bulunamadı. Listeden yeniden açın.";
+                return;
             }
 
             var structure = new Structure
@@ -2338,7 +2342,7 @@
             structure.EdgeApiUrl = string.IsNullOrWhiteSpace(_newEdgeApiUrl) ? null : _newEdgeApiUrl.Trim();
             structure.EdgeConfigJson = BuildEdgeConfigJson(structure);
             structure.SiteEnvironmentJson = BuildSiteEnvironmentJson();
-            await StructureUC.UpdateAsync(structure.Id, structure, structure.Sensors?.Where(sensor => !_removedWizardSensorIds.Contains(sensor.SensorId)).Select(sensor => sensor.SensorId).ToList() ?? []);
+            await StructureUC.UpdateAsync(structure.Id, structure, structure.Sensors?.Where(sensor => sensor.IsActive && !_removedWizardSensorIds.Contains(sensor.SensorId)).Select(sensor => sensor.SensorId).Distinct().ToList() ?? []);
             _removedWizardSensorIds.Clear();
             foreach (var sensor in _newStructureSensors.Where(x => x.ImagePositionX.HasValue && x.ImagePositionY.HasValue))
                 await StructureUC.UpdateSensorImagePositionAsync(sensor.Id, sensor.ImagePositionX!.Value, sensor.ImagePositionY!.Value);
@@ -2358,7 +2362,7 @@
         _discoveredSensors = structure?.Sensors.Where(sensor => sensor.IsActive).ToList() ?? [];
         if(structure is null)return;
         var definitions=await StructureUC.GetAllSensorsAsync();
-        var attached=structure.Sensors.Select(item=>item.SensorId).ToHashSet();
+        var attached=structure.Sensors.Where(item=>item.IsActive).Select(item=>item.SensorId).ToHashSet();
         foreach(var sensor in definitions.Where(item=>attached.Contains(item.Id)&&!_removedWizardSensorIds.Contains(item.Id))) {
             var existing=_newStructureSensors.FirstOrDefault(item=>item.Id==sensor.Id);
             if(existing is null) _newStructureSensors.Add(sensor);

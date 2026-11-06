@@ -185,3 +185,27 @@ body::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;ba
 }
 /* Remove Baraj Yapısı watermark text if it appears as model-caption */
 .page>main>article#main-content .model-caption span{display:none}
+
+/* Keep tabs stationary and give the selected content the remaining workspace. */
+@media(min-width:641px){
+ .page>main>article#main-content .create-structure-panel:not([hidden]),
+ .page>main>article#main-content .structure-detail-panel{flex:1;min-height:0;max-height:none;margin-bottom:0!important}
+ .page>main>article#main-content .structure-detail-panel>.structure-detail-tabs{flex:none;overflow:visible}
+ .page>main>article#main-content .structure-detail-panel>.structure-detail-tab-content{flex:1;min-height:120px;overflow:auto}
+ .page>main>article#main-content .structure-detail-panel .table-responsive{max-height:none;overflow:visible}
+ .page>main>article#main-content .structure-detail-panel .structure-image-wrapper{height:clamp(140px,28dvh,300px);max-height:none;min-height:0!important;flex:none}
+ .page>main>article#main-content .structure-detail-panel>.alert{flex:none;padding:8px;margin-top:8px!important}
+ .page>main>article#main-content .structure-detail-panel .structure-detail-info{padding:8px 16px}
+ .page>main>article#main-content .structure-detail-panel .structure-detail-header{padding:10px 16px;gap:8px;flex-wrap:wrap}
+ .page>main>article#main-content .structure-detail-header>div:last-child{flex-wrap:wrap;flex-shrink:1!important}
+ .page>main>article#main-content .create-structure-panel>.p-4{flex:1;min-height:0;overflow:auto;padding:16px!important}
+ .page>main>article#main-content .create-structure-panel .wizard-sensor-table-wrap{max-height:none;min-height:0;overflow:visible}
+}
+
+.create-structure-panel[hidden],.create-structure-panel [hidden]{display:none!important}
+.structure-detail-panel>.structure-image-click-hint{position:static;margin:0;padding:4px 12px;text-align:center;flex:none}
+
+/* Scale the entire picture inside the marker coordinate surface, without cropping. */
+.page>main>article#main-content .structure-detail-panel .structure-image-full{height:100%;min-height:0;max-height:none;object-fit:contain}
+.structure-detail-panel>.structure-image-click-hint{transform:none;left:auto;bottom:auto;align-self:center;max-width:100%;white-space:normal;background:transparent;color:#526675;backdrop-filter:none}
+.structure-detail-panel .structure-image-wrapper>.structure-image-click-hint{display:none}

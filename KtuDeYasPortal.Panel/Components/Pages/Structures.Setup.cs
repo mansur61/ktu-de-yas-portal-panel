@@ -134,7 +134,7 @@ public partial class Structures
                     if (source.TryGetProperty("deviceId", out var device) && device.GetString() is string deviceId)
                         _resumedTcpSettings[deviceId] = source.Clone();
             }
-            _newStructureSensors = structure.Sensors.Select(s => new Sensor
+            _newStructureSensors = structure.Sensors.Where(s => s.IsActive).Select(s => new Sensor
             {
                 Id = s.SensorId, Name = s.Name, DisplayName = s.DisplayName, DeviceId = s.DeviceId, ProtocolType = s.ProtocolType,
                 IpAddress = s.IpAddress, Port = s.Port, TimeoutMs = s.TimeoutMs, Unit = s.Unit,
@@ -201,23 +201,14 @@ public partial class Structures
             _setupStructureType      = _newType.Value.ToString();
             structure.IsActive       = _newIsActive;
             structure.NodeRedUrl     = _newNodeRedUrl;
-            // Wizard sensör listesini kullan — API response SensorId deserialize sorunlarından kaçın
-            var sensorIds = _newStructureSensors
-                .Select(s => s.Id)
-                .Distinct()
-                .ToList();
-            // Wizard boşsa mevcut aktif sensörleri koru
-            if (sensorIds.Count == 0)
-                sensorIds = structure.Sensors
-                    .Where(s => s.IsActive)
-                    .Select(s => s.SensorId)
-                    .Distinct()
-                    .ToList();
+            var sensorIds = structure.Sensors
+                .Where(s => s.IsActive && !_removedWizardSensorIds.Contains(s.SensorId))
+                .Select(s => s.SensorId).Distinct().ToList();
             await StructureUC.UpdateAsync(structure.Id, structure, sensorIds);
             OpenSetupStep();
         }
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Conflict) {
-            _saveError = "Güncelleme kaydedilemedi. Sunucu çakışma hatası döndürdü. Sensör listesini kontrol edin.";
+            _saveError = $"Güncelleme kaydedilemedi: {ex.Message}";
         }
         catch (Exception ex) { _saveError = $"Baraj bilgileri kaydedilemedi. {ex.Message}"; }
         finally { _isSaving = false; }

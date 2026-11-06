@@ -59,7 +59,7 @@ public class StructureHttpRepository : IStructureRepository
     public async Task<Structure?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
         try { return await _http.GetFromJsonAsync<Structure>($"api/structures/{id}", _json, ct); }
-        catch (HttpRequestException) { return null; }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound) { return null; }
     }
 
     public async Task<Structure> CreateAsync(Structure structure, List<Guid> sensorIds, CancellationToken ct = default)
@@ -84,7 +84,7 @@ public class StructureHttpRepository : IStructureRepository
             sensorIds
         };
         var resp = await _http.PostAsJsonAsync("api/structures", payload, _json, ct);
-        resp.EnsureSuccessStatusCode();
+        await EnsureStructureSuccessAsync(resp, ct);
         return (await resp.Content.ReadFromJsonAsync<Structure>(_json, ct))!;
     }
 
@@ -109,8 +109,19 @@ public class StructureHttpRepository : IStructureRepository
             sensorIds
         };
         var resp = await _http.PutAsJsonAsync($"api/structures/{id}", payload, _json, ct);
-        resp.EnsureSuccessStatusCode();
+        await EnsureStructureSuccessAsync(resp, ct);
         return (await resp.Content.ReadFromJsonAsync<Structure>(_json, ct))!;
+    }
+
+    private static async Task EnsureStructureSuccessAsync(HttpResponseMessage response, CancellationToken ct)
+    {
+        if (response.IsSuccessStatusCode) return;
+        string? message = null;
+        try {
+            using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+            if (body.RootElement.TryGetProperty("error", out var error)) message = error.GetString();
+        } catch (JsonException) { }
+        throw new HttpRequestException(message ?? $"Yapı işlemi tamamlanamadı (HTTP {(int)response.StatusCode}).", null, response.StatusCode);
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)

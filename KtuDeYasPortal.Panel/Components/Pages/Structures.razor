@@ -1765,7 +1765,11 @@
     {
         try
         {
-            _structures = (await StructureUC.GetAllAsync()).OrderByDescending(s => s.CreatedAt).ToList();
+            _structures = (await StructureUC.GetAllAsync())
+                .OrderByDescending(s => s.SensorCount > 0)
+                .ThenByDescending(s => s.CreatedAt)
+                .ThenBy(s => s.Id)
+                .ToList();
         }
         catch (Exception ex)
         {

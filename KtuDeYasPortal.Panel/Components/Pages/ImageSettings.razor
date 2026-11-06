@@ -34,7 +34,7 @@
             </div>
             <label class="form-label small fw-semibold mb-1">Yapı seçin</label>
             <select class="form-select form-select-sm mb-3" @bind="_imageStructureId" disabled="@_busy">
-                <option value="">— Varsayılan (tüm yapılar için fallback) —</option>
+                <option value="">— Varsayılan —</option>
                 @foreach (var s in _structures)
                 {
                     <option value="@s.Id">@s.Name · @s.Province</option>
@@ -62,7 +62,7 @@
             </div>
             <label class="form-label small fw-semibold mb-1">Yapı seçin</label>
             <select class="form-select form-select-sm mb-3" @bind="_modelStructureId" disabled="@_busy">
-                <option value="">— Varsayılan (tüm yapılar için fallback) —</option>
+                <option value="">— Varsayılan —</option>
                 @foreach (var s in _structures)
                 {
                     <option value="@s.Id">@s.Name · @s.Province</option>

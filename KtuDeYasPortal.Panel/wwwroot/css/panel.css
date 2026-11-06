@@ -789,3 +789,12 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* ── Structures alert banner — sticky top, kart grid'ini itmez ── */
+.structures-alert-banner {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    margin-bottom: 8px;
+    border-radius: 8px;
+}

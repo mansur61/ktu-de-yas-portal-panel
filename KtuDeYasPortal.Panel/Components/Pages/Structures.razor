@@ -52,16 +52,18 @@
 <div class="structures-page">
     @if (!string.IsNullOrWhiteSpace(_simulationStatusMessage))
     {
-        <div class="alert @_simulationStatusAlertClass d-flex align-items-center gap-2 mb-3 py-2">
+        <div class="alert @_simulationStatusAlertClass d-flex align-items-center gap-2 mb-2 py-2 structures-alert-banner">
             <span class="bi @_simulationStatusIcon"></span>
             <div>@_simulationStatusMessage</div>
+            <button type="button" class="btn-close ms-auto" @onclick="() => _simulationStatusMessage = null" aria-label="Kapat"></button>
         </div>
     }
     @if (!string.IsNullOrWhiteSpace(_simulationErrorMessage))
     {
-        <div class="alert alert-danger d-flex align-items-center gap-2 mb-3 py-2">
+        <div class="alert alert-danger d-flex align-items-center gap-2 mb-2 py-2 structures-alert-banner">
             <span class="bi bi-exclamation-triangle"></span>
             <div>@_simulationErrorMessage</div>
+            <button type="button" class="btn-close ms-auto" @onclick="() => _simulationErrorMessage = null" aria-label="Kapat"></button>
         </div>
     }
 
@@ -215,7 +217,12 @@
                                 }
                                 <IconActionButton Icon="bi-play-fill" Label="@GetStartTooltip(s)" Disabled="@(_startingStructureIds.Contains(s.Id) || IsLocalPipelineEnabled(s.Id) || GetStartDisabled(s))" OnClick="() => StartStructureSimulationAsync(s.Id)" />
                                 @if (s.SensorCount > 0) {
-                                    <IconActionButton Icon="bi-cloud-arrow-up" Label="@(_forwardingStates.TryGetValue(s.Id, out var forwardingActive) && forwardingActive ? "Merkeze iletimi durdur" : "Merkeze ilet")" OnClick="() => SetStructureForwardingAsync(s.Id, !(_forwardingStates.TryGetValue(s.Id, out var current) && current))" />
+                                    @* Forwarding aktifse durdurma ikonu, değilse başlatma ikonu *@
+                                    @if (_forwardingStates.TryGetValue(s.Id, out var fwActive) && fwActive) {
+                                        <IconActionButton Icon="bi-cloud-slash" Label="Merkeze iletimi durdur" OnClick="() => SetStructureForwardingAsync(s.Id, false)" />
+                                    } else {
+                                        <IconActionButton Icon="bi-cloud-arrow-up" Label="Merkeze ilet" OnClick="() => SetStructureForwardingAsync(s.Id, true)" />
+                                    }
                                 }
                                 <IconActionButton Icon="bi-file-earmark-zip" Label="Saha ZIP’ini indir" OnClick="() => DownloadSavedPackageAsync(s.Id)" />
                             </div>

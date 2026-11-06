@@ -7,6 +7,7 @@
 @inject IJSRuntime JS
 
 <KtuDeYasPortal.Panel.Components.Shared.SettingsNavigation />
+<div class="settings-page-content">
 
 <PageTitle>Çalışma alanları</PageTitle>
 
@@ -384,6 +385,7 @@ else if (_workspaces is not null)
     @@keyframes spin { to { transform: rotate(360deg); } }
 </style>
 
+</div>
 @code {
     // ── State ─────────────────────────────────────────────────────────────────
     private List<WorkspaceInfo>?                      _workspaces;

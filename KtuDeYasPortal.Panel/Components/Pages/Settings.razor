@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 <KtuDeYasPortal.Panel.Components.Shared.SettingsNavigation />
+<div class="settings-page-content">
 <PageTitle>Genel Ayarlar · DE-YAS</PageTitle>
 <div class="dy-heading">
     <div>
@@ -24,6 +25,7 @@
 <div class="dy-guide">
     <h2 class="mb-1">Günlük izleme için ayar değiştirmeniz gerekmez</h2>
     <p>Barajın ölçümleri, kameraları ve alarmları İzleme bölümündedir. Teknik hizmetlerde değişiklik için ilgili yetki gerekir.</p>
+</div>
 </div>
 @code {
     private static readonly (string Path, string Icon, string Title, string Description)[] Items =

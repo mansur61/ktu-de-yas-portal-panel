@@ -3,6 +3,7 @@
 @inject KtuDeYasPortal.Panel.Infrastructure.Persistence.AlertRuleHttpRepository Repo
 
 <KtuDeYasPortal.Panel.Components.Shared.SettingsNavigation />
+<div class="settings-page-content">
 
 <PageTitle>Alarm kuralları</PageTitle>
 
@@ -223,6 +224,7 @@ else
     <div class="modal-backdrop fade show"></div>
 }
 
+</div>
 @code {
     private List<AlertRuleDto> _rules = [];
     private bool   _loading = true;

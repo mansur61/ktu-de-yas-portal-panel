@@ -798,3 +798,26 @@
     margin-bottom: 8px;
     border-radius: 8px;
 }
+
+/* ── Settings sayfası içerik alanı — kompakt + scroll ── */
+.settings-page-content {
+    max-height: calc(100vh - 200px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 4px;
+    scrollbar-width: thin;
+    scrollbar-color: #c8d5c9 transparent;
+}
+
+.settings-page-content::-webkit-scrollbar        { width: 5px; }
+.settings-page-content::-webkit-scrollbar-track  { background: transparent; }
+.settings-page-content::-webkit-scrollbar-thumb  { background: #c8d5c9; border-radius: 4px; }
+
+/* Settings içeriklerinde başlıkları küçült */
+.settings-page-content h1 { font-size: 1.35rem; margin-bottom: 6px; }
+.settings-page-content .dy-heading { margin-bottom: 12px; }
+.settings-page-content .dy-heading p { font-size: 13px; }
+.settings-page-content .card { border-radius: 10px; }
+.settings-page-content .card p { font-size: 13px; }
+.settings-page-content h2.h4,
+.settings-page-content h2.h5 { font-size: 1rem; }

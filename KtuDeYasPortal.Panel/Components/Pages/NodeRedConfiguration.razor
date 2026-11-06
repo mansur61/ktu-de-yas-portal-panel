@@ -12,6 +12,7 @@
 @inject IConfiguration Configuration
 
 <KtuDeYasPortal.Panel.Components.Shared.SettingsNavigation />
+<div class="settings-page-content">
 
 <PageTitle>Veri akışı ayarları (Node-RED)u</PageTitle>
 
@@ -215,6 +216,7 @@
     </div>
 </div>
 
+</div>
 @code {
     private readonly NodeRedPanelRequest _request = new();
     private List<StructureOption> _structures = new();

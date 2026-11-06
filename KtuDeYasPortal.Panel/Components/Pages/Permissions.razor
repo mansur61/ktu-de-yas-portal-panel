@@ -6,6 +6,7 @@
 @inject KtuDeYasPortal.Panel.Infrastructure.Persistence.PanelApiClients Clients
 <PageTitle>Rol ve Yetki Atama · SAHA</PageTitle>
 <KtuDeYasPortal.Panel.Components.Shared.SettingsNavigation />
+<div class="settings-page-content">
 <header class="access-heading"><div><small>SAHA / YÖNETİM</small><h1>Rol ve Yetki Atama</h1><p>Kullanıcıların izleme seviyesini, erişim kapsamını ve işlem izinlerini yönetin.</p></div><button class="btn btn-outline-secondary" @onclick="LoadAsync" disabled="@_saving">Yenile</button></header>
 @if(_error is not null){<div class="alert alert-danger" role="alert">@_error</div>}
 @if(_message is not null){<div class="alert alert-success" role="status">@_message</div>}
@@ -28,6 +29,7 @@
         <div class="access-preview"><strong>Girişte açılacak ekran</strong><p>@Preview</p></div><button class="btn btn-primary w-100" disabled="@(_saving||_selectedId.Length==0)" @onclick="SaveAsync">@(_saving?"Kaydediliyor…":"Kaydet")</button>
     </aside>
 </div>}
+</div>
 @code{
     private List<DeYas.Contracts.DsiRegionInfo> _regions=[];
     private DeYas.Contracts.DsiRegionInfo? SelectedRegion=>_regions.FirstOrDefault(r=>r.Name==_regionName);

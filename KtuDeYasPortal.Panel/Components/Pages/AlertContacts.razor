@@ -4,6 +4,7 @@
 @inject KtuDeYasPortal.Panel.Infrastructure.Persistence.PanelApiClients HttpFactory
 
 <KtuDeYasPortal.Panel.Components.Shared.SettingsNavigation />
+<div class="settings-page-content">
 
 <PageTitle>Bildirim Kişileri</PageTitle>
 
@@ -194,6 +195,7 @@ else
     </div>
 }
 
+</div>
 @code {
     private readonly List<AlertContactDto> _contacts = [];
     private bool   _loading;

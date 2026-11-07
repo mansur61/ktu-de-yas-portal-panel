@@ -201,12 +201,7 @@ public partial class Structures
             _setupStructureType      = _newType.Value.ToString();
             structure.IsActive       = _newIsActive;
             structure.NodeRedUrl     = _newNodeRedUrl;
-            var sensorIds = structure.Sensors
-                .Where(s => s.IsActive && !_removedWizardSensorIds.Contains(s.SensorId))
-                .Select(s => s.SensorId)
-                .Concat(_newStructureSensors.Select(s => s.Id))
-                .Distinct().ToList();
-            await StructureUC.UpdateAsync(structure.Id, structure, sensorIds);
+            await StructureUC.UpdateMetadataAsync(structure.Id, structure);
             OpenSetupStep();
         }
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Conflict) {

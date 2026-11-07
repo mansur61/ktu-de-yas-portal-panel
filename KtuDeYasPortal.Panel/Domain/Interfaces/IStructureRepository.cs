@@ -9,5 +9,6 @@ public interface IStructureRepository
     Task<Structure?> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task<Structure> CreateAsync(Structure structure, List<Guid> sensorIds, CancellationToken ct = default);
     Task<Structure> UpdateAsync(Guid id, Structure structure, List<Guid> sensorIds, CancellationToken ct = default);
+    Task<Structure> UpdateMetadataAsync(Guid id, Structure structure, CancellationToken ct = default);
     Task DeleteAsync(Guid id, CancellationToken ct = default);
 }

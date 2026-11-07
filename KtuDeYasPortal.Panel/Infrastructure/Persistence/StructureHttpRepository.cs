@@ -98,29 +98,37 @@ public class StructureHttpRepository : IStructureRepository
 
     public async Task<Structure> UpdateAsync(Guid id, Structure structure, List<Guid> sensorIds, CancellationToken ct = default)
     {
-        var payload = new
-        {
-            name = structure.Name,
-            description = structure.Description,
-            province = structure.Province,
-            district = structure.District,
-            latitude = structure.Latitude,
-            longitude = structure.Longitude,
-            address = structure.Address,
-            structureType = structure.StructureType.ToString(),
-            imageUrl = structure.ImageUrl,
-            modelUrl = structure.ModelUrl,
-            nodeRedUrl = string.IsNullOrWhiteSpace(structure.NodeRedUrl) ? null : structure.NodeRedUrl.Trim(),
-            edgeApiUrl = string.IsNullOrWhiteSpace(structure.EdgeApiUrl) ? null : structure.EdgeApiUrl.Trim(),
-            edgeConfigJson = structure.EdgeConfigJson,
-            siteEnvironmentJson = structure.SiteEnvironmentJson,
-            isActive = structure.IsActive,
-            sensorIds
-        };
-        var resp = await _http.PutAsJsonAsync($"api/structures/{id}", payload, _json, ct);
+        var resp = await _http.PutAsJsonAsync($"api/structures/{id}", BuildUpdatePayload(structure, sensorIds), _json, ct);
         await EnsureStructureSuccessAsync(resp, ct);
         return (await resp.Content.ReadFromJsonAsync<Structure>(_json, ct))!;
     }
+
+    public async Task<Structure> UpdateMetadataAsync(Guid id, Structure structure, CancellationToken ct = default)
+    {
+        var resp = await _http.PutAsJsonAsync($"api/structures/{id}", BuildUpdatePayload(structure, null), _json, ct);
+        await EnsureStructureSuccessAsync(resp, ct);
+        return (await resp.Content.ReadFromJsonAsync<Structure>(_json, ct))!;
+    }
+
+    private static object BuildUpdatePayload(Structure structure, List<Guid>? sensorIds) => new
+    {
+        name = structure.Name,
+        description = structure.Description,
+        province = structure.Province,
+        district = structure.District,
+        latitude = structure.Latitude,
+        longitude = structure.Longitude,
+        address = structure.Address,
+        structureType = structure.StructureType.ToString(),
+        imageUrl = structure.ImageUrl,
+        modelUrl = structure.ModelUrl,
+        nodeRedUrl = string.IsNullOrWhiteSpace(structure.NodeRedUrl) ? null : structure.NodeRedUrl.Trim(),
+        edgeApiUrl = string.IsNullOrWhiteSpace(structure.EdgeApiUrl) ? null : structure.EdgeApiUrl.Trim(),
+        edgeConfigJson = structure.EdgeConfigJson,
+        siteEnvironmentJson = structure.SiteEnvironmentJson,
+        isActive = structure.IsActive,
+        sensorIds
+    };
 
     private static async Task EnsureStructureSuccessAsync(HttpResponseMessage response, CancellationToken ct)
     {

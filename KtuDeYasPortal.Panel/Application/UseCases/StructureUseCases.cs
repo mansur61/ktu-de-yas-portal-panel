@@ -35,6 +35,12 @@ public class StructureUseCases
         return await _structureRepo.UpdateAsync(id, structure, sensorIds, ct);
     }
 
+    public async Task<Structure> UpdateMetadataAsync(Guid id, Structure structure, CancellationToken ct = default)
+    {
+        structure.UpdatedAt = DateTime.UtcNow;
+        return await _structureRepo.UpdateMetadataAsync(id, structure, ct);
+    }
+
     public Task DeleteAsync(Guid id, CancellationToken ct = default) =>
         _structureRepo.DeleteAsync(id, ct);
 

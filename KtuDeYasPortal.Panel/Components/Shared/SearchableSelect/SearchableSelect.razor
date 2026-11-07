@@ -1,0 +1,87 @@
+@typeparam TItem
+@using Microsoft.AspNetCore.Components.Web
+@inherits SearchableSelectBase<TItem>
+
+<div class="ss2-root @(IsOpen ? "ss2-root--open" : "") @(Disabled ? "ss2-root--disabled" : "")"
+     @onkeydown="HandleKeyDown">
+
+    @* ── Trigger ── *@
+    <button type="button"
+            class="ss2-trigger"
+            disabled="@Disabled"
+            aria-haspopup="listbox"
+            aria-expanded="@IsOpen"
+            @onclick="ToggleAsync">
+        <span class="ss2-trigger__value @(HasValue ? "" : "ss2-trigger__value--placeholder")">
+            @TriggerText
+        </span>
+        <span class="ss2-trigger__icons">
+            @if (HasValue && AllowClear && !Disabled)
+            {
+                <span class="ss2-clear" title="Temizle" @onclick="ClearAsync" @onclick:stopPropagation>✕</span>
+            }
+            <span class="ss2-chevron @(IsOpen ? "ss2-chevron--up" : "")">&#8964;</span>
+        </span>
+    </button>
+
+    @* ── Dropdown ── *@
+    @if (IsOpen)
+    {
+        <div class="ss2-dropdown" role="listbox">
+            @* Arama *@
+            <div class="ss2-search-wrap">
+                <span class="ss2-search-icon">&#128269;</span>
+                <input @ref="SearchInputRef"
+                       class="ss2-search-input"
+                       type="text"
+                       placeholder="@Placeholder"
+                       value="@SearchText"
+                       @oninput="OnSearchInput"
+                       @onclick:stopPropagation
+                       autocomplete="off" />
+                @if (!string.IsNullOrEmpty(SearchText))
+                {
+                    <button class="ss2-search-clear" type="button"
+                            @onclick="() => { SearchText = string.Empty; }"
+                            @onclick:stopPropagation>✕</button>
+                }
+            </div>
+
+            @* Liste *@
+            @if (IsLoading)
+            {
+                <div class="ss2-state-msg">
+                    <span class="ss2-spinner"></span> Yükleniyor…
+                </div>
+            }
+            else
+            {
+                <ul class="ss2-list">
+                    @{ var idx = 0; }
+                    @foreach (var item in FilteredItems)
+                    {
+                        var capture = item;
+                        var i       = idx++;
+                        var label   = TextSelector(item);
+                        var isSelected = IsSelected(item);
+                        <li class="ss2-item @(isSelected ? "ss2-item--selected" : "") @(i == HighlightIndex ? "ss2-item--highlighted" : "")"
+                            role="option"
+                            aria-selected="@isSelected"
+                            @onclick="() => SelectItemAsync(capture)"
+                            @onclick:stopPropagation>
+                            <span>@label</span>
+                            @if (isSelected) { <span class="ss2-item__check">✓</span> }
+                        </li>
+                    }
+                    @if (!FilteredItems.Any())
+                    {
+                        <li class="ss2-state-msg">Sonuç bulunamadı</li>
+                    }
+                </ul>
+            }
+        </div>
+
+        @* Dışarı tıklayınca kapat *@
+        <div class="ss2-backdrop" @onclick="CloseAsync"></div>
+    }
+</div>

@@ -212,8 +212,9 @@
         try
         {
             var api    = Clients.CreateClient("timeseries-api");
-            // Tek istekte yapıları + sensörlerini çek
-            _structures = await Structures.GetAllWithSensorsAsync();
+            // Önce sensörlü endpoint'i dene, eski sunucuda normal listeye fall back
+            try   { _structures = await Structures.GetAllWithSensorsAsync(); }
+            catch { _structures = await Structures.GetAllAsync(); }
             _defaultImageUrl = (await api.GetFromJsonAsync<ImageResult>("api/image-assets/default"))?.ImageUrl;
         }
         catch (Exception ex) { _error = $"Görsel ayarları yüklenemedi: {ex.Message}"; return; }

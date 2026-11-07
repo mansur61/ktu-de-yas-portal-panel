@@ -11,7 +11,7 @@
        Placeholder="Yapı ara…" />
 *@
 
-<div class="searchable-select @(IsOpen ? "searchable-select--open" : "")" @ref="_root">
+<div class="searchable-select @(IsOpen ? "searchable-select--open" : "")">
     <button type="button"
             class="searchable-select__trigger form-select form-select-sm text-start @(string.IsNullOrEmpty(Value) ? "text-muted" : "")"
             disabled="@Disabled"
@@ -77,7 +77,6 @@
 
     private bool   IsOpen;
     private string _search = "";
-    private ElementReference _root;
     private ElementReference _searchInput;
 
     private string SelectedLabel => Items

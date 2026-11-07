@@ -898,3 +898,88 @@
 .searchable-select__item.selected { background: #e4edd9; font-weight: 600; color: #175e50; }
 .searchable-select__item--empty { color: #8da594; cursor: default; }
 .searchable-select__item--empty:hover { background: transparent; }
+
+/* ── SearchableSelect v2 ─────────────────────────────────────────── */
+.ss-wrap { position: relative; }
+
+.ss-trigger {
+    display: flex !important;
+    align-items: center;
+    cursor: pointer;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23586d65' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e") !important;
+    background-repeat: no-repeat !important;
+    background-position: right .75rem center !important;
+    background-size: 16px 12px !important;
+    padding-right: 2.25rem !important;
+}
+.ss-trigger:disabled { cursor: not-allowed; opacity: .65; }
+
+.ss-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 199;
+}
+
+.ss-panel {
+    position: absolute;
+    z-index: 200;
+    top: calc(100% + 3px);
+    left: 0;
+    right: 0;
+    background: #fff;
+    border: 1px solid #bccdbf;
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(16,35,31,.13);
+    overflow: hidden;
+}
+
+.ss-search-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 10px;
+    border-bottom: 1px solid #e5ebe2;
+    background: #f8faf5;
+}
+.ss-search-input {
+    flex: 1;
+    border: none;
+    outline: none;
+    font-size: 13px;
+    background: transparent;
+    color: #163e3a;
+    min-width: 0;
+}
+.ss-clear {
+    background: none;
+    border: none;
+    padding: 0;
+    line-height: 1;
+    color: #8da594;
+    cursor: pointer;
+    font-size: 15px;
+}
+.ss-clear:hover { color: #dc3545; }
+
+.ss-list {
+    list-style: none;
+    margin: 0;
+    padding: 4px 0;
+    max-height: 210px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #c8d5c9 transparent;
+}
+.ss-item {
+    padding: 8px 13px;
+    font-size: 13px;
+    cursor: pointer;
+    color: #163e3a;
+}
+.ss-item:hover { background: #f0f5ec; }
+.ss-item--selected { background: #e4edd9; font-weight: 600; color: #175e50; }
+.ss-item--empty { color: #8da594; cursor: default; }
+.ss-item--empty:hover { background: transparent; }

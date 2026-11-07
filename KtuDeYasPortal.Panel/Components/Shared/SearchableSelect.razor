@@ -1,61 +1,73 @@
-@* Arama destekli dropdown.
+@* Arama destekli dropdown — saf Blazor, JS yok.
    Kullanım:
    <SearchableSelect
-       Items="@(_structures.Select(s => (s.Id.ToString(), $"{s.Name} · {s.Province}")).ToList())"
+       Items="@(_structures.Select(s => new SelectItem(s.Id.ToString(), $"{s.Name} · {s.Province}")).ToList())"
        Value="@_selectedId"
-       ValueChanged="id => _selectedId = id"
+       ValueChanged="async id => { _selectedId = id; await DoSomething(); }"
        EmptyLabel="— Seçin —"
        Placeholder="Ara…" />
 *@
 
-<div class="searchable-select @(IsOpen ? "searchable-select--open" : "")">
+<div class="ss-wrap">
+    @* Trigger — seçili değeri gösterir, tıklayınca açar/kapar *@
     <button type="button"
-            class="searchable-select__trigger form-select form-select-sm text-start @(string.IsNullOrEmpty(Value) ? "text-muted" : "")"
+            class="ss-trigger form-select form-select-sm text-start @(string.IsNullOrEmpty(Value) ? "text-muted" : "")"
             disabled="@Disabled"
-            @onclick="Toggle"
-            @onclick:stopPropagation="true">
-        @SelectedLabel
-        <span class="bi bi-chevron-down ms-auto" style="font-size:11px;opacity:.6;flex-shrink:0"></span>
+            @onclick="() => { _open = !_open; if(_open) _search = string.Empty; }">
+        @(string.IsNullOrEmpty(Value)
+            ? EmptyLabel
+            : Items.FirstOrDefault(i => i.Value == Value)?.Label ?? EmptyLabel)
     </button>
 
-    @if (IsOpen)
+    @* Dropdown paneli *@
+    @if (_open)
     {
-        <div class="searchable-select__dropdown" @onclick:stopPropagation="true">
-            <div class="searchable-select__search-wrap">
-                <span class="bi bi-search searchable-select__search-icon"></span>
-                <input class="searchable-select__search"
+        @* Overlay — dışarı tıklayınca kapat *@
+        <div class="ss-overlay" @onclick="() => _open = false"></div>
+
+        <div class="ss-panel">
+            @* Arama kutusu *@
+            <div class="ss-search-row">
+                <span class="bi bi-search" style="color:#8da594;font-size:12px"></span>
+                <input class="ss-search-input"
                        type="text"
                        placeholder="@Placeholder"
                        @bind="_search"
-                       @bind:event="oninput"
-                       @ref="_searchInput" />
+                       @bind:event="oninput" />
                 @if (!string.IsNullOrEmpty(_search))
                 {
-                    <button type="button" class="searchable-select__clear" @onclick="() => _search = string.Empty">
+                    <button class="ss-clear" type="button" @onclick="() => _search = string.Empty">
                         <span class="bi bi-x"></span>
                     </button>
                 }
             </div>
-            <ul class="searchable-select__list" role="listbox">
+
+            @* Liste *@
+            <ul class="ss-list">
                 @if (!string.IsNullOrEmpty(EmptyLabel))
                 {
-                    <li class="searchable-select__item @(string.IsNullOrEmpty(Value) ? "selected" : "")"
-                        role="option" @onclick="() => Select(string.Empty)">
+                    <li class="ss-item @(string.IsNullOrEmpty(Value) ? "ss-item--selected" : "")"
+                        @onclick="() => Pick(string.Empty)">
                         <span class="text-muted">@EmptyLabel</span>
                     </li>
                 }
-                @foreach (var item in Filtered)
+                @{
+                    var filtered = string.IsNullOrWhiteSpace(_search)
+                        ? Items
+                        : Items.Where(i => i.Label.Contains(_search, StringComparison.OrdinalIgnoreCase)).ToList();
+                }
+                @foreach (var item in filtered)
                 {
-                    var itemVal   = item.Value;
-                    var itemLabel = item.Label;
-                    <li class="searchable-select__item @(Value == itemVal ? "selected" : "")"
-                        role="option" @onclick="() => Select(itemVal)">
-                        @itemLabel
+                    var v = item.Value;
+                    var l = item.Label;
+                    <li class="ss-item @(Value == v ? "ss-item--selected" : "")"
+                        @onclick="() => Pick(v)">
+                        @l
                     </li>
                 }
-                @if (!Filtered.Any() && !string.IsNullOrEmpty(_search))
+                @if (!filtered.Any() && !string.IsNullOrEmpty(_search))
                 {
-                    <li class="searchable-select__item searchable-select__item--empty">Sonuç bulunamadı</li>
+                    <li class="ss-item ss-item--empty">Sonuç bulunamadı</li>
                 }
             </ul>
         </div>
@@ -70,37 +82,14 @@
     [Parameter] public string           Placeholder { get; set; } = "Ara…";
     [Parameter] public bool             Disabled    { get; set; }
 
-    private bool   IsOpen;
+    private bool   _open;
     private string _search = "";
-    private ElementReference _searchInput;
 
-    private string SelectedLabel =>
-        string.IsNullOrEmpty(Value)
-            ? EmptyLabel
-            : Items.FirstOrDefault(i => i.Value == Value)?.Label ?? EmptyLabel;
-
-    private IEnumerable<SelectItem> Filtered => string.IsNullOrWhiteSpace(_search)
-        ? Items
-        : Items.Where(i => i.Label.Contains(_search, StringComparison.OrdinalIgnoreCase));
-
-    private async Task Toggle()
+    private async Task Pick(string val)
     {
-        IsOpen  = !IsOpen;
-        _search = "";
-        if (IsOpen)
-        {
-            await Task.Delay(30);
-            try { await _searchInput.FocusAsync(); } catch { }
-        }
-    }
-
-    private async Task Select(string val)
-    {
-        IsOpen  = false;
+        _open   = false;
         _search = "";
         if (val != Value)
             await ValueChanged.InvokeAsync(val);
     }
-
-    public record SelectItem(string Value, string Label);
 }

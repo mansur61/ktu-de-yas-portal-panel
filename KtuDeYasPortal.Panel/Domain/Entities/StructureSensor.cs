@@ -23,6 +23,7 @@ public class StructureSensor
     public int?    TimeoutMs      { get; set; } = 5000;
     public double? ImagePositionX { get; set; }
     public double? ImagePositionY { get; set; }
+    public string? ImageUrl       { get; set; }
     public bool    IsActive       { get; set; }
     /// <summary>"tcp" | "udp" | "mqtt" | "" — lifecycle adımlarının uygulanıp uygulanmayacağını belirler.</summary>
     public string  SourceKind     { get; set; } = string.Empty;

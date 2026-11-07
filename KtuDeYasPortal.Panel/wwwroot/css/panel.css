@@ -821,3 +821,80 @@
 .settings-page-content .card p { font-size: 13px; }
 .settings-page-content h2.h4,
 .settings-page-content h2.h5 { font-size: 1rem; }
+
+/* ── SearchableSelect ── */
+.searchable-select { position: relative; }
+
+.searchable-select__trigger {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+.searchable-select__trigger:disabled { cursor: not-allowed; opacity: .65; }
+.searchable-select__arrow { margin-left: auto; font-size: 11px; opacity: .6; flex-shrink: 0; transition: transform .15s; }
+.searchable-select--open .searchable-select__arrow { transform: rotate(180deg); }
+
+.searchable-select__dropdown {
+    position: absolute;
+    z-index: 200;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: #fff;
+    border: 1px solid #bccdbf;
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(16,35,31,.12);
+    overflow: hidden;
+}
+
+.searchable-select__search-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    border-bottom: 1px solid #e5ebe2;
+}
+.searchable-select__search-icon { font-size: 12px; color: #8da594; flex-shrink: 0; }
+.searchable-select__search {
+    flex: 1;
+    border: none;
+    outline: none;
+    font-size: 13px;
+    background: transparent;
+    color: #163e3a;
+}
+.searchable-select__clear {
+    background: none;
+    border: none;
+    padding: 0 2px;
+    color: #8da594;
+    cursor: pointer;
+    line-height: 1;
+    font-size: 14px;
+}
+.searchable-select__clear:hover { color: #dc3545; }
+
+.searchable-select__list {
+    list-style: none;
+    margin: 0;
+    padding: 4px 0;
+    max-height: 220px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #c8d5c9 transparent;
+}
+.searchable-select__item {
+    padding: 8px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    color: #163e3a;
+    transition: background .1s;
+}
+.searchable-select__item:hover { background: #f0f5ec; }
+.searchable-select__item.selected { background: #e4edd9; font-weight: 600; color: #175e50; }
+.searchable-select__item--empty { color: #8da594; cursor: default; }
+.searchable-select__item--empty:hover { background: transparent; }

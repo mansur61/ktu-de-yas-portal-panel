@@ -5,7 +5,6 @@
 @using Microsoft.AspNetCore.Components.Forms
 @using KtuDeYasPortal.Panel.Domain.Entities
 @inject KtuDeYasPortal.Panel.Infrastructure.Persistence.PanelApiClients Clients
-@inject KtuDeYasPortal.Panel.Domain.Interfaces.ISensorRepository Sensors
 @inject KtuDeYasPortal.Panel.Domain.Interfaces.IStructureRepository Structures
 @inject IJSRuntime JS
 
@@ -25,7 +24,7 @@
 
 <div class="row g-3">
 
-    @* ── Yapı görseli — seçici kartta ── *@
+    @* ── Yapı görseli ── *@
     <div class="col-lg-4 col-md-6">
         <section class="card p-3 h-100">
             <div class="d-flex align-items-center gap-2 mb-2">
@@ -33,14 +32,16 @@
                 <h2 class="h5 mb-0">Yapı görseli</h2>
             </div>
             <label class="form-label small fw-semibold mb-1">Yapı seçin</label>
-            <select class="form-select form-select-sm mb-3" @bind="_imageStructureId" disabled="@_busy">
-                <option value="">— Varsayılan —</option>
-                @foreach (var s in _structures)
-                {
-                    <option value="@s.Id">@s.Name · @s.Province</option>
-                }
-            </select>
-            <p class="text-muted small mb-3">
+            <SearchableSelect TItem="Structure"
+                Items="_structures"
+                Value="@_imageStructureId"
+                ValueChanged="id => _imageStructureId = id"
+                ItemValue="s => s.Id.ToString()"
+                ItemLabel="s => $"{s.Name} · {s.Province}"
+                EmptyLabel="— Varsayılan —"
+                Placeholder="Yapı ara…"
+                Disabled="@_busy" />
+            <p class="text-muted small my-2">
                 @(ImageStructure is null
                     ? "Yeni oluşturulan yapılarda gösterilir. Mevcut yapıların görseli değişmez."
                     : "Yalnızca bu yapının görselini değiştirir.")
@@ -52,7 +53,7 @@
         </section>
     </div>
 
-    @* ── 3D Model — seçici kartta ── *@
+    @* ── 3D Model ── *@
     <div class="col-lg-4 col-md-6">
         <section class="card p-3 h-100">
             <div class="d-flex align-items-center gap-2 mb-2">
@@ -61,14 +62,16 @@
                 <span class="badge bg-light text-dark border ms-auto" style="font-size:10px">GLB · GLTF · OBJ · FBX</span>
             </div>
             <label class="form-label small fw-semibold mb-1">Yapı seçin</label>
-            <select class="form-select form-select-sm mb-3" @bind="_modelStructureId" disabled="@_busy">
-                <option value="">— Varsayılan —</option>
-                @foreach (var s in _structures)
-                {
-                    <option value="@s.Id">@s.Name · @s.Province</option>
-                }
-            </select>
-            <p class="text-muted small mb-3">
+            <SearchableSelect TItem="Structure"
+                Items="_structures"
+                Value="@_modelStructureId"
+                ValueChanged="id => _modelStructureId = id"
+                ItemValue="s => s.Id.ToString()"
+                ItemLabel="s => $"{s.Name} · {s.Province}"
+                EmptyLabel="— Varsayılan —"
+                Placeholder="Yapı ara…"
+                Disabled="@_busy" />
+            <p class="text-muted small my-2">
                 @(ModelStructure is null
                     ? "Dijital ikizde yapı bazında model yoksa kullanılır. En fazla 50 MB."
                     : "Bu yapının dijital ikiz görünümünde kullanılır. En fazla 50 MB.")
@@ -104,46 +107,59 @@
         </section>
     </div>
 
-    @* ── Sensör fotoğrafı — yapı + sensör seçici kartta ── *@
+    @* ── Sensör fotoğrafı ── *@
     <div class="col-lg-4 col-md-6">
         <section class="card p-3 h-100">
             <div class="d-flex align-items-center gap-2 mb-2">
                 <span class="bi bi-cpu text-success fs-5"></span>
                 <h2 class="h5 mb-0">Sensör fotoğrafı</h2>
             </div>
+
             <label class="form-label small fw-semibold mb-1">Yapı seçin</label>
-            <select class="form-select form-select-sm mb-2" @bind="_sensorStructureId" @bind:after="OnSensorStructureChanged" disabled="@_busy">
-                <option value="">— Yapı seçin —</option>
-                @foreach (var s in _structures)
-                {
-                    <option value="@s.Id">@s.Name · @s.Province</option>
-                }
-            </select>
-            <label class="form-label small fw-semibold mb-1">Sensör seçin</label>
-            <select class="form-select form-select-sm mb-3" @bind="_sensorId" disabled="@(_busy || string.IsNullOrEmpty(_sensorStructureId))">
-                <option value="">— Sensör seçin —</option>
-                @foreach (var sensor in FilteredSensors)
-                {
-                    <option value="@sensor.Id">@sensor.EffectiveDisplayName · @sensor.DeviceId</option>
-                }
-            </select>
-            @if (SelectedSensor?.ImageUrl is { Length: > 0 } surl)
+            <SearchableSelect TItem="Structure"
+                Items="_structures"
+                Value="@_sensorStructureId"
+                ValueChanged="OnSensorStructureChanged"
+                ItemValue="s => s.Id.ToString()"
+                ItemLabel="s => $"{s.Name} · {s.Province}"
+                EmptyLabel="— Yapı seçin —"
+                Placeholder="Yapı ara…"
+                Disabled="@_busy" />
+
+            @if (!string.IsNullOrEmpty(_sensorStructureId))
             {
-                <img src="@surl" alt="Sensör fotoğrafı" class="asset-preview mb-3" />
+                <label class="form-label small fw-semibold mt-2 mb-1">Sensör seçin</label>
+                <SearchableSelect TItem="Sensor"
+                    Items="_structureSensors"
+                    Value="@_sensorId"
+                    ValueChanged="id => _sensorId = id"
+                    ItemValue="s => s.Id.ToString()"
+                    ItemLabel="s => $"{s.EffectiveDisplayName} · {s.DeviceId}"
+                    EmptyLabel="— Sensör seçin —"
+                    Placeholder="Sensör ara…"
+                    Disabled="@_busy" />
             }
-            else
-            {
-                <div class="asset-preview mb-3 d-flex align-items-center justify-content-center text-muted small">
-                    @(string.IsNullOrEmpty(_sensorStructureId) ? "Önce yapı seçin" : string.IsNullOrEmpty(_sensorId) ? "Sensör seçin" : "Henüz fotoğraf eklenmedi")
-                </div>
-            }
-            <label class="form-label small">PNG veya JPEG yükle</label>
-            <InputFile OnChange="UploadSensor" accept="image/png,image/jpeg"
-                       disabled="@(_busy || SelectedSensor is null)" class="form-control form-control-sm" />
+
+            <div class="mt-3">
+                @if (SelectedSensor?.ImageUrl is { Length: > 0 } surl)
+                {
+                    <img src="@surl" alt="Sensör fotoğrafı" class="asset-preview mb-3" />
+                }
+                else
+                {
+                    <div class="asset-preview mb-3 d-flex align-items-center justify-content-center text-muted small">
+                        @(string.IsNullOrEmpty(_sensorStructureId) ? "Önce yapı seçin" :
+                          string.IsNullOrEmpty(_sensorId) ? "Sensör seçin" : "Henüz fotoğraf eklenmedi")
+                    </div>
+                }
+                <label class="form-label small">PNG veya JPEG yükle</label>
+                <InputFile OnChange="UploadSensor" accept="image/png,image/jpeg"
+                           disabled="@(_busy || SelectedSensor is null)" class="form-control form-control-sm" />
+            </div>
         </section>
     </div>
 
-    @* ── Kurumsal arka plan — global, select yok ── *@
+    @* ── Kurumsal arka plan ── *@
     <div class="col-lg-4 col-md-6">
         <section class="card p-3 h-100">
             <div class="d-flex align-items-center gap-2 mb-2">
@@ -171,11 +187,9 @@
 </style>
 
 @code {
-    // ── State ──────────────────────────────────────────────────────────────
-    private List<Structure> _structures = [];
-    private List<Sensor>    _sensors    = [];
+    private List<Structure> _structures       = [];
+    private List<Sensor>    _structureSensors = [];  // seçili yapının sensörleri (detaylı)
 
-    // Her kart kendi structure seçimini bağımsız tutar
     private string _imageStructureId  = "";
     private string _modelStructureId  = "";
     private string _sensorStructureId = "";
@@ -187,40 +201,61 @@
 
     private Structure? ImageStructure  => _structures.FirstOrDefault(s => s.Id.ToString() == _imageStructureId);
     private Structure? ModelStructure  => _structures.FirstOrDefault(s => s.Id.ToString() == _modelStructureId);
-    private Structure? SensorStructure => _structures.FirstOrDefault(s => s.Id.ToString() == _sensorStructureId);
-    private Sensor?    SelectedSensor  => _sensors.FirstOrDefault(s => s.Id.ToString() == _sensorId);
-
-    private IEnumerable<Sensor> FilteredSensors => SensorStructure is { } sel
-        ? _sensors.Where(s => sel.Sensors.Any(ss => ss.SensorId == s.Id))
-        : [];
+    private Sensor?    SelectedSensor  => _structureSensors.FirstOrDefault(s => s.Id.ToString() == _sensorId);
 
     private sealed record ImageResult(string? ImageUrl);
     private sealed record ModelResult(string? ModelUrl);
     private sealed record ErrorResult(string? Error);
 
-    // ── Init ───────────────────────────────────────────────────────────────
     protected override async Task OnInitializedAsync()
     {
         try
         {
-            var api      = Clients.CreateClient("timeseries-api");
-            _structures  = await Structures.GetAllAsync();
-            _sensors     = await Sensors.GetAllAsync();
+            var api    = Clients.CreateClient("timeseries-api");
+            // Tek istekte yapıları + sensörlerini çek
+            _structures = await Structures.GetAllWithSensorsAsync();
             _defaultImageUrl = (await api.GetFromJsonAsync<ImageResult>("api/image-assets/default"))?.ImageUrl;
         }
         catch (Exception ex) { _error = $"Görsel ayarları yüklenemedi: {ex.Message}"; return; }
 
-        try   // yeni endpoint — eski sunucuda 404 gelebilir
-        {
-            _defaultModelUrl = (await Clients.CreateClient("timeseries-api")
-                .GetFromJsonAsync<ModelResult>("api/image-assets/default-model"))?.ModelUrl;
-        }
+        try { _defaultModelUrl = (await Clients.CreateClient("timeseries-api").GetFromJsonAsync<ModelResult>("api/image-assets/default-model"))?.ModelUrl; }
         catch { /* eski sunucu */ }
     }
 
-    private void OnSensorStructureChanged() => _sensorId = "";
+    // Yapı seçilince o yapının sensörlerini filtrele — ek API isteği yok
+    private Task OnSensorStructureChanged(string structureId)
+    {
+        _sensorStructureId = structureId;
+        _sensorId          = "";
+        _structureSensors  = string.IsNullOrEmpty(structureId)
+            ? []
+            : _structures
+                .FirstOrDefault(s => s.Id.ToString() == structureId)
+                ?.Sensors
+                .Where(ss => ss.IsActive)
+                .Select(ss => new Sensor
+                {
+                    Id          = ss.SensorId,
+                    Name        = ss.Name,
+                    DisplayName = ss.DisplayName,
+                    DeviceId    = ss.DeviceId,
+                    SensorType  = Enum.TryParse<DeYas.Contracts.Sensors.SensorType>(ss.SensorType, out var st)
+                                  ? st : DeYas.Contracts.Sensors.SensorType.Generic,
+                    Unit        = ss.Unit,
+                    Topic       = ss.Topic,
+                    Description = ss.Description,
+                    Metrics     = ss.Metrics,
+                    ImagePositionX = ss.ImagePositionX,
+                    ImagePositionY = ss.ImagePositionY,
+                    ImageUrl       = ss.ImageUrl,
+                    ProtocolType   = ss.SourceKind,
+                })
+                .ToList()
+            ?? [];
+        return Task.CompletedTask;
+    }
 
-    // ── Upload: yapı görseli ───────────────────────────────────────────────
+    // ── Upload: yapı görseli ──────────────────────────────────────────────
     private async Task UploadImage(InputFileChangeEventArgs e)
     {
         if (_busy) return;
@@ -233,11 +268,9 @@
             using var stream  = file.OpenReadStream(5 * 1024 * 1024);
             using var content = new StreamContent(stream);
             form.Add(content, "file", file.Name);
-
             if (ImageStructure is { } sel)
             {
-                using var resp = await Clients.CreateClient("timeseries-api")
-                    .PostAsync($"api/image-assets/structure-image?structureId={sel.Id}", form);
+                using var resp = await Clients.CreateClient("timeseries-api").PostAsync($"api/image-assets/structure-image?structureId={sel.Id}", form);
                 if (!resp.IsSuccessStatusCode) { _error = (await resp.Content.ReadFromJsonAsync<ErrorResult>())?.Error ?? "Yüklenemedi."; return; }
                 sel.ImageUrl = (await resp.Content.ReadFromJsonAsync<ImageResult>())?.ImageUrl;
             }
@@ -253,7 +286,7 @@
         finally { _busy = false; }
     }
 
-    // ── Upload: 3D model ──────────────────────────────────────────────────
+    // ── Upload: 3D model ─────────────────────────────────────────────────
     private async Task UploadModel(InputFileChangeEventArgs e)
     {
         if (_busy) return;
@@ -266,9 +299,7 @@
             using var stream  = file.OpenReadStream(50 * 1024 * 1024);
             using var content = new StreamContent(stream);
             form.Add(content, "file", file.Name);
-            var endpoint = ModelStructure is { } sel
-                ? $"api/image-assets/model?structureId={sel.Id}"
-                : "api/image-assets/model";
+            var endpoint = ModelStructure is { } sel ? $"api/image-assets/model?structureId={sel.Id}" : "api/image-assets/model";
             using var response = await Clients.CreateClient("timeseries-api").PostAsync(endpoint, form);
             if (!response.IsSuccessStatusCode) { _error = (await response.Content.ReadFromJsonAsync<ErrorResult>())?.Error ?? "Yüklenemedi."; return; }
             var url = (await response.Content.ReadFromJsonAsync<ModelResult>())?.ModelUrl;
@@ -280,7 +311,7 @@
         finally { _busy = false; }
     }
 
-    // ── Upload: sensör fotoğrafı ───────────────────────────────────────────
+    // ── Upload: sensör fotoğrafı ──────────────────────────────────────────
     private async Task UploadSensor(InputFileChangeEventArgs e)
     {
         if (_busy || SelectedSensor is null) return;
@@ -293,8 +324,7 @@
             using var stream  = file.OpenReadStream(5 * 1024 * 1024);
             using var content = new StreamContent(stream);
             form.Add(content, "file", file.Name);
-            using var response = await Clients.CreateClient("timeseries-api")
-                .PostAsync($"api/image-assets/sensor?sensorId={SelectedSensor.Id}", form);
+            using var response = await Clients.CreateClient("timeseries-api").PostAsync($"api/image-assets/sensor?sensorId={SelectedSensor.Id}", form);
             if (!response.IsSuccessStatusCode) { _error = (await response.Content.ReadFromJsonAsync<ErrorResult>())?.Error ?? "Yüklenemedi."; return; }
             SelectedSensor.ImageUrl = (await response.Content.ReadFromJsonAsync<ImageResult>())?.ImageUrl;
             _success = "Sensör fotoğrafı kaydedildi.";
@@ -303,7 +333,7 @@
         finally { _busy = false; }
     }
 
-    // ── Upload: kurumsal arka plan ─────────────────────────────────────────
+    // ── Upload: kurumsal arka plan ────────────────────────────────────────
     private async Task UploadBackground(InputFileChangeEventArgs e)
     {
         if (_busy) return;

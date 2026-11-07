@@ -56,6 +56,13 @@ public class StructureHttpRepository : IStructureRepository
         return result ?? new();
     }
 
+    /// <summary>Yapıları sensörleriyle birlikte tek istekte çeker (include=sensors).</summary>
+    public async Task<List<Structure>> GetAllWithSensorsAsync(CancellationToken ct = default)
+    {
+        var result = await _http.GetFromJsonAsync<List<Structure>>("api/structures?include=sensors", _json, ct);
+        return result ?? new();
+    }
+
     public async Task<Structure?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
         try { return await _http.GetFromJsonAsync<Structure>($"api/structures/{id}", _json, ct); }

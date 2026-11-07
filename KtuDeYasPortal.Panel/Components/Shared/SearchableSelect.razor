@@ -1,0 +1,110 @@
+@typeparam TItem
+@* Arama destekli dropdown — standart <select> yerine kullanılır.
+   Kullanım:
+   <SearchableSelect TItem="Structure"
+       Items="_structures"
+       Value="_selectedId"
+       ValueChanged="id => _selectedId = id"
+       ItemValue="s => s.Id.ToString()"
+       ItemLabel="s => $"{s.Name} · {s.Province}"
+       EmptyLabel="— Seçin —"
+       Placeholder="Yapı ara…" />
+*@
+
+<div class="searchable-select @(IsOpen ? "searchable-select--open" : "")" @ref="_root">
+    <button type="button"
+            class="searchable-select__trigger form-select form-select-sm text-start @(string.IsNullOrEmpty(Value) ? "text-muted" : "")"
+            disabled="@Disabled"
+            @onclick="Toggle"
+            @onclick:stopPropagation="true">
+        @(string.IsNullOrEmpty(Value) ? EmptyLabel : SelectedLabel)
+        <span class="searchable-select__arrow bi bi-chevron-down ms-auto"></span>
+    </button>
+
+    @if (IsOpen)
+    {
+        <div class="searchable-select__dropdown" @onclick:stopPropagation="true">
+            <div class="searchable-select__search-wrap">
+                <span class="bi bi-search searchable-select__search-icon"></span>
+                <input class="searchable-select__search"
+                       type="text"
+                       placeholder="@Placeholder"
+                       @bind="_search"
+                       @bind:event="oninput"
+                       @ref="_searchInput" />
+                @if (!string.IsNullOrEmpty(_search))
+                {
+                    <button type="button" class="searchable-select__clear" @onclick="() => _search = string.Empty">
+                        <span class="bi bi-x"></span>
+                    </button>
+                }
+            </div>
+            <ul class="searchable-select__list" role="listbox">
+                @if (!string.IsNullOrEmpty(EmptyLabel))
+                {
+                    <li class="searchable-select__item @(string.IsNullOrEmpty(Value) ? "selected" : "")"
+                        role="option" @onclick="() => Select(string.Empty)">
+                        <span class="text-muted">@EmptyLabel</span>
+                    </li>
+                }
+                @foreach (var item in Filtered)
+                {
+                    var val   = ItemValue(item);
+                    var label = ItemLabel(item);
+                    <li class="searchable-select__item @(Value == val ? "selected" : "")"
+                        role="option" @onclick="() => Select(val)">
+                        @label
+                    </li>
+                }
+                @if (!Filtered.Any())
+                {
+                    <li class="searchable-select__item searchable-select__item--empty">Sonuç bulunamadı</li>
+                }
+            </ul>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IEnumerable<TItem> Items       { get; set; } = [];
+    [Parameter, EditorRequired] public Func<TItem, string> ItemValue  { get; set; } = _ => "";
+    [Parameter, EditorRequired] public Func<TItem, string> ItemLabel  { get; set; } = _ => "";
+    [Parameter]                 public string  Value        { get; set; } = "";
+    [Parameter]                 public EventCallback<string> ValueChanged { get; set; }
+    [Parameter]                 public string  EmptyLabel   { get; set; } = "— Seçin —";
+    [Parameter]                 public string  Placeholder  { get; set; } = "Ara…";
+    [Parameter]                 public bool    Disabled     { get; set; }
+
+    private bool   IsOpen;
+    private string _search = "";
+    private ElementReference _root;
+    private ElementReference _searchInput;
+
+    private string SelectedLabel => Items
+        .Where(i => ItemValue(i) == Value)
+        .Select(i => ItemLabel(i))
+        .FirstOrDefault() ?? EmptyLabel;
+
+    private IEnumerable<TItem> Filtered => string.IsNullOrWhiteSpace(_search)
+        ? Items
+        : Items.Where(i => ItemLabel(i).Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    private async Task Toggle()
+    {
+        IsOpen   = !IsOpen;
+        _search  = "";
+        if (IsOpen)
+            await Task.Delay(50).ContinueWith(_ => InvokeAsync(async () =>
+            {
+                try { await _searchInput.FocusAsync(); } catch { }
+            }));
+    }
+
+    private async Task Select(string val)
+    {
+        IsOpen = false;
+        _search = "";
+        if (val != Value)
+            await ValueChanged.InvokeAsync(val);
+    }
+}

@@ -390,7 +390,7 @@
                     } else {
                         <span class="dy-subtle">Kaydettikten sonra bu barajın kurulumuna listeden devam edebilirsiniz.</span>
                     }
-                    <button class="btn btn-primary" disabled="@(string.IsNullOrWhiteSpace(_newName) || string.IsNullOrWhiteSpace(_newProvince) || string.IsNullOrWhiteSpace(_newDistrict) || _isSaving)" @onclick="SaveBasicInfoAndContinueAsync">@(_isSaving ? "Kaydediliyor…" : "Kaydet ve sensör ekle →")</button>
+                    <button class="btn btn-primary" disabled="@(string.IsNullOrWhiteSpace(_newName) || string.IsNullOrWhiteSpace(_newProvince) || string.IsNullOrWhiteSpace(_newDistrict) || _isSaving)" @onclick="SaveBasicInfoAndContinueAsync">@(_isSaving ? "Kaydediliyor…" : _createdStructureId != Guid.Empty ? "Güncelle →" : "Kaydet ve sensör ekle →")</button>
                 </div>
             </div>
 

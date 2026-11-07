@@ -203,7 +203,9 @@ public partial class Structures
             structure.NodeRedUrl     = _newNodeRedUrl;
             var sensorIds = structure.Sensors
                 .Where(s => s.IsActive && !_removedWizardSensorIds.Contains(s.SensorId))
-                .Select(s => s.SensorId).Distinct().ToList();
+                .Select(s => s.SensorId)
+                .Concat(_newStructureSensors.Select(s => s.Id))
+                .Distinct().ToList();
             await StructureUC.UpdateAsync(structure.Id, structure, sensorIds);
             OpenSetupStep();
         }

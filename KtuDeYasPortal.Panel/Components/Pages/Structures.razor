@@ -390,7 +390,7 @@
                     } else {
                         <span class="dy-subtle">Kaydettikten sonra bu barajın kurulumuna listeden devam edebilirsiniz.</span>
                     }
-                    <button class="btn btn-primary" disabled="@(string.IsNullOrWhiteSpace(_newName) || string.IsNullOrWhiteSpace(_newProvince) || string.IsNullOrWhiteSpace(_newDistrict) || _isSaving)" @onclick="SaveBasicInfoAndContinueAsync">@(_isSaving ? "Kaydediliyor…" : _createdStructureId != Guid.Empty ? "Güncelle →" : "Kaydet ve sensör ekle →")</button>
+                    <button class="btn btn-primary" disabled="@(string.IsNullOrWhiteSpace(_newName) || string.IsNullOrWhiteSpace(_newProvince) || string.IsNullOrWhiteSpace(_newDistrict) || _isSaving)" @onclick="SaveBasicInfoAndContinueAsync">@(_isSaving ? StructureSavingLabel : _isEditingExistingStructure ? "Güncelle →" : "Kaydet ve sensör ekle →")</button>
                 </div>
             </div>
 
@@ -503,7 +503,7 @@
                 }
               }
               <div class="dy-guide mt-3"><h3 class="h6">Saha dosyasını ayrıca doldurmanız gerekmez</h3><p>Burada seçtiğiniz kaynaklar saha ayarlarına ve ZIP'e otomatik yazılır. Sensörün kaydedilmesi ile gerçek veri gelmesi ayrı gösterilir.</p></div>
-              <div class="d-flex flex-wrap justify-content-between gap-2 mt-4"><button class="btn btn-outline-secondary" @onclick="BackFromStep3">← Baraj bilgileri</button><button class="btn btn-outline-secondary" @onclick="SaveFieldSetupAsync" disabled="@_setupSaving">Kaydet, sonra devam et</button><button class="btn btn-primary" @onclick="GoToDeploymentStep" disabled="@(_setupSaving || !HasSetupSources)">Kaydet ve ZIP hazırla →</button></div>
+              <div class="d-flex flex-wrap justify-content-between gap-2 mt-4"><button class="btn btn-outline-secondary" @onclick="BackFromStep3">← Baraj bilgileri</button><button class="btn btn-outline-secondary" @onclick="SaveFieldSetupAsync" disabled="@_setupSaving">@(_setupSaving ? StructureSavingLabel : $"{StructureSaveVerb}, sonra devam et")</button><button class="btn btn-primary" @onclick="GoToDeploymentStep" disabled="@(_setupSaving || !HasSetupSources)">@(_setupSaving ? StructureSavingLabel : $"{StructureSaveVerb} ve ZIP hazırla →")</button></div>
             </div>
 
             <div hidden="@(_wizardStep != 5)">
@@ -1305,6 +1305,7 @@
     private bool          _newAutoRegister    = true;
     private string        _newEdgeConfigJson = "";
     private Guid            _createdStructureId;
+    private bool            _isEditingExistingStructure;
     private string          _setupTab = "edge";
     private string          _setupName = "";
     private string          _setupStructureType = "Dam";
@@ -2189,6 +2190,7 @@
         _newStructureSensors    = new();
         _discoveredSensors      = new();
         _createdStructureId     = Guid.Empty;
+        _isEditingExistingStructure = false;
         _setupTab               = "edge";
         _setupName              = "";
         _setupStructureType     = "Dam";
@@ -2378,6 +2380,9 @@
         _wizardImageInitialized = false;
     }
 
+    private string StructureSaveVerb => _isEditingExistingStructure ? "Güncelle" : "Kaydet";
+    private string StructureSavingLabel => _isEditingExistingStructure ? "Güncelleniyor…" : "Kaydediliyor…";
+
     private async Task SaveFieldSetupAsync()
     {
         if (_createdStructureId == Guid.Empty || _setupSaving) return;
@@ -2409,12 +2414,28 @@
             structure.EdgeApiUrl = string.IsNullOrWhiteSpace(_newEdgeApiUrl) ? null : _newEdgeApiUrl.Trim();
             structure.EdgeConfigJson = BuildEdgeConfigJson(structure);
             structure.SiteEnvironmentJson = BuildSiteEnvironmentJson();
-            await StructureUC.UpdateAsync(structure.Id, structure, structure.Sensors?.Where(sensor => sensor.IsActive && !_removedWizardSensorIds.Contains(sensor.SensorId)).Select(sensor => sensor.SensorId).Distinct().ToList() ?? []);
+            if (_removedWizardSensorIds.Count > 0)
+            {
+                var sensorIds = structure.Sensors?
+                    .Where(sensor => sensor.IsActive && !_removedWizardSensorIds.Contains(sensor.SensorId))
+                    .Select(sensor => sensor.SensorId)
+                    .Distinct()
+                    .ToList() ?? [];
+                await StructureUC.UpdateAsync(structure.Id, structure, sensorIds);
+            }
+            else
+            {
+                await StructureUC.UpdateMetadataAsync(structure.Id, structure);
+            }
             _removedWizardSensorIds.Clear();
             foreach (var sensor in _newStructureSensors.Where(x => x.ImagePositionX.HasValue && x.ImagePositionY.HasValue))
                 await StructureUC.UpdateSensorImagePositionAsync(sensor.Id, sensor.ImagePositionX!.Value, sensor.ImagePositionY!.Value);
-            _setupNotice = "Kurulum bilgileri kaydedildi. Barajlar listesinden Saha ZIP’ini indir ile paketi alabilirsiniz. Sahada veri toplama başlatılmadı.";
-            _simulationStatusMessage = "Saha kurulum ayarları merkeze kaydedildi.";
+            _setupNotice = _isEditingExistingStructure
+                ? "Saha ayarları güncellendi. Barajlar listesinden Saha ZIP’ini indir ile güncel paketi alabilirsiniz."
+                : "Kurulum bilgileri kaydedildi. Barajlar listesinden Saha ZIP’ini indir ile paketi alabilirsiniz. Sahada veri toplama başlatılmadı.";
+            _simulationStatusMessage = _isEditingExistingStructure
+                ? "Saha kurulum ayarları güncellendi."
+                : "Saha kurulum ayarları merkeze kaydedildi.";
             await LoadStructuresAsync();
             await RefreshDiscoveredSensorsAsync();
         }

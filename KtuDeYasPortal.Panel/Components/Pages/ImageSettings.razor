@@ -32,12 +32,10 @@
                 <h2 class="h5 mb-0">Yapı görseli</h2>
             </div>
             <label class="form-label small fw-semibold mb-1">Yapı seçin</label>
-            <SearchableSelect TItem="Structure"
-                Items="_structures"
+            <SearchableSelect
+                Items="@(_structures.Select(s => new SelectItem(s.Id.ToString(), $"{s.Name} · {s.Province}")).ToList())"
                 Value="@_imageStructureId"
                 ValueChanged="id => _imageStructureId = id"
-                ItemValue="s => s.Id.ToString()"
-                ItemLabel="s => $"{s.Name} · {s.Province}"
                 EmptyLabel="— Varsayılan —"
                 Placeholder="Yapı ara…"
                 Disabled="@_busy" />
@@ -62,12 +60,10 @@
                 <span class="badge bg-light text-dark border ms-auto" style="font-size:10px">GLB · GLTF · OBJ · FBX</span>
             </div>
             <label class="form-label small fw-semibold mb-1">Yapı seçin</label>
-            <SearchableSelect TItem="Structure"
-                Items="_structures"
+            <SearchableSelect
+                Items="@(_structures.Select(s => new SelectItem(s.Id.ToString(), $"{s.Name} · {s.Province}")).ToList())"
                 Value="@_modelStructureId"
                 ValueChanged="id => _modelStructureId = id"
-                ItemValue="s => s.Id.ToString()"
-                ItemLabel="s => $"{s.Name} · {s.Province}"
                 EmptyLabel="— Varsayılan —"
                 Placeholder="Yapı ara…"
                 Disabled="@_busy" />
@@ -116,12 +112,10 @@
             </div>
 
             <label class="form-label small fw-semibold mb-1">Yapı seçin</label>
-            <SearchableSelect TItem="Structure"
-                Items="_structures"
+            <SearchableSelect
+                Items="@(_structures.Select(s => new SelectItem(s.Id.ToString(), $"{s.Name} · {s.Province}")).ToList())"
                 Value="@_sensorStructureId"
                 ValueChanged="OnSensorStructureChanged"
-                ItemValue="s => s.Id.ToString()"
-                ItemLabel="s => $"{s.Name} · {s.Province}"
                 EmptyLabel="— Yapı seçin —"
                 Placeholder="Yapı ara…"
                 Disabled="@_busy" />
@@ -129,12 +123,10 @@
             @if (!string.IsNullOrEmpty(_sensorStructureId))
             {
                 <label class="form-label small fw-semibold mt-2 mb-1">Sensör seçin</label>
-                <SearchableSelect TItem="Sensor"
-                    Items="_structureSensors"
+                <SearchableSelect
+                    Items="@(_structureSensors.Select(s => new SelectItem(s.Id.ToString(), $"{s.EffectiveDisplayName} · {s.DeviceId}")).ToList())"
                     Value="@_sensorId"
                     ValueChanged="id => _sensorId = id"
-                    ItemValue="s => s.Id.ToString()"
-                    ItemLabel="s => $"{s.EffectiveDisplayName} · {s.DeviceId}"
                     EmptyLabel="— Sensör seçin —"
                     Placeholder="Sensör ara…"
                     Disabled="@_busy" />

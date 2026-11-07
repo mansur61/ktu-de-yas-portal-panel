@@ -42,6 +42,30 @@
         border-color: #8795a5;
         border-width: 2px;
     }
+
+    .structure-model-preview {
+        margin: 1rem;
+        padding: .75rem;
+        border: 1px solid #d6e0e8;
+        border-radius: .75rem;
+        background: #102b3b;
+        color: #e7f0f3;
+    }
+
+    .structure-model-preview model-viewer {
+        display: block;
+        width: 100%;
+        height: 300px;
+        border-radius: .5rem;
+        background: radial-gradient(ellipse at 50% 30%, #244c60, #091d2c 80%);
+    }
+
+    .structure-card-model {
+        display: block;
+        width: 100%;
+        height: 160px;
+        background: radial-gradient(ellipse at 50% 30%, #244c60, #091d2c 80%);
+    }
 </style>
 
 @* ══════════════════════════════════════════════════════════════════
@@ -133,12 +157,30 @@
         <div class="pb-4">
         <ResponsiveGrid Items="FilteredStructures" ItemHeight="360" MinimumWidth="300" Context="s"><ItemTemplate>
                     <div class="structure-card @(s.IsActive ? "" : "opacity-60")" @onclick="() => OpenStructureDetail(s.Id)">
-                        <img src="@(!string.IsNullOrEmpty(s.ImageUrl) ? s.ImageUrl : GetStructureImagePath(s.StructureType))"
-                             class="structure-card-img" alt="@s.Name"
-                             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
-                        <div class="structure-card-img-placeholder" style="display:none">
-                            <span>@GetStructureEmoji(s.StructureType)</span>
-                        </div>
+                        @if (!string.IsNullOrWhiteSpace(s.ModelUrl))
+                        {
+                            <model-viewer @key="s.ModelUrl"
+                                          class="structure-card-model"
+                                          src="@s.ModelUrl"
+                                          alt="@($"{s.Name} 3B modeli")"
+                                          camera-controls
+                                          touch-action="pan-y"
+                                          shadow-intensity="1"
+                                          interaction-prompt="none"
+                                          loading="lazy"
+                                          @onclick:stopPropagation="true"
+                                          @onkeydown:stopPropagation="true">
+                            </model-viewer>
+                        }
+                        else
+                        {
+                            <img src="@(!string.IsNullOrEmpty(s.ImageUrl) ? s.ImageUrl : GetStructureImagePath(s.StructureType))"
+                                 class="structure-card-img" alt="@s.Name"
+                                 onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+                            <div class="structure-card-img-placeholder" style="display:none">
+                                <span>@GetStructureEmoji(s.StructureType)</span>
+                            </div>
+                        }
                         @* Silme ikonu — sağ üst köşe, kart tıklamasını geçirmez *@
                         <button class="structure-card-delete-btn"
                                 title="Yapıyı sil"
@@ -158,6 +200,10 @@
                             <div class="structure-card-badges">
                                 <span class="badge" style="background:#6f42c1">@GetStructureLabel(s.StructureType)</span>
                                 <span class="badge bg-primary">@s.SensorCount sensör</span>
+                                @if (!string.IsNullOrWhiteSpace(s.ModelUrl))
+                                {
+                                    <span class="badge bg-success"><span class="bi bi-box-seam me-1"></span>3B model yüklü</span>
+                                }
                                 @foreach (var sensorType in GetSensorTypeSummary(s))
                                 {
                                     <span class="badge bg-light text-dark border">@sensorType</span>
@@ -585,6 +631,28 @@
                 </button>
             </div>
         </div>
+
+        @if (!string.IsNullOrWhiteSpace(_editingStructure.ModelUrl))
+        {
+            <section class="structure-model-preview" aria-label="Yapının 3B modeli">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <span class="bi bi-box-seam"></span>
+                    <strong>Yüklenmiş yapı modeli</strong>
+                    <a class="btn btn-sm btn-outline-light ms-auto" href="@_editingStructure.ModelUrl" target="_blank" rel="noopener">
+                        <span class="bi bi-download me-1"></span>İndir
+                    </a>
+                </div>
+                <model-viewer @key="_editingStructure.ModelUrl"
+                              src="@_editingStructure.ModelUrl"
+                              alt="@($"{_editingStructure.Name} 3B modeli")"
+                              camera-controls
+                              touch-action="pan-y"
+                              shadow-intensity="1"
+                              interaction-prompt="none"
+                              loading="eager">
+                </model-viewer>
+            </section>
+        }
 
         @* ── Görsel Overlay — JS initStructureImage() doldurur ── *@
         <div class="structure-image-wrapper" id="structure-image">

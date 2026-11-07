@@ -7,6 +7,7 @@
 @inject KtuDeYasPortal.Panel.Infrastructure.Persistence.PanelApiClients Clients
 @inject KtuDeYasPortal.Panel.Domain.Interfaces.IStructureRepository Structures
 @inject IJSRuntime JS
+@implements IAsyncDisposable
 
 <PageTitle>Görsel Ayarları · DE-YAS</PageTitle>
 <KtuDeYasPortal.Panel.Components.Shared.SettingsNavigation />
@@ -77,17 +78,25 @@
             @{ var modelUrl = ModelStructure?.ModelUrl ?? _defaultModelUrl; }
             @if (!string.IsNullOrWhiteSpace(modelUrl))
             {
-                <div class="asset-preview-3d mb-3 d-flex flex-column align-items-center justify-content-center gap-2">
-                    <span class="bi bi-box-seam" style="font-size:42px;color:#9cba9d"></span>
-                    <div class="text-center">
-                        <div class="fw-semibold small text-success">3D Model Yüklü</div>
-                        <div class="text-muted" style="font-size:10px;word-break:break-all">
-                            @(Uri.TryCreate(modelUrl, UriKind.Absolute, out var mu) ? System.IO.Path.GetFileName(mu.LocalPath) : modelUrl)
-                        </div>
-                    </div>
-                    <a href="@modelUrl" target="_blank" class="btn btn-sm btn-outline-secondary py-0">
+                <div class="asset-preview-3d dam-model-viewer mb-3 p-2">
+                    <model-viewer @ref="_modelViewer"
+                                  @key="modelUrl"
+                                  src="@modelUrl"
+                                  alt="@(ModelStructure is null ? "Varsayılan yapı 3B modeli" : $"{ModelStructure.Name} 3B modeli")"
+                                  camera-controls
+                                  touch-action="pan-y"
+                                  shadow-intensity="1"
+                                  interaction-prompt="none"
+                                  loading="eager"
+                                  style="display:block;width:100%;height:220px;border-radius:8px;background:radial-gradient(ellipse at 50% 30%,#244c60,#091d2c 80%)">
+                    </model-viewer>
+                    <span class="model-status" data-model-status role="status" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);padding:8px 12px;border-radius:8px;background:#102b3be8;color:#e7f0f3;font-size:12px">3B model yükleniyor…</span>
+                    <div class="d-flex align-items-center justify-content-between gap-2 mt-2">
+                        <div class="text-truncate fw-semibold small text-success">3D Model Yüklü</div>
+                        <a href="@modelUrl" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary py-0">
                         <span class="bi bi-download me-1"></span>İndir
-                    </a>
+                        </a>
+                    </div>
                 </div>
             }
             else
@@ -100,7 +109,7 @@
             <label class="form-label small">GLB, GLTF, OBJ veya FBX yükle</label>
             <InputFile OnChange="UploadModel" accept=".glb,.gltf,.obj,.fbx" disabled="@_busy" class="form-control form-control-sm" />
             <div class="mt-2 p-2 rounded" style="background:#f4f6f0;font-size:11px;color:#586d65">
-                <span class="bi bi-info-circle me-1"></span>GLB veya GLTF önerilir — Three.js ile doğrudan çalışır.
+                <span class="bi bi-info-circle me-1"></span>GLB veya GLTF önerilir — tarayıcıda etkileşimli olarak görüntülenir.
             </div>
         </section>
     </div>
@@ -180,6 +189,9 @@
 <style>
     .asset-preview     { width:100%; height:140px; object-fit:contain; border-radius:10px; background:#f1f5f7; }
     .asset-preview-3d  { width:100%; height:140px; border-radius:10px; background:#f1f5f7; border:1px dashed #c8d5c9; }
+    .asset-preview-3d.dam-model-viewer { position:relative; height:auto; min-height:0; background:#102b3b; border:1px solid #d6e0e8; }
+    .asset-preview-3d .model-status[hidden] { display:none; }
+    .asset-preview-3d .model-status.model-load-error { background:#562c32 !important; color:#fff !important; }
 </style>
 
 @code {
@@ -193,11 +205,16 @@
 
     private string? _defaultImageUrl, _defaultModelUrl, _error, _success;
     private bool    _busy;
+    private bool    _modelViewerInteropFailed;
+    private string? _activeModelUrl;
+    private ElementReference _modelViewer;
+    private IJSObjectReference? _modelViewerModule;
 
     private long    _backgroundVersion = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
     private Structure? ImageStructure  => _structures.FirstOrDefault(s => s.Id.ToString() == _imageStructureId);
     private Structure? ModelStructure  => _structures.FirstOrDefault(s => s.Id.ToString() == _modelStructureId);
+    private string? CurrentModelUrl => ModelStructure?.ModelUrl ?? _defaultModelUrl;
     private Structure? SensorStructure => _structures.FirstOrDefault(s => s.Id.ToString() == _sensorStructureId);
     private Sensor?    SelectedSensor  => _structureSensors.FirstOrDefault(s => s.Id.ToString() == _sensorId);
 
@@ -219,6 +236,47 @@
 
         try { _defaultModelUrl = (await Clients.CreateClient("timeseries-api").GetFromJsonAsync<ModelResult>("api/image-assets/default-model"))?.ModelUrl; }
         catch { /* eski sunucu */ }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        var modelUrl = CurrentModelUrl;
+        if (string.IsNullOrWhiteSpace(modelUrl) || _modelViewerInteropFailed)
+        {
+            return;
+        }
+
+        try
+        {
+            _modelViewerModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./_content/DeYas.DigitalTwin/model-viewer-hotspots.js");
+            if (_activeModelUrl != modelUrl)
+            {
+                _activeModelUrl = modelUrl;
+                await _modelViewerModule.InvokeVoidAsync("init", _modelViewer);
+            }
+            else
+            {
+                await _modelViewerModule.InvokeVoidAsync("refresh", _modelViewer);
+            }
+        }
+        catch (JSException)
+        {
+            _modelViewerInteropFailed = true;
+            _error = "3B model görüntüleyicisi başlatılamadı.";
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_modelViewerModule is not null)
+        {
+            try
+            {
+                await _modelViewerModule.DisposeAsync();
+            }
+            catch (JSDisconnectedException) { }
+        }
     }
 
     // Yapı seçilince o yapının sensörlerini filtrele — ek API isteği yok

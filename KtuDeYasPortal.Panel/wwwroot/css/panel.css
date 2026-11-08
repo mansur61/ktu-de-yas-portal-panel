@@ -172,6 +172,8 @@
 
 .structure-card-body {
     padding: 14px 16px 16px;
+    position: relative;
+    z-index: 1;
 }
 
 .structure-card-title {

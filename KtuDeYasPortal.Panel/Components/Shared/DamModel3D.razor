@@ -1,5 +1,6 @@
 @inject IJSRuntime JS
 @implements IAsyncDisposable
+@using Microsoft.AspNetCore.Components.Web
 
 @if (!string.IsNullOrWhiteSpace(ModelUrl))
 {
@@ -23,6 +24,8 @@
                       interaction-prompt="none"
                       loading="eager"
                       camera-orbit="@_cameraOrbit"
+                      class="@(_pickingPosition ? "picking-position" : "")"
+                      @onclick="PickModelPosition"
                       data-selected-sensor="@(SelectedId?.ToString("N") ?? string.Empty)">
             @foreach (var sensor in Positioned)
             {
@@ -30,14 +33,16 @@
                         slot="@($"hotspot-sensor-{sensor.Id:N}")"
                         class="model-pin model-pin--@Status(sensor) @(IsLive(sensor)?"is-live":"") @(sensor.Id==SelectedId?"selected":"")"
                         data-sensor-id="@sensor.Id.ToString("N")"
-                        data-image-x="@sensor.ImagePositionX"
-                        data-image-y="@sensor.ImagePositionY"
                         data-has-model-position="@(Has3DPosition(sensor)?"true":"false")"
                         data-model-x="@sensor.PositionX"
                         data-model-y="@sensor.PositionY"
                         data-model-z="@sensor.PositionZ"
+                        data-rotation-x="@sensor.RotationX"
+                        data-rotation-y="@sensor.RotationY"
+                        data-rotation-z="@sensor.RotationZ"
                         title="@sensor.EffectiveDisplayName"
                         aria-label="@($"{sensor.EffectiveDisplayName} sensör bilgisini aç")"
+                        @onclick:stopPropagation="true"
                         @onclick="() => OnSelect.InvokeAsync(sensor)">
                     <i class="bi @Icon(sensor)" aria-hidden="true"></i>
                 </button>
@@ -46,7 +51,19 @@
         <span class="model-status" data-model-status role="status">3B model yükleniyor…</span>
         <div class="model-controls">
             <span><i class="bi bi-arrows-move me-1"></i>Sürükle · Yakınlaştır · Tekerlek</span>
+            @if (EnablePositionEditing && SelectedId.HasValue)
+            {
+                <button type="button" class="btn btn-sm btn-outline-light"
+                        aria-pressed="@_pickingPosition"
+                        @onclick="TogglePositionPicking">
+                    @(_pickingPosition ? "Modelde konum seçiliyor…" : "GLB'de konum belirle")
+                </button>
+            }
         </div>
+        @if (!string.IsNullOrWhiteSpace(_positionMessage))
+        {
+            <span class="model-interaction-error" role="status">@_positionMessage</span>
+        }
     </div>
 }
 else
@@ -140,6 +157,8 @@ else
     [Parameter] public EventCallback<Sensor>   OnSelect  { get; set; }
     [Parameter] public Func<Sensor, string>?   StatusFor { get; set; }
     [Parameter] public Func<Sensor, bool>?     IsLiveFor { get; set; }
+    [Parameter] public bool EnablePositionEditing { get; set; }
+    [Parameter] public EventCallback<ModelPositionSelection> OnModelPositionSelected { get; set; }
 
     private ElementReference _scene;
     private ElementReference _modelViewer;
@@ -148,6 +167,9 @@ else
     private string?  _activeModelUrl;
     private bool     _interactionError;
     private bool     _modelInteropFailed;
+    private bool     _pickingPosition;
+    private Guid?    _positionSensorId;
+    private string?  _positionMessage;
     private string   _glbView     = "mansap";
     private string   _cssView     = "mansap";
     private string   _cameraOrbit = "0deg 75deg 105%";
@@ -161,7 +183,7 @@ else
         ["ust"]     = "0deg 5deg 90%",
     };
 
-    private IEnumerable<Sensor> Positioned      => Sensors.Where(s => HasPosition(s) || Has3DPosition(s));
+    private IEnumerable<Sensor> Positioned      => Sensors.Where(Has3DPosition);
     private IEnumerable<Sensor> ImagePositioned => Sensors.Where(HasPosition);
 
     private static bool HasPosition(Sensor s)    => s.ImagePositionX is >= 0 and <= 100 && s.ImagePositionY is >= 0 and <= 100;
@@ -170,6 +192,72 @@ else
     private bool   IsLive(Sensor s)              => IsLiveFor?.Invoke(s) ?? false;
     private static string Color(Sensor s)        => "#d1d5db";
     private static bool IsFiber(Sensor s)        => DeYas.Contracts.MonitoringHealth.Category(s.SensorType.ToString()) == "FBQ / Fiber Optik";
+
+    protected override void OnParametersSet()
+    {
+        if (_positionSensorId != SelectedId)
+        {
+            _positionSensorId = SelectedId;
+            _pickingPosition = false;
+            _positionMessage = null;
+        }
+    }
+
+    private void TogglePositionPicking()
+    {
+        _pickingPosition = !_pickingPosition;
+        _positionMessage = _pickingPosition ? "Sensörün GLB üzerindeki konumuna tıklayın." : null;
+    }
+
+    private async Task PickModelPosition(MouseEventArgs args)
+    {
+        if (!_pickingPosition || SelectedId is not Guid sensorId || _modelModule is null) return;
+
+        try
+        {
+            var hit = await _modelModule.InvokeAsync<ModelViewerHit?>(
+                "pickPosition", _modelViewer, args.ClientX, args.ClientY);
+            if (hit is null)
+            {
+                _positionMessage = "Model üzerinde seçilebilir bir yüzeye tıklayın.";
+                return;
+            }
+
+            var normal = hit.Normal;
+            var length = Math.Sqrt(normal.X * normal.X + normal.Y * normal.Y + normal.Z * normal.Z);
+            if (length < 1e-8)
+            {
+                _positionMessage = "Seçilen yüzeyin yönü belirlenemedi. Başka bir noktayı deneyin.";
+                return;
+            }
+
+            var rotationX = Math.Asin(Math.Clamp(-normal.Y / length, -1, 1)) * 180 / Math.PI;
+            var rotationY = Math.Atan2(normal.X, normal.Z) * 180 / Math.PI;
+            await OnModelPositionSelected.InvokeAsync(new ModelPositionSelection(
+                sensorId,
+                hit.Position.X,
+                hit.Position.Y,
+                hit.Position.Z,
+                rotationX,
+                rotationY,
+                0));
+            _pickingPosition = false;
+            _positionMessage = "GLB konumu ve yönü kaydedildi.";
+        }
+        catch (JSException)
+        {
+            _pickingPosition = false;
+            _positionMessage = "Model üzerindeki konum alınamadı. Model yüklemesini kontrol edip yeniden deneyin.";
+        }
+        catch (HttpRequestException)
+        {
+            _pickingPosition = false;
+            _positionMessage = "GLB konumu seçildi ancak kaydedilemedi. Hata ayrıntısı yapı ekranında gösteriliyor.";
+        }
+    }
+
+    private sealed record ModelViewerPoint(double X, double Y, double Z);
+    private sealed record ModelViewerHit(ModelViewerPoint Position, ModelViewerPoint Normal);
 
     private async Task SetGlbView(string view)
     {

@@ -4,17 +4,18 @@
 @rendermode InteractiveServer
 @using DeYas.Contracts.Authorization
 @using System.Globalization
-@using System.Text.Json
 @inject StructureUseCases StructuresUC
 @inject PanelAccess Access
 @inject PanelApiClients Clients
 @inject SensorDataState RealtimeState
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject ILogger<DigitalTwin> Logger
 @implements IDisposable
 
 @using KtuDeYasPortal.Panel.Components.Shared
 @using DeYas.Contracts
+@using DeYas.DigitalTwin
 
 <PageTitle>@(_structure?.Name ?? "Dijital ikiz") · DE-YAS</PageTitle>
 
@@ -62,15 +63,30 @@
             <div class="monitor-workbench">
                 @* ── 3D / Dijital ikiz görünümü ── *@
                 <section class="model-section">
-                    @if (!string.IsNullOrWhiteSpace(_structure.ModelUrl))
+                    @if (IsGlbModelUrl(_structure.ModelUrl))
                     {
-                        @* GLB varsa: BarajDijitalIkiz ile tam interaktif görünüm *@
-                        <BarajDijitalIkiz BaslangicYerlesimiJson="@_yerlesimJson"
-                                         YerlesimDegisti="OnYerlesimDegisti" />
+                        <StructureGlbViewer @key="_structure.ModelUrl"
+                                            ModelUrl="@_structure.ModelUrl"
+                                            StructureName="@_structure.Name"
+                                            Sensors="@TwinModelSensors"
+                                            SelectedId="_selected?.Id"
+                                            OnSelect="SelectTwinSensor"
+                                            EnablePositionEditing="true"
+                                            OnModelPositionSelected="SaveModelPositionAsync" />
+                    }
+                    else if (!string.IsNullOrWhiteSpace(_structure.ModelUrl))
+                    {
+                        <DamModel3D Sensors="ModelSensors"
+                                    ModelUrl="@_structure.ModelUrl"
+                                    SelectedId="_selected?.Id"
+                                    OnSelect="SelectSensor"
+                                    StatusFor="SensorStatus"
+                                    IsLiveFor="HasLiveData"
+                                    EnablePositionEditing="true"
+                                    OnModelPositionSelected="SaveModelPositionAsync" />
                     }
                     else
                     {
-                        @* GLB yoksa: CSS 3D şematik *@
                         <DamModel3D Sensors="ModelSensors"
                                     ImageUrl="@PlanImageUrl"
                                     SelectedId="_selected?.Id"
@@ -211,7 +227,6 @@
     private string _category = "";
     private int _telemetryPage;
     private string? _error;
-    private string? _yerlesimJson;   // BarajDijitalIkiz için sensör yerleşim JSON
 
     private string TelemetrySearch  { get => _telemetrySearch;  set { _telemetrySearch  = value; _telemetryPage = 0; } }
     private string TelemetryType    { get => _telemetryType;    set { _telemetryType    = value; _telemetryPage = 0; } }
@@ -238,6 +253,17 @@
         && (type.Length == 0 || s.SensorType.ToString() == type);
 
     private IReadOnlyList<Sensor> ModelSensors => _sensors.Where(s => MonitoringHealth.Category(s.SensorType.ToString()) == _category).ToArray();
+    private IReadOnlyList<TwinModelSensor> TwinModelSensors => ModelSensors.Select(sensor =>
+        new TwinModelSensor(
+            sensor.Id,
+            sensor.EffectiveDisplayName,
+            sensor.SensorType.ToString(),
+            sensor.PositionX,
+            sensor.PositionY,
+            sensor.PositionZ,
+            sensor.RotationX,
+            sensor.RotationY,
+            sensor.RotationZ)).ToArray();
     private IEnumerable<Sensor> TelemetrySensors => _sensors
         .Where(s => MonitoringHealth.Category(s.SensorType.ToString()) == _category
                && Matches(s, _telemetrySearch, _telemetryType)
@@ -261,7 +287,52 @@
     }
 
     private static bool IsCamera(Sensor s) => s.SensorType.ToString() == "Camera";
+    private static bool IsGlbModelUrl(string? modelUrl) =>
+        modelUrl?.Split('?', '#')[0].EndsWith(".glb", StringComparison.OrdinalIgnoreCase) == true;
+
     private void SelectSensor(Sensor sensor) { _selected = sensor; _popup = true; }
+    private void SelectTwinSensor(Guid sensorId)
+    {
+        var sensor = ModelSensors.FirstOrDefault(item => item.Id == sensorId);
+        if (sensor is not null)
+            SelectSensor(sensor);
+    }
+
+    private async Task SaveModelPositionAsync(ModelPositionSelection position)
+    {
+        var sensor = _sensors.FirstOrDefault(item => item.Id == position.SensorId);
+        if (sensor is null || string.IsNullOrWhiteSpace(_structure?.ModelUrl))
+        {
+            _error = "GLB konumu kaydedilemedi. Sensör veya yapı modeli bulunamadı.";
+            return;
+        }
+
+        try
+        {
+            await StructuresUC.UpdateSensor3DPositionAsync(
+                sensor.Id,
+                position.PositionX,
+                position.PositionY,
+                position.PositionZ,
+                position.RotationX,
+                position.RotationY,
+                position.RotationZ);
+            sensor.PositionX = position.PositionX;
+            sensor.PositionY = position.PositionY;
+            sensor.PositionZ = position.PositionZ;
+            sensor.RotationX = position.RotationX;
+            sensor.RotationY = position.RotationY;
+            sensor.RotationZ = position.RotationZ;
+            _selected = sensor;
+        }
+        catch (HttpRequestException ex)
+        {
+            Logger.LogError(ex, "GLB sensör konumu kaydedilemedi. StructureId: {StructureId}, SensorId: {SensorId}", Id, sensor.Id);
+            _error = "GLB sensör konumu kaydedilemedi. Bağlantıyı kontrol edip yeniden deneyin.";
+            throw;
+        }
+    }
+
     private void ApplyInventory(Structure structure, IReadOnlyList<Sensor> sensors)
     {
         _structure = structure;
@@ -269,76 +340,19 @@
         foreach (var sensor in _sensors)
         {
             var p = structure.Sensors.FirstOrDefault(x => x.SensorId == sensor.Id);
-            if (p is not null) { sensor.ImagePositionX = p.ImagePositionX; sensor.ImagePositionY = p.ImagePositionY; }
+            if (p is not null)
+            {
+                sensor.PositionX = p.PositionX;
+                sensor.PositionY = p.PositionY;
+                sensor.PositionZ = p.PositionZ;
+                sensor.RotationX = p.RotationX;
+                sensor.RotationY = p.RotationY;
+                sensor.RotationZ = p.RotationZ;
+                sensor.ImagePositionX = p.ImagePositionX;
+                sensor.ImagePositionY = p.ImagePositionY;
+            }
         }
         _selected = _sensors.FirstOrDefault(s => s.Id == _selected?.Id) ?? _sensors.FirstOrDefault(s => !IsCamera(s));
-
-        // GLB varsa BarajDijitalIkiz için yerleşim JSON oluştur
-        if (!string.IsNullOrWhiteSpace(structure.ModelUrl))
-            _yerlesimJson = BuildYerlesimJson();
-    }
-
-    /// <summary>
-    /// Sensörlerin PositionX/Y/Z ve RotationX/Y/Z değerlerinden
-    /// BarajDijitalIkiz'in beklediği yerleşim JSON'unu oluşturur.
-    /// Sensörün tipi kameraya göre "camera" veya "surface" olarak belirlenir.
-    /// </summary>
-    private string BuildYerlesimJson()
-    {
-        var devices = _sensors
-            .Where(s => s.PositionX != 0 || s.PositionY != 0 || s.PositionZ != 0)
-            .Select(s =>
-            {
-                var isCamera = IsCamera(s);
-                var device = new Dictionary<string, object>
-                {
-                    ["id"]       = s.DeviceId,
-                    ["name"]     = s.EffectiveDisplayName,
-                    ["type"]     = isCamera ? "camera" : (s.SensorType.ToString() == "Displacement" || s.SensorType.ToString() == "Strain" ? "internal" : "surface"),
-                    ["position"] = new[] { s.PositionX, s.PositionY, s.PositionZ },
-                };
-                if (isCamera)
-                {
-                    device["target"] = new[] { s.PositionX, s.PositionY + 10, s.PositionZ - 20 };
-                    device["fovDeg"] = 42.0;
-                }
-                return device;
-            })
-            .ToList();
-
-        return JsonSerializer.Serialize(new
-        {
-            schemaVersion = 2,
-            modelId       = _structure?.Id.ToString("N") ?? "unknown",
-            axes          = new { x = "kret boyunca mansap görünümünde sağa", y = "yukarı", z = "mansaba" },
-            devices
-        });
-    }
-
-    private async Task OnYerlesimDegisti(string json)
-    {
-        // Yerleşim değişince sensörlerin PositionX/Y/Z'sini güncelle
-        try
-        {
-            using var doc = JsonDocument.Parse(json);
-            if (!doc.RootElement.TryGetProperty("devices", out var devices)) return;
-            foreach (var device in devices.EnumerateArray())
-            {
-                var deviceId = device.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
-                if (deviceId is null) continue;
-                var sensor = _sensors.FirstOrDefault(s => s.DeviceId == deviceId);
-                if (sensor is null) continue;
-
-                if (device.TryGetProperty("position", out var pos) && pos.GetArrayLength() == 3)
-                {
-                    var px = pos[0].GetDouble(); var py = pos[1].GetDouble(); var pz = pos[2].GetDouble();
-                    sensor.PositionX = px; sensor.PositionY = py; sensor.PositionZ = pz;
-                    await StructuresUC.UpdateSensor3DPositionAsync(sensor.Id, px, py, pz, 0, 0, 0);
-                }
-            }
-            _yerlesimJson = json;
-        }
-        catch { /* JSON parse hatası — sessizce atla */ }
     }
 
     private IEnumerable<KeyValuePair<(Guid SensorId, string Metric), List<Reading>>> Streams(Sensor s) =>

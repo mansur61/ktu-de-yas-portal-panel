@@ -5,6 +5,7 @@
 @inject PanelAccess SetupAccess
 @rendermode InteractiveServer
 @using KtuDeYasPortal.Panel.Components.Shared
+@using DeYas.DigitalTwin
 @using DeYas.Contracts.Sensors
 @using DeYas.Contracts.Simulation
 @using DeYas.Contracts.Integration
@@ -447,7 +448,53 @@
             <div hidden="@(_wizardStep != 4)">
               @{ var hasPassiveSources = _friendlyUdpSources.Any() || MqttConnections().Any() || _cameraSettings.Cameras.Any(); }
               <div class="dy-heading"><div><h2 class="dy-form-heading">Hangi sensörleri izleyeceksiniz?</h2><p>TCP cihaz bağlantısıyla sensörü hemen ekleyin ya da UDP/MQTT kaynağını tanımlayın; sensörler saha kurulumu sonrası otomatik bulunur.</p></div><button class="btn btn-primary" @onclick="OpenWizardSensorEditor">+ Sensör ekle</button></div>
-              <details id="wizard-placement" class="dy-technical" open><summary>Görsel üzerinde sensör konumu seç (isteğe bağlı)</summary><p class="dy-subtle">Mevcut sensörü yerleştirmek için satırındaki "Görselde yerleştir" düğmesini kullanın. Boş bir noktaya tıklamak yeni sensör için temiz kaynak seçimini açar.</p>@if(_wizardPlacingSensorId.HasValue){<div class="alert alert-info">Seçilen sensörün konumu için görsele tıklayın. <button class="btn btn-sm btn-outline-secondary" @onclick="()=>_wizardPlacingSensorId=null">Yerleştirmeyi iptal et</button></div>}@if(!_newStructureSensors.Any() && hasPassiveSources){<div class="alert alert-light border small py-2 mb-2"><span class="bi bi-info-circle me-1 text-secondary"></span>Yalnız UDP/MQTT kaynağı tanımlı. Saha kurulumu sonrası sensörler bu yapıya kaydedildiğinde yapı kartına tıklayarak görselde konumlandırabilirsiniz.</div>}<div class="wizard-image-wrapper" id="wizard-image"></div></details>
+              @if (IsGlbModelUrl(_editingStructure?.ModelUrl))
+              {
+                <details id="wizard-placement" class="dy-technical" open>
+                  <summary>GLB üzerinde sensör konumu seç</summary>
+                  <p class="dy-subtle">GLB modeli olan yapılarda sensörler 3B konumlarıyla gösterilir. Bir sensörü seçip modelde konumlandırın; konum ve yön bilgisi kaydedilir.</p>
+                  @if (_wizardPlacingSensorId.HasValue)
+                  {
+                    <div class="alert alert-info">Modelde seçili sensörün konumuna tıklayın.</div>
+                  }
+                  <StructureGlbViewer @key="_editingStructure.ModelUrl"
+                                      ModelUrl="@_editingStructure!.ModelUrl"
+                                      StructureName="@_editingStructure.Name"
+                                      Sensors="@WizardModelSensors"
+                                      SelectedId="@_wizardPlacingSensorId"
+                                      OnSelect="SelectWizardSensorForPlacement"
+                                      EnablePositionEditing="@_wizardPlacingSensorId.HasValue"
+                                      OnModelPositionSelected="SaveWizardModelPositionAsync" />
+                </details>
+              }
+              else if (!string.IsNullOrWhiteSpace(_editingStructure?.ModelUrl))
+              {
+                <details id="wizard-placement" class="dy-technical" open>
+                  <summary>Model üzerinde sensör konumu seç</summary>
+                  <DamModel3D Sensors="@_newStructureSensors"
+                              ModelUrl="@_editingStructure.ModelUrl"
+                              SelectedId="@_wizardPlacingSensorId"
+                              OnSelect="SelectWizardSensorForPlacement"
+                              EnablePositionEditing="@_wizardPlacingSensorId.HasValue"
+                              OnModelPositionSelected="SaveWizardModelPositionAsync" />
+                </details>
+              }
+              else
+              {
+                <details id="wizard-placement" class="dy-technical" open>
+                  <summary>Görsel üzerinde sensör konumu seç (isteğe bağlı)</summary>
+                  <p class="dy-subtle">Mevcut sensörü yerleştirmek için satırındaki "Görselde yerleştir" düğmesini kullanın. Boş bir noktaya tıklamak yeni sensör için temiz kaynak seçimini açar.</p>
+                  @if (_wizardPlacingSensorId.HasValue)
+                  {
+                    <div class="alert alert-info">Seçilen sensörün konumu için görsele tıklayın. <button class="btn btn-sm btn-outline-secondary" @onclick="() => _wizardPlacingSensorId = null">Yerleştirmeyi iptal et</button></div>
+                  }
+                  @if (!_newStructureSensors.Any() && hasPassiveSources)
+                  {
+                    <div class="alert alert-light border small py-2 mb-2"><span class="bi bi-info-circle me-1 text-secondary"></span>Yalnız UDP/MQTT kaynağı tanımlı. Saha kurulumu sonrası sensörler bu yapıya kaydedildiğinde yapı kartına tıklayarak görselde konumlandırabilirsiniz.</div>
+                  }
+                  <div class="wizard-image-wrapper" id="wizard-image"></div>
+                </details>
+              }
 
               @* ── KAYITLI SENSÖRLER (TCP / doğrudan eklenen) — Tab + Arama + Pagination ── *@
               @{
@@ -498,15 +545,24 @@
                     <small class="text-muted">@wizFiltered.Count / @_newStructureSensors.Count sensör</small>
                     <small class="text-muted ms-1">— bağlantı testi yapılmış, DB'ye yazılmış</small>
                   </div>
-                  <div class="table-responsive wizard-sensor-table-wrap"><table class="table table-sm"><thead><tr><th>Sensör</th><th>Ölçüm türü</th><th>Görsel konumu</th><th></th></tr></thead><tbody>
+                  <div class="table-responsive wizard-sensor-table-wrap"><table class="table table-sm"><thead><tr><th>Sensör</th><th>Ölçüm türü</th><th>@(IsGlbModelUrl(_editingStructure?.ModelUrl) ? "GLB konumu" : !string.IsNullOrWhiteSpace(_editingStructure?.ModelUrl) ? "Model konumu" : "Görsel konumu")</th><th></th></tr></thead><tbody>
                   @foreach (var sensor in wizPaged) {
                     var wizIdx = _newStructureSensors.IndexOf(sensor);
                     <tr>
                       <td><strong>@sensor.EffectiveDisplayName</strong><div class="dy-subtle small">@SensorSourceLabel(sensor)</div></td>
                       <td>@GetSensorTypeLabel(sensor.SensorType.ToString())</td>
-                      <td><span class="@(sensor.ImagePositionX.HasValue ? "text-success" : "text-muted") small">@(sensor.ImagePositionX.HasValue ? "✓ Konumlandırıldı" : "Seçilmedi (isteğe bağlı)")</span></td>
+                      <td>
+                        @if (!string.IsNullOrWhiteSpace(_editingStructure?.ModelUrl))
+                        {
+                          <span class="@(Has3DPosition(sensor) ? "text-success" : "text-muted") small">@(Has3DPosition(sensor) ? "✓ GLB üzerinde" : "Seçilmedi")</span>
+                        }
+                        else
+                        {
+                          <span class="@(HasImagePosition(sensor) ? "text-success" : "text-muted") small">@(HasImagePosition(sensor) ? "✓ Görsel üzerinde" : "Seçilmedi (isteğe bağlı)")</span>
+                        }
+                      </td>
                       <td class="text-nowrap">
-                        <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => PlaceWizardSensorAsync(sensor)">Görselde yerleştir</button>
+                        <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => PlaceWizardSensorAsync(sensor)">@(!string.IsNullOrWhiteSpace(_editingStructure?.ModelUrl) ? IsGlbModelUrl(_editingStructure.ModelUrl) ? "GLB'de konumlandır" : "Modelde konumlandır" : "Görselde yerleştir")</button>
                         <button class="btn btn-sm btn-outline-danger" @onclick="() => RemoveWizardSensor(wizIdx)" aria-label="@($"{sensor.EffectiveDisplayName} sensörünü barajdan kaldır")">Kaldır</button>
                       </td>
                     </tr>
@@ -647,18 +703,45 @@
                         <span class="bi bi-download me-1"></span>İndir
                     </a>
                 </div>
-                <DamModel3D Sensors="@(_editingStructure.Sensors?.Select(ss => new Sensor {
-                                Id = ss.SensorId, Name = ss.Name, DisplayName = ss.DisplayName,
-                                DeviceId = ss.DeviceId, SensorType = Enum.TryParse<DeYas.Contracts.Sensors.SensorType>(ss.SensorType, out var st) ? st : DeYas.Contracts.Sensors.SensorType.Generic,
-                                ImagePositionX = ss.ImagePositionX, ImagePositionY = ss.ImagePositionY,
-                                Unit = ss.Unit, Topic = ss.Topic, Description = ss.Description
-                            }).ToList() ?? [])"
-                            ImageUrl="@_editingStructure.ImageUrl"
-                            ModelUrl="@_editingStructure.ModelUrl"
-                            SelectedId="@_detailSelectedSensorId"
-                            OnSelect="OnDetailSensorSelected"
-                            StatusFor="@(s => "no-data")"
-                            IsLiveFor="@(s => false)" />
+                @if (IsGlbModelUrl(_editingStructure.ModelUrl))
+                {
+                    <div class="px-3 py-2">
+                        <label class="form-label text-white-50 small mb-1" for="detail-glb-sensor">Konumlandırılacak sensör</label>
+                        <select id="detail-glb-sensor" class="form-select form-select-sm"
+                                @bind="_detailSelectedSensorId">
+                            <option value="">Sensör seçin</option>
+                            @foreach (var sensor in DetailModelSensors)
+                            {
+                                <option value="@sensor.Id">@sensor.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <StructureGlbViewer @key="_editingStructure.ModelUrl"
+                                        ModelUrl="@_editingStructure.ModelUrl"
+                                        StructureName="@_editingStructure.Name"
+                                        Sensors="@DetailModelSensors"
+                                        SelectedId="@_detailSelectedSensorId"
+                                        OnSelect="OnDetailTwinSensorSelected"
+                                        EnablePositionEditing="@_detailSelectedSensorId.HasValue"
+                                        OnModelPositionSelected="SaveDetailModelPositionAsync" />
+                }
+                else
+                {
+                    <DamModel3D Sensors="@(_editingStructure.Sensors?.Select(ss => new Sensor {
+                                    Id = ss.SensorId, Name = ss.Name, DisplayName = ss.DisplayName,
+                                    DeviceId = ss.DeviceId, SensorType = Enum.TryParse<DeYas.Contracts.Sensors.SensorType>(ss.SensorType, out var st) ? st : DeYas.Contracts.Sensors.SensorType.Generic,
+                                    PositionX = ss.PositionX, PositionY = ss.PositionY, PositionZ = ss.PositionZ,
+                                    RotationX = ss.RotationX, RotationY = ss.RotationY, RotationZ = ss.RotationZ,
+                                    ImagePositionX = ss.ImagePositionX, ImagePositionY = ss.ImagePositionY,
+                                    Unit = ss.Unit, Topic = ss.Topic, Description = ss.Description
+                                }).ToList() ?? [])"
+                                ImageUrl="@_editingStructure.ImageUrl"
+                                ModelUrl="@_editingStructure.ModelUrl"
+                                SelectedId="@_detailSelectedSensorId"
+                                OnSelect="OnDetailSensorSelected"
+                                StatusFor="@(s => "no-data")"
+                                IsLiveFor="@(s => false)" />
+                }
             </div>
         }
         else
@@ -669,10 +752,11 @@
             </div>
         }
         <div class="structure-image-click-hint">
-            <span class="bi bi-crosshair me-1"></span>@(_placingSensorId.HasValue ? "Seçili sensörün konumunu resme tıklayarak belirleyin" : string.IsNullOrWhiteSpace(_editingStructure.ModelUrl) ? "Resme tıklayarak sensör ekleyin" : "")
+            <span class="bi bi-crosshair me-1"></span>@(_placingSensorId.HasValue ? "Seçili sensörün konumunu resme tıklayarak belirleyin" : IsGlbModelUrl(_editingStructure.ModelUrl) ? (_detailSelectedSensorId.HasValue ? "Seçili sensör için GLB sahnesinde konum seçin" : "GLB üzerinde düzenlemek için sensör seçin") : string.IsNullOrWhiteSpace(_editingStructure.ModelUrl) ? "Resme tıklayarak sensör ekleyin" : "")
         </div>
 
-        @if (_editingStructure.Sensors?.Any(s => !s.ImagePositionX.HasValue || !s.ImagePositionY.HasValue) == true)
+        @if (string.IsNullOrWhiteSpace(_editingStructure.ModelUrl) &&
+             _editingStructure.Sensors?.Any(s => !s.ImagePositionX.HasValue || !s.ImagePositionY.HasValue) == true)
         {
             <div class="alert alert-warning mx-3 mt-3 mb-0 d-flex align-items-center gap-2">
                 <span class="bi bi-geo-alt-fill"></span>
@@ -1333,7 +1417,6 @@
 @code {
     // ── State ────────────────────────────────────────────────────────────────
     private Guid?   _detailSelectedSensorId;
-    private void    OnDetailSensorSelected(Sensor s) { _detailSelectedSensorId = s.Id; }
 
     private List<Structure>? _structures;
     private Structure?       _editingStructure;

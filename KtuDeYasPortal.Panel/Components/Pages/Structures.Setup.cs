@@ -141,6 +141,8 @@ public partial class Structures
                 IpAddress = s.IpAddress, Port = s.Port, TimeoutMs = s.TimeoutMs, Unit = s.Unit,
                 Metrics = s.Metrics, Topic = s.Topic, Description = s.Description,
                 SensorType = Enum.TryParse<DeYas.Contracts.Sensors.SensorType>(s.SensorType, out var type) ? type : DeYas.Contracts.Sensors.SensorType.Generic,
+                PositionX = s.PositionX, PositionY = s.PositionY, PositionZ = s.PositionZ,
+                RotationX = s.RotationX, RotationY = s.RotationY, RotationZ = s.RotationZ,
                 ImagePositionX = s.ImagePositionX, ImagePositionY = s.ImagePositionY
             }).ToList();
             _sourceTcp |= HasTcpSensor;

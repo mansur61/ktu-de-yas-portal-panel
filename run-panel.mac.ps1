@@ -170,14 +170,6 @@ exit `$EXIT_CODE
 # ── Servisleri sırayla başlat ─────────────────────────────────────────────────
 Write-Host "Servisler baslatiliyor..." -ForegroundColor Cyan
 
-# timeseries ve auth servisleri yerel PostgreSQL'e ihtiyaç duyar.
-if (-not (Test-PortListening 5432)) {
-    Write-Host "HATA: PostgreSQL/TimescaleDB 5432 portunda dinlemiyor." -ForegroundColor Red
-    Write-Host "  Once calistirin: cd $($backendRoot.Path)/infra && docker compose up -d timescaledb" -ForegroundColor Yellow
-    Write-Log "startup aborted: PostgreSQL/TimescaleDB is not listening on port 5432"
-    exit 1
-}
-
 # 1. timeseries-service
 Start-Service -Name "timeseries-service" `
     -Port 5000 `

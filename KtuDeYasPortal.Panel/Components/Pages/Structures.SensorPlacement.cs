@@ -8,12 +8,38 @@ namespace KtuDeYasPortal.Panel.Components.Pages;
 
 public partial class Structures
 {
+    private static bool IsGlbModelUrl(string? modelUrl) =>
+        modelUrl?.Split('?', '#')[0].EndsWith(".glb", StringComparison.OrdinalIgnoreCase) == true;
+
     private static readonly JsonSerializerOptions SourceJson = new(JsonSerializerDefaults.Web);
     private bool _registerSourceSensor;
     private string _bindingDeviceId="", _bindingStreamKey="";
     private Guid? _wizardPlacingSensorId;
     private DateTime _lastSensorRefresh;
     private string? _editingMqttConnectionId;
+    private IReadOnlyList<TwinModelSensor> WizardModelSensors => _newStructureSensors.Select(sensor =>
+        new TwinModelSensor(
+            sensor.Id,
+            sensor.EffectiveDisplayName,
+            sensor.SensorType.ToString(),
+            sensor.PositionX,
+            sensor.PositionY,
+            sensor.PositionZ,
+            sensor.RotationX,
+            sensor.RotationY,
+            sensor.RotationZ)).ToArray();
+    private IReadOnlyList<TwinModelSensor> DetailModelSensors => (_editingStructure?.Sensors ?? [])
+        .Select(sensor => new TwinModelSensor(
+            sensor.SensorId,
+            sensor.EffectiveDisplayName,
+            sensor.SensorType,
+            sensor.PositionX,
+            sensor.PositionY,
+            sensor.PositionZ,
+            sensor.RotationX,
+            sensor.RotationY,
+            sensor.RotationZ))
+        .ToArray();
     private bool HasManualSensorBinding => !string.IsNullOrWhiteSpace(_bindingDeviceId) || !string.IsNullOrWhiteSpace(_bindingStreamKey);
     private bool ShouldRegisterSourceSensor => _registerSourceSensor && (_sensorSourceKind == "camera" || HasManualSensorBinding);
     private bool ValidSensorBinding => !string.IsNullOrWhiteSpace(_bindingDeviceId)
@@ -76,8 +102,111 @@ public partial class Structures
     private async Task PlaceWizardSensorAsync(Sensor sensor)
     {
         _wizardPlacingSensorId=sensor.Id;
-        await JS.InvokeVoidAsync("openWizardPlacement");
+        if (string.IsNullOrWhiteSpace(_editingStructure?.ModelUrl))
+            await JS.InvokeVoidAsync("openWizardPlacement");
+        else
+            StateHasChanged();
     }
+
+    private void SelectWizardSensorForPlacement(Guid sensorId)
+    {
+        if (_newStructureSensors.Any(sensor => sensor.Id == sensorId))
+            _wizardPlacingSensorId = sensorId;
+    }
+
+    private void SelectWizardSensorForPlacement(Sensor sensor) =>
+        SelectWizardSensorForPlacement(sensor.Id);
+
+    private void OnDetailTwinSensorSelected(Guid sensorId)
+    {
+        if (DetailModelSensors.Any(sensor => sensor.Id == sensorId))
+            _detailSelectedSensorId = sensorId;
+    }
+
+    private void OnDetailSensorSelected(Sensor sensor) => _detailSelectedSensorId = sensor.Id;
+
+    private async Task SaveDetailModelPositionAsync(ModelPositionSelection position)
+    {
+        var sensor = _editingStructure?.Sensors?.FirstOrDefault(item => item.SensorId == position.SensorId);
+        if (sensor is null || string.IsNullOrWhiteSpace(_editingStructure?.ModelUrl))
+        {
+            _saveError = "GLB konumu kaydedilemedi. Sensör veya yapı modeli bulunamadı.";
+            return;
+        }
+
+        try
+        {
+            await StructureUC.UpdateSensor3DPositionAsync(
+                sensor.SensorId,
+                position.PositionX,
+                position.PositionY,
+                position.PositionZ,
+                position.RotationX,
+                position.RotationY,
+                position.RotationZ);
+            sensor.PositionX = position.PositionX;
+            sensor.PositionY = position.PositionY;
+            sensor.PositionZ = position.PositionZ;
+            sensor.RotationX = position.RotationX;
+            sensor.RotationY = position.RotationY;
+            sensor.RotationZ = position.RotationZ;
+            _detailSelectedSensorId = sensor.SensorId;
+            _saveError = null;
+            _setupNotice = $"{sensor.EffectiveDisplayName} GLB üzerinde konumlandırıldı.";
+        }
+        catch (HttpRequestException ex)
+        {
+            _saveError = $"GLB sensör konumu kaydedilemedi. {ex.Message}";
+            throw;
+        }
+    }
+
+    private async Task SaveWizardModelPositionAsync(ModelPositionSelection position)
+    {
+        var sensor = _newStructureSensors.FirstOrDefault(item => item.Id == position.SensorId);
+        if (sensor is null)
+        {
+            _saveError = "GLB konumu kaydedilemedi. Sensör artık bu yapıya bağlı değil.";
+            return;
+        }
+
+        try
+        {
+            await StructureUC.UpdateSensor3DPositionAsync(
+                sensor.Id,
+                position.PositionX,
+                position.PositionY,
+                position.PositionZ,
+                position.RotationX,
+                position.RotationY,
+                position.RotationZ);
+            sensor.PositionX = position.PositionX;
+            sensor.PositionY = position.PositionY;
+            sensor.PositionZ = position.PositionZ;
+            sensor.RotationX = position.RotationX;
+            sensor.RotationY = position.RotationY;
+            sensor.RotationZ = position.RotationZ;
+            _wizardPlacingSensorId = null;
+            _setupNotice = $"{sensor.EffectiveDisplayName} GLB üzerinde konumlandırıldı.";
+            _saveError = null;
+        }
+        catch (HttpRequestException ex)
+        {
+            _saveError = $"GLB sensör konumu kaydedilemedi. {ex.Message}";
+            throw;
+        }
+    }
+
+    private static bool Has3DPosition(Sensor sensor) =>
+        double.IsFinite(sensor.PositionX) &&
+        double.IsFinite(sensor.PositionY) &&
+        double.IsFinite(sensor.PositionZ) &&
+        (sensor.PositionX != 0 || sensor.PositionY != 0 || sensor.PositionZ != 0);
+
+    private static bool HasImagePosition(Sensor sensor) =>
+        sensor.ImagePositionX is >= 0 and <= 100 &&
+        sensor.ImagePositionY is >= 0 and <= 100;
+
     private Dictionary<Guid,GeoPoint> SensorLocations()=>TwinLocations.Read(GetEnv("DEYAS_SETUP_SENSOR_LOCATIONS"));
     private sealed class MqttConnection {
         public string Id {get;set;}=Guid.NewGuid().ToString("N");

@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 2,
+  "modelId": "atasu-fotograf-konsept-v1",
+  "axes": {
+    "x": "kret boyunca mansap görünümünde sağa",
+    "y": "yukarı",
+    "z": "mansaba"
+  },
+  "devices": [
+    {
+      "id": "D-01",
+      "name": "Kret ivmeölçeri",
+      "type": "surface",
+      "position": [
+        -29,
+        58,
+        1
+      ]
+    },
+    {
+      "id": "D-02",
+      "name": "Mansap deplasman sensörü",
+      "type": "surface",
+      "position": [
+        43,
+        27,
+        57.96551724137931
+      ]
+    },
+    {
+      "id": "D-03",
+      "name": "Dolgu içi örnek sensör",
+      "type": "internal",
+      "position": [
+        12,
+        34,
+        24
+      ]
+    },
+    {
+      "id": "D-04",
+      "name": "Temsili galeri sensörü",
+      "type": "internal",
+      "position": [
+        -20,
+        17,
+        14
+      ]
+    },
+    {
+      "id": "K-01",
+      "name": "Sol yamaç kamerası",
+      "type": "camera",
+      "position": [
+        -115,
+        48.05,
+        48
+      ],
+      "target": [
+        -24,
+        35,
+        38
+      ],
+      "fovDeg": 42
+    },
+    {
+      "id": "K-02",
+      "name": "Sağ yamaç kamerası",
+      "type": "camera",
+      "position": [
+        111,
+        66.51,
+        44
+      ],
+      "target": [
+        24,
+        35,
+        38
+      ],
+      "fovDeg": 42
+    }
+  ]
+}

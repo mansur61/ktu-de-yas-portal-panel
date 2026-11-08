@@ -985,3 +985,9 @@
 .ss-item--selected { background: #e4edd9; font-weight: 600; color: #175e50; }
 .ss-item--empty { color: #8da594; cursor: default; }
 .ss-item--empty:hover { background: transparent; }
+
+/* ── Yapı detay GLB bölümü ── */
+.structure-glb-section { margin: 0; }
+.structure-glb-header  { padding: 8px 14px; background: #0f2233; border-bottom: 1px solid #1e3a4c; }
+.structure-glb-section .dam-model-viewer { border-radius: 0; }
+.structure-glb-section .dam-model-viewer model-viewer { height: 360px; }

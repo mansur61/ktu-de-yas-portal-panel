@@ -638,32 +638,38 @@
 
         @if (!string.IsNullOrWhiteSpace(_editingStructure.ModelUrl))
         {
-            <section class="structure-model-preview" aria-label="Yapının 3B modeli">
-                <div class="d-flex align-items-center gap-2 mb-2">
-                    <span class="bi bi-box-seam"></span>
-                    <strong>Yüklenmiş yapı modeli</strong>
-                    <a class="btn btn-sm btn-outline-light ms-auto" href="@_editingStructure.ModelUrl" target="_blank" rel="noopener">
+            @* GLB varsa — sensör pinleriyle birlikte DamModel3D bileşeni *@
+            <div class="structure-glb-section">
+                <div class="structure-glb-header d-flex align-items-center gap-2">
+                    <span class="bi bi-box-seam text-white-50"></span>
+                    <strong class="text-white-50" style="font-size:12px">3B MODEL</strong>
+                    <a class="btn btn-sm btn-outline-light ms-auto py-0" href="@_editingStructure.ModelUrl" target="_blank" rel="noopener" style="font-size:11px">
                         <span class="bi bi-download me-1"></span>İndir
                     </a>
                 </div>
-                <model-viewer @key="_editingStructure.ModelUrl"
-                              src="@_editingStructure.ModelUrl"
-                              alt="@($"{_editingStructure.Name} 3B modeli")"
-                              camera-controls
-                              touch-action="pan-y"
-                              shadow-intensity="1"
-                              interaction-prompt="none"
-                              loading="eager">
-                </model-viewer>
-            </section>
+                <DamModel3D Sensors="@(_editingStructure.Sensors?.Select(ss => new Sensor {
+                                Id = ss.SensorId, Name = ss.Name, DisplayName = ss.DisplayName,
+                                DeviceId = ss.DeviceId, SensorType = Enum.TryParse<DeYas.Contracts.Sensors.SensorType>(ss.SensorType, out var st) ? st : DeYas.Contracts.Sensors.SensorType.Generic,
+                                ImagePositionX = ss.ImagePositionX, ImagePositionY = ss.ImagePositionY,
+                                Unit = ss.Unit, Topic = ss.Topic, Description = ss.Description
+                            }).ToList() ?? [])"
+                            ImageUrl="@_editingStructure.ImageUrl"
+                            ModelUrl="@_editingStructure.ModelUrl"
+                            SelectedId="@_detailSelectedSensorId"
+                            OnSelect="OnDetailSensorSelected"
+                            StatusFor="@(s => "no-data")"
+                            IsLiveFor="@(s => false)" />
+            </div>
         }
-
-        @* ── Görsel Overlay — JS initStructureImage() doldurur ── *@
-        <div class="structure-image-wrapper" id="structure-image">
-            @* JS tarafından doldurulur *@
-        </div>
+        else
+        {
+            @* GLB yoksa — mevcut 2D görsel overlay *@
+            <div class="structure-image-wrapper" id="structure-image">
+                @* JS tarafından doldurulur *@
+            </div>
+        }
         <div class="structure-image-click-hint">
-            <span class="bi bi-crosshair me-1"></span>@(_placingSensorId.HasValue ? "Seçili sensörün konumunu resme tıklayarak belirleyin" : "Resme tıklayarak sensör ekleyin")
+            <span class="bi bi-crosshair me-1"></span>@(_placingSensorId.HasValue ? "Seçili sensörün konumunu resme tıklayarak belirleyin" : string.IsNullOrWhiteSpace(_editingStructure.ModelUrl) ? "Resme tıklayarak sensör ekleyin" : "")
         </div>
 
         @if (_editingStructure.Sensors?.Any(s => !s.ImagePositionX.HasValue || !s.ImagePositionY.HasValue) == true)
@@ -1326,6 +1332,9 @@
 
 @code {
     // ── State ────────────────────────────────────────────────────────────────
+    private Guid?   _detailSelectedSensorId;
+    private void    OnDetailSensorSelected(Sensor s) { _detailSelectedSensorId = s.Id; }
+
     private List<Structure>? _structures;
     private Structure?       _editingStructure;
     private bool             _showCreateWizard;

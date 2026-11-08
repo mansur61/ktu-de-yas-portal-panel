@@ -7,6 +7,7 @@ public interface ISensorRepository
     Task<List<Sensor>> GetAllAsync(CancellationToken ct = default);
     Task<Sensor> CreateAsync(Sensor sensor, CancellationToken ct = default);
     Task UpdateImagePositionAsync(Guid sensorId, double x, double y, CancellationToken ct = default);
+    Task UpdateSensor3DPositionAsync(Guid sensorId, double px, double py, double pz, double rx, double ry, double rz, CancellationToken ct = default);
     Task<object> TestTcpConnectionAsync(TcpSensorCreateRequest request, CancellationToken ct = default);
     Task<Sensor> CreateTcpSensorAsync(TcpSensorCreateRequest request, CancellationToken ct = default);
 

@@ -73,6 +73,37 @@ public class SensorHttpRepository : ISensorRepository
         resp.EnsureSuccessStatusCode();
     }
 
+    public async Task UpdateSensor3DPositionAsync(Guid sensorId, double px, double py, double pz, double rx, double ry, double rz, CancellationToken ct = default)
+    {
+        // PUT /api/sensors/{id} — sadece pozisyon/rotasyon alanlarını güncelle, diğer alanlar mevcut sensörden okunur
+        // Önce sensörü al, sonra pozisyonu güncelle
+        var getSensor = await _http.GetFromJsonAsync<Sensor>($"api/sensors/{sensorId}", _json, ct);
+        if (getSensor is null) return;
+        var resp = await _http.PutAsJsonAsync($"api/sensors/{sensorId}", new
+        {
+            id          = sensorId,
+            name        = getSensor.Name,
+            displayName = getSensor.DisplayName,
+            deviceId    = getSensor.DeviceId,
+            locationId  = getSensor.LocationId,
+            sensorType  = getSensor.SensorType.ToString(),
+            topic       = getSensor.Topic,
+            unit        = getSensor.Unit,
+            description = getSensor.Description,
+            metrics     = getSensor.Metrics,
+            isEnabled   = getSensor.IsEnabled,
+            isActive    = getSensor.IsActive,
+            protocolType = getSensor.ProtocolType,
+            positionX   = px, positionY = py, positionZ = pz,
+            rotationX   = rx, rotationY = ry, rotationZ   = rz,
+            imagePositionX = getSensor.ImagePositionX,
+            imagePositionY = getSensor.ImagePositionY,
+            telemetryIntervalMs = getSensor.TelemetryIntervalMs,
+            telemetryBatchSize  = getSensor.TelemetryBatchSize,
+        }, _json, ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
     public async Task<object> TestTcpConnectionAsync(TcpSensorCreateRequest request, CancellationToken ct = default)
     {
         var response = await _http.PostAsJsonAsync("api/tcp-sensors/test-connection", request, _json, ct);

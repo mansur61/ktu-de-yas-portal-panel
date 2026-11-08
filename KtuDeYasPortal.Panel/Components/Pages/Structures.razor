@@ -448,7 +448,7 @@
             <div hidden="@(_wizardStep != 4)">
               @{ var hasPassiveSources = _friendlyUdpSources.Any() || MqttConnections().Any() || _cameraSettings.Cameras.Any(); }
               <div class="dy-heading"><div><h2 class="dy-form-heading">Hangi sensörleri izleyeceksiniz?</h2><p>TCP cihaz bağlantısıyla sensörü hemen ekleyin ya da UDP/MQTT kaynağını tanımlayın; sensörler saha kurulumu sonrası otomatik bulunur.</p></div><button class="btn btn-primary" @onclick="OpenWizardSensorEditor">+ Sensör ekle</button></div>
-              @if (IsGlbModelUrl(_editingStructure?.ModelUrl))
+              @if (IsGlbModelUrl(_editingStructure?.ModelUrl) && !_wizardCustomGlbFailed)
               {
                 <details id="wizard-placement" class="dy-technical" open>
                   <summary>GLB üzerinde sensör konumu seç</summary>
@@ -457,14 +457,15 @@
                   {
                     <div class="alert alert-info">Modelde seçili sensörün konumuna tıklayın.</div>
                   }
-                  <StructureGlbViewer @key="_editingStructure.ModelUrl"
+                  <StructureGlbViewer @key="@($"{_editingStructure.Id:D}|{_editingStructure.ModelUrl}")"
                                       ModelUrl="@_editingStructure!.ModelUrl"
                                       StructureName="@_editingStructure.Name"
                                       Sensors="@WizardModelSensors"
                                       SelectedId="@_wizardPlacingSensorId"
                                       OnSelect="SelectWizardSensorForPlacement"
                                       EnablePositionEditing="@_wizardPlacingSensorId.HasValue"
-                                      OnModelPositionSelected="SaveWizardModelPositionAsync" />
+                                      OnModelPositionSelected="SaveWizardModelPositionAsync"
+                                      OnLoadFailed="WizardCustomModelLoadFailed" />
                 </details>
               }
               else if (!string.IsNullOrWhiteSpace(_editingStructure?.ModelUrl))
@@ -472,11 +473,14 @@
                 <details id="wizard-placement" class="dy-technical" open>
                   <summary>Model üzerinde sensör konumu seç</summary>
                   <DamModel3D Sensors="@_newStructureSensors"
+                              StructureName="@_editingStructure.Name"
+                              ImageUrl="@_editingStructure.ImageUrl"
                               ModelUrl="@_editingStructure.ModelUrl"
                               SelectedId="@_wizardPlacingSensorId"
                               OnSelect="SelectWizardSensorForPlacement"
                               EnablePositionEditing="@_wizardPlacingSensorId.HasValue"
-                              OnModelPositionSelected="SaveWizardModelPositionAsync" />
+                              OnModelPositionSelected="SaveWizardModelPositionAsync"
+                              OnImagePositionSelected="SaveWizardImagePositionAsync" />
                 </details>
               }
               else
@@ -703,7 +707,7 @@
                         <span class="bi bi-download me-1"></span>İndir
                     </a>
                 </div>
-                @if (IsGlbModelUrl(_editingStructure.ModelUrl))
+                @if (!string.IsNullOrWhiteSpace(_editingStructure.ModelUrl))
                 {
                     <div class="px-3 py-2">
                         <label class="form-label text-white-50 small mb-1" for="detail-glb-sensor">Konumlandırılacak sensör</label>
@@ -716,16 +720,22 @@
                             }
                         </select>
                     </div>
-                    <StructureGlbViewer @key="_editingStructure.ModelUrl"
+                }
+                @if (!string.IsNullOrWhiteSpace(_editingStructure.ModelUrl) &&
+                     IsGlbModelUrl(_editingStructure.ModelUrl) &&
+                     !_detailCustomGlbFailed)
+                {
+                    <StructureGlbViewer @key="@($"{_editingStructure.Id:D}|{_editingStructure.ModelUrl}")"
                                         ModelUrl="@_editingStructure.ModelUrl"
                                         StructureName="@_editingStructure.Name"
                                         Sensors="@DetailModelSensors"
                                         SelectedId="@_detailSelectedSensorId"
                                         OnSelect="OnDetailTwinSensorSelected"
                                         EnablePositionEditing="@_detailSelectedSensorId.HasValue"
-                                        OnModelPositionSelected="SaveDetailModelPositionAsync" />
+                                        OnModelPositionSelected="SaveDetailModelPositionAsync"
+                                        OnLoadFailed="DetailCustomModelLoadFailed" />
                 }
-                else
+                else if (!string.IsNullOrWhiteSpace(_editingStructure.ModelUrl))
                 {
                     <DamModel3D Sensors="@(_editingStructure.Sensors?.Select(ss => new Sensor {
                                     Id = ss.SensorId, Name = ss.Name, DisplayName = ss.DisplayName,
@@ -735,10 +745,14 @@
                                     ImagePositionX = ss.ImagePositionX, ImagePositionY = ss.ImagePositionY,
                                     Unit = ss.Unit, Topic = ss.Topic, Description = ss.Description
                                 }).ToList() ?? [])"
+                                StructureName="@_editingStructure.Name"
                                 ImageUrl="@_editingStructure.ImageUrl"
                                 ModelUrl="@_editingStructure.ModelUrl"
                                 SelectedId="@_detailSelectedSensorId"
                                 OnSelect="OnDetailSensorSelected"
+                                EnablePositionEditing="@_detailSelectedSensorId.HasValue"
+                                OnModelPositionSelected="SaveDetailModelPositionAsync"
+                                OnImagePositionSelected="SaveDetailImagePositionAsync"
                                 StatusFor="@(s => "no-data")"
                                 IsLiveFor="@(s => false)" />
                 }
@@ -1674,6 +1688,8 @@
     private bool _mapInitialized          = false;
     private bool _wizardImageInitialized  = false;
     private bool _detailImageInitialized  = false;
+    private bool _wizardCustomGlbFailed;
+    private bool _detailCustomGlbFailed;
 
     // ── Lookup tables ─────────────────────────────────────────────────────────
     private record TypeInfo(string Label, string Emoji, string ImagePath);
@@ -2328,6 +2344,7 @@
     // ── Wizard ────────────────────────────────────────────────────────────────
     private void ShowCreateWizard()
     {
+        _wizardCustomGlbFailed = false;
         _sourceTcp = _sourceUdp = _sourceMqtt = false;
         _friendlyUdpSources = [];
         _resumedTcpSettings.Clear();
@@ -3026,6 +3043,7 @@
     {
         var s = await StructureUC.GetByIdAsync(id);
         if (s is null) return;
+        _detailCustomGlbFailed = false;
         _detailImageInitialized = false; // yeniden render etsin
         _placingSensorId = null;
         _editingStructure = s;

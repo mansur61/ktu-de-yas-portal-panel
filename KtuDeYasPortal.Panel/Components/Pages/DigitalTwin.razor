@@ -63,36 +63,43 @@
             <div class="monitor-workbench">
                 @* ── 3D / Dijital ikiz görünümü ── *@
                 <section class="model-section">
-                    @if (IsGlbModelUrl(_structure.ModelUrl))
+                    @if (IsGlbModelUrl(_structure.ModelUrl) && !_customGlbFailed)
                     {
-                        <StructureGlbViewer @key="_structure.ModelUrl"
+                        <StructureGlbViewer @key="@($"{Id:D}|{_structure.ModelUrl}")"
                                             ModelUrl="@_structure.ModelUrl"
                                             StructureName="@_structure.Name"
                                             Sensors="@TwinModelSensors"
                                             SelectedId="_selected?.Id"
                                             OnSelect="SelectTwinSensor"
                                             EnablePositionEditing="true"
-                                            OnModelPositionSelected="SaveModelPositionAsync" />
+                                            OnModelPositionSelected="SaveModelPositionAsync"
+                                            OnLoadFailed="CustomModelLoadFailed" />
                     }
-                    else if (!string.IsNullOrWhiteSpace(_structure.ModelUrl))
+                    else if (HasSupportedModel)
                     {
                         <DamModel3D Sensors="ModelSensors"
                                     ModelUrl="@_structure.ModelUrl"
+                                    ImageUrl="@PlanImageUrl"
+                                    StructureName="@_structure.Name"
                                     SelectedId="_selected?.Id"
                                     OnSelect="SelectSensor"
                                     StatusFor="SensorStatus"
                                     IsLiveFor="HasLiveData"
-                                    EnablePositionEditing="true"
-                                    OnModelPositionSelected="SaveModelPositionAsync" />
+                                    EnablePositionEditing="@(!string.IsNullOrWhiteSpace(_structure.ImageUrl))"
+                                    OnModelPositionSelected="SaveModelPositionAsync"
+                                    OnImagePositionSelected="SaveImagePositionAsync" />
                     }
                     else
                     {
                         <DamModel3D Sensors="ModelSensors"
                                     ImageUrl="@PlanImageUrl"
+                                    StructureName="@_structure.Name"
                                     SelectedId="_selected?.Id"
                                     OnSelect="SelectSensor"
                                     StatusFor="SensorStatus"
-                                    IsLiveFor="HasLiveData" />
+                                    IsLiveFor="HasLiveData"
+                                    EnablePositionEditing="@(!string.IsNullOrWhiteSpace(_structure.ImageUrl))"
+                                    OnImagePositionSelected="SaveImagePositionAsync" />
                     }
 
                     @* Sensör popup *@
@@ -277,6 +284,7 @@
     private bool CanRead => _canRead;
     private bool _canRead;
     private List<Structure> _sites = [];
+    private bool _customGlbFailed;
 
     private void ChangeSite(ChangeEventArgs e) { if (Guid.TryParse(e.Value?.ToString(), out var id)) Navigation.NavigateTo($"/digital-twin/{id}"); }
 
@@ -289,6 +297,9 @@
     private static bool IsCamera(Sensor s) => s.SensorType.ToString() == "Camera";
     private static bool IsGlbModelUrl(string? modelUrl) =>
         modelUrl?.Split('?', '#')[0].EndsWith(".glb", StringComparison.OrdinalIgnoreCase) == true;
+    private bool HasSupportedModel => _structure?.ModelUrl?.Split('?', '#')[0] is { } url &&
+        (url.EndsWith(".glb", StringComparison.OrdinalIgnoreCase) || url.EndsWith(".gltf", StringComparison.OrdinalIgnoreCase));
+    private Task CustomModelLoadFailed(string _) { _customGlbFailed = true; return Task.CompletedTask; }
 
     private void SelectSensor(Sensor sensor) { _selected = sensor; _popup = true; }
     private void SelectTwinSensor(Guid sensorId)
@@ -333,6 +344,30 @@
         }
     }
 
+    private async Task SaveImagePositionAsync(ImagePositionSelection position)
+    {
+        var sensor = _sensors.FirstOrDefault(item => item.Id == position.SensorId);
+        if (sensor is null || string.IsNullOrWhiteSpace(_structure?.ImageUrl))
+        {
+            _error = "Görsel konumu kaydedilemedi. Sensör veya yapı görseli bulunamadı.";
+            return;
+        }
+
+        try
+        {
+            await StructuresUC.UpdateSensorImagePositionAsync(sensor.Id, position.ImagePositionX, position.ImagePositionY);
+            sensor.ImagePositionX = position.ImagePositionX;
+            sensor.ImagePositionY = position.ImagePositionY;
+            _selected = sensor;
+        }
+        catch (HttpRequestException ex)
+        {
+            Logger.LogError(ex, "Görsel sensör konumu kaydedilemedi. StructureId: {StructureId}, SensorId: {SensorId}", Id, sensor.Id);
+            _error = "Görsel sensör konumu kaydedilemedi. Bağlantıyı kontrol edip yeniden deneyin.";
+            throw;
+        }
+    }
+
     private void ApplyInventory(Structure structure, IReadOnlyList<Sensor> sensors)
     {
         _structure = structure;
@@ -366,7 +401,7 @@
     private async Task LoadAsync()
     {
         _loadCts?.Cancel(); _loadCts?.Dispose(); _loadCts = new(); var ct = _loadCts.Token;
-        _loading = true; _error = null; _structure = null; _selected = null; _sensors = []; _series.Clear(); _waveforms.Clear();
+        _loading = true; _error = null; _customGlbFailed = false; _structure = null; _selected = null; _sensors = []; _series.Clear(); _waveforms.Clear();
         try
         {
             var scope = await Access.GetAsync(BarajPermissions.Dashboard, PortalMenuPermissions.DigitalTwin, ct);

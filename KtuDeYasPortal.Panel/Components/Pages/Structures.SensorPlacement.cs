@@ -117,6 +117,18 @@ public partial class Structures
     private void SelectWizardSensorForPlacement(Sensor sensor) =>
         SelectWizardSensorForPlacement(sensor.Id);
 
+    private Task WizardCustomModelLoadFailed(string _)
+    {
+        _wizardCustomGlbFailed = true;
+        return Task.CompletedTask;
+    }
+
+    private Task DetailCustomModelLoadFailed(string _)
+    {
+        _detailCustomGlbFailed = true;
+        return Task.CompletedTask;
+    }
+
     private void OnDetailTwinSensorSelected(Guid sensorId)
     {
         if (DetailModelSensors.Any(sensor => sensor.Id == sensorId))
@@ -193,6 +205,62 @@ public partial class Structures
         catch (HttpRequestException ex)
         {
             _saveError = $"GLB sensör konumu kaydedilemedi. {ex.Message}";
+            throw;
+        }
+    }
+
+    private async Task SaveWizardImagePositionAsync(ImagePositionSelection position)
+    {
+        var sensor = _newStructureSensors.FirstOrDefault(item => item.Id == position.SensorId);
+        if (sensor is null)
+        {
+            _saveError = "Görsel konumu kaydedilemedi. Sensör artık bu yapıya bağlı değil.";
+            return;
+        }
+
+        try
+        {
+            await StructureUC.UpdateSensorImagePositionAsync(
+                sensor.Id,
+                position.ImagePositionX,
+                position.ImagePositionY);
+            sensor.ImagePositionX = position.ImagePositionX;
+            sensor.ImagePositionY = position.ImagePositionY;
+            _wizardPlacingSensorId = null;
+            _setupNotice = $"{sensor.EffectiveDisplayName} görselde konumlandırıldı.";
+            _saveError = null;
+        }
+        catch (HttpRequestException ex)
+        {
+            _saveError = $"Görsel sensör konumu kaydedilemedi. {ex.Message}";
+            throw;
+        }
+    }
+
+    private async Task SaveDetailImagePositionAsync(ImagePositionSelection position)
+    {
+        var sensor = _editingStructure?.Sensors?.FirstOrDefault(item => item.SensorId == position.SensorId);
+        if (sensor is null || string.IsNullOrWhiteSpace(_editingStructure?.ImageUrl))
+        {
+            _saveError = "Görsel konumu kaydedilemedi. Sensör veya yapı görseli bulunamadı.";
+            return;
+        }
+
+        try
+        {
+            await StructureUC.UpdateSensorImagePositionAsync(
+                sensor.SensorId,
+                position.ImagePositionX,
+                position.ImagePositionY);
+            sensor.ImagePositionX = position.ImagePositionX;
+            sensor.ImagePositionY = position.ImagePositionY;
+            _detailSelectedSensorId = sensor.SensorId;
+            _saveError = null;
+            _setupNotice = $"{sensor.EffectiveDisplayName} görselde konumlandırıldı.";
+        }
+        catch (HttpRequestException ex)
+        {
+            _saveError = $"Görsel sensör konumu kaydedilemedi. {ex.Message}";
             throw;
         }
     }

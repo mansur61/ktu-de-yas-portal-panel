@@ -17,7 +17,9 @@ if (-not $backendRoot) {
 . "$($backendRoot.Path)/ps1-local-dev-env.ps1"
 $localEnvironment = Get-DeYasLocalDevEnvironment -EnvironmentFilePath "$($backendRoot.Path)/infra/compose/center-deployment/app/.env"
 $localServiceEnvironment = $localEnvironment + @{ Kafka__BootstrapServers = "127.0.0.1:9092" }
+$localTimeseriesEnvironment = $localServiceEnvironment + (Get-DeYasLocalImageAssetsEnvironment -EnvironmentFilePath "$($backendRoot.Path)/infra/compose/center-deployment/app/.env")
 $localEnvironmentExports = ConvertTo-DeYasBashEnvironment -Environment $localServiceEnvironment
+$localTimeseriesEnvironmentExports = ConvertTo-DeYasBashEnvironment -Environment $localTimeseriesEnvironment
 
 # ── Log klasörü: her çalıştırmada sil → yeniden oluştur ─────────────────────
 $logDir   = "$root/logs/ps1"
@@ -174,7 +176,7 @@ Write-Host "Servisler baslatiliyor..." -ForegroundColor Cyan
 Start-Service -Name "timeseries-service" `
     -Port 5000 `
     -ProjectPath "$($backendRoot.Path)/src/timeseries-service/TimeseriesService.csproj" `
-    -ExtraEnv $localEnvironmentExports
+    -ExtraEnv $localTimeseriesEnvironmentExports
 
 # Port 5000 hazır olana kadar bekle
 $tsReady = $false

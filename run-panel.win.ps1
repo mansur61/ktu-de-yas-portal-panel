@@ -17,6 +17,7 @@ if (-not $backendRoot) {
 . "$($backendRoot.Path)\ps1-local-dev-env.ps1"
 $localEnvironment = Get-DeYasLocalDevEnvironment -EnvironmentFilePath "$($backendRoot.Path)\infra\compose\center-deployment\app\.env"
 $localServiceEnvironment = $localEnvironment + @{ Kafka__BootstrapServers = "127.0.0.1:9092" }
+$localTimeseriesEnvironment = $localServiceEnvironment + (Get-DeYasLocalImageAssetsEnvironment -EnvironmentFilePath "$($backendRoot.Path)\infra\compose\center-deployment\app\.env")
 
 # Dev ortami: sadece dotnet run servisleri (timeseries, edge-layer, panel)
 # Docker container'lari (Node-RED, Kafka, EMQX vb.) DOKUNULMAZ.
@@ -178,7 +179,7 @@ if (-not (Test-PortListening -Port 5432)) {
 # 1. timeseries-service
 Start-Service -Name "timeseries-service" -Port 5000 `
     -Project "$($backendRoot.Path)\src\timeseries-service\TimeseriesService.csproj" `
-    -Environment $localServiceEnvironment
+    -Environment $localTimeseriesEnvironment
 
 # Port 5000 hazir olana kadar bekle
 $tsReady = $false

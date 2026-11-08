@@ -155,7 +155,7 @@
         </div>
 
         <div class="pb-4">
-        <ResponsiveGrid Items="FilteredStructures" ItemHeight="360" MinimumWidth="300" Context="s"><ItemTemplate>
+        <ResponsiveGrid Items="FilteredStructures" ItemHeight="400" MinimumWidth="300" Context="s"><ItemTemplate>
                     <div class="structure-card @(s.IsActive ? "" : "opacity-60")" @onclick="() => OpenStructureDetail(s.Id)">
                         @if (!string.IsNullOrWhiteSpace(s.ModelUrl))
                         {
@@ -190,8 +190,8 @@
                             <span class="bi bi-trash"></span>
                         </button>
                         <div class="structure-card-body">
-                            <div class="structure-card-title">@s.Name</div>
-                            <div class="structure-card-id">Yapı No: @s.Id</div>
+                            <div class="structure-card-title" title="@s.Name">@s.Name</div>
+                            <div class="structure-card-id" title="Yapı No: @s.Id">Yapı No: @s.Id</div>
 
                             <div class="structure-card-sub">
                                 <span class="bi bi-geo-alt me-1"></span>

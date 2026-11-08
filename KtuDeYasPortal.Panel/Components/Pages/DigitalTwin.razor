@@ -26,7 +26,6 @@ else {
 <div class="saha-category-tabs" aria-label="Sensör kategorisi">@foreach(var category in MonitoringHealth.Categories){<button class="@(_category==category?"selected":"")" aria-pressed="@(_category==category)" @onclick="()=>SetCategory(category)">@category</button>}</div>
 <div class="monitor-workbench">
 <section class="model-section">
-<p class="monitor-note">Sensöre tıklayarak bilgisini açın. Nabız efekti yalnız güncel veri alan sensörlerde gösterilir.</p>
 <DamModel3D Sensors="ModelSensors" ImageUrl="@PlanImageUrl" SelectedId="_selected?.Id" OnSelect="SelectSensor" StatusFor="SensorStatus" IsLiveFor="HasLiveData" />
 @if(_popup && _selected is not null) {
 <aside class="saha-sensor-popup twin-popup" role="dialog" aria-label="Sensör bilgisi"><button class="btn-close float-end" aria-label="Kapat" @onclick="()=>_popup=false"></button><h3>@_selected.EffectiveDisplayName</h3><p>@MonitoringHealth.Category(_selected.SensorType.ToString()) · <span class="health-text @SensorStatus(_selected)">@MonitoringHealth.Label(SensorStatus(_selected))</span></p><p>Son veri: @(LastSeen(_selected)?.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss") ?? "Henüz veri yok")</p><a class="btn btn-sm btn-primary" href="@SensorUrl(_selected)">Sensör detayına git</a></aside>

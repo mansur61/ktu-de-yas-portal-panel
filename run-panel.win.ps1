@@ -14,6 +14,10 @@ if (-not $backendRoot) {
     exit 1
 }
 
+. "$($backendRoot.Path)\ps1-local-dev-env.ps1"
+$localEnvironment = Get-DeYasLocalDevEnvironment -EnvironmentFilePath "$($backendRoot.Path)\infra\compose\center-deployment\app\.env"
+$localServiceEnvironment = $localEnvironment + @{ Kafka__BootstrapServers = "127.0.0.1:9092" }
+
 # Dev ortami: sadece dotnet run servisleri (timeseries, edge-layer, panel)
 # Docker container'lari (Node-RED, Kafka, EMQX vb.) DOKUNULMAZ.
 
@@ -98,7 +102,8 @@ function Start-Service {
     param(
         [string]$Name,
         [Nullable[int]]$Port = $null,
-        [string]$Project
+        [string]$Project,
+        [hashtable]$Environment = @{}
     )
 
     if ($null -eq $Port) {
@@ -138,10 +143,23 @@ function Start-Service {
         }
     }
 
-    $proc = Start-Process -FilePath "cmd.exe" `
-        -ArgumentList "/c set DOTNET_ENVIRONMENT=Development && set ASPNETCORE_ENVIRONMENT=Development && dotnet run --project `"$Project`" -c Release" `
-        -WindowStyle Normal `
-        -PassThru
+    $previousEnvironment = @{}
+    try {
+        foreach ($key in $Environment.Keys) {
+            $previousEnvironment[$key] = [Environment]::GetEnvironmentVariable($key, "Process")
+            [Environment]::SetEnvironmentVariable($key, [string]$Environment[$key], "Process")
+        }
+
+        $proc = Start-Process -FilePath "cmd.exe" `
+            -ArgumentList "/c set DOTNET_ENVIRONMENT=Development && set ASPNETCORE_ENVIRONMENT=Development && dotnet run --project `"$Project`" -c Release" `
+            -WindowStyle Normal `
+            -PassThru
+    }
+    finally {
+        foreach ($key in $Environment.Keys) {
+            [Environment]::SetEnvironmentVariable($key, $previousEnvironment[$key], "Process")
+        }
+    }
 
     $script:launchedProcesses += $proc
     $runTarget = if ($null -eq $Port) { "background worker" } else { "port $Port" }
@@ -159,14 +177,15 @@ if (-not (Test-PortListening -Port 5432)) {
 
 # 1. timeseries-service
 Start-Service -Name "timeseries-service" -Port 5000 `
-    -Project "$($backendRoot.Path)\src\timeseries-service\TimeseriesService.csproj"
+    -Project "$($backendRoot.Path)\src\timeseries-service\TimeseriesService.csproj" `
+    -Environment $localServiceEnvironment
 
 # Port 5000 hazir olana kadar bekle
 $tsReady = $false
 for ($i = 0; $i -lt 15; $i++) {
     Start-Sleep -Seconds 2
     try {
-        $r = Invoke-WebRequest -Uri "http://localhost:5000/api/structures" -TimeoutSec 2 -ErrorAction SilentlyContinue
+        $r = Invoke-WebRequest -Uri "http://localhost:5000/health" -TimeoutSec 2 -ErrorAction SilentlyContinue
         if ($null -ne $r -and $r.StatusCode -lt 500) { $tsReady = $true; break }
     } catch {}
     Write-Host "  Bekleniyor... ($($i*2+2)s)" -ForegroundColor DarkGray
@@ -176,20 +195,29 @@ else { Write-Host "  UYARI: 30s icinde yanit alinamadi, devam ediliyor." -Foregr
 
 # 2. auth-service
 Start-Service -Name "auth-service" -Port 5100 `
-    -Project "$($backendRoot.Path)\src\auth-service\AuthService.csproj"
+    -Project "$($backendRoot.Path)\src\auth-service\AuthService.csproj" `
+    -Environment ($localEnvironment + @{ ASPNETCORE_URLS = "http://localhost:5100" })
 
 # 3. edge-layer
 Start-Service -Name "edge-layer" -Port 5080 `
-    -Project "$($backendRoot.Path)\src\edge-layer\EdgeLayer.csproj"
+    -Project "$($backendRoot.Path)\src\edge-layer\EdgeLayer.csproj" `
+    -Environment $localServiceEnvironment
 Start-Sleep -Seconds 2
 
 # 4. Saha uygulamasının doğrudan yazdığı alert-events topic'ini dinler
 # ve Redis üzerinden portal'a canlı bildirim yayınlar.
 Start-Service -Name "alert-notification-worker" `
-    -Project "$($backendRoot.Path)\src\alert-notification-worker\AlertNotificationWorker.csproj"
+    -Project "$($backendRoot.Path)\src\alert-notification-worker\AlertNotificationWorker.csproj" `
+    -Environment $localServiceEnvironment
 
 # 5. panel
-Start-Service -Name "panel" -Port 5056 -Project $panelCsproj
+Start-Service -Name "panel" -Port 5056 -Project $panelCsproj `
+    -Environment ($localEnvironment + @{
+        ASPNETCORE_URLS = "http://localhost:5056"
+        Services__TimeseriesApi = "http://localhost:5000"
+        Services__AuthApi = "http://localhost:5100"
+        Services__EdgeApi = "http://localhost:5080"
+    })
 Start-Sleep -Seconds 1
 
 # ── Bilgi ─────────────────────────────────────────────────────────────────────

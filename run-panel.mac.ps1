@@ -14,6 +14,11 @@ if (-not $backendRoot) {
     exit 1
 }
 
+. "$($backendRoot.Path)/ps1-local-dev-env.ps1"
+$localEnvironment = Get-DeYasLocalDevEnvironment -EnvironmentFilePath "$($backendRoot.Path)/infra/compose/center-deployment/app/.env"
+$localServiceEnvironment = $localEnvironment + @{ Kafka__BootstrapServers = "127.0.0.1:9092" }
+$localEnvironmentExports = ConvertTo-DeYasBashEnvironment -Environment $localServiceEnvironment
+
 # ── Log klasörü: her çalıştırmada sil → yeniden oluştur ─────────────────────
 $logDir   = "$root/logs/ps1"
 $logStamp = Get-Date -Format "yyyyMMdd-HHmmss"
@@ -154,7 +159,7 @@ exit `$EXIT_CODE
 "@
 
     Set-Content -Path $bashFile -Value $bashContent -Encoding ASCII
-    & chmod +x $bashFile
+    & chmod 700 $bashFile
     & open -a Terminal $bashFile
 
     $runTarget = if ($null -eq $Port) { "background worker" } else { "port $Port" }
@@ -176,14 +181,15 @@ if (-not (Test-PortListening 5432)) {
 # 1. timeseries-service
 Start-Service -Name "timeseries-service" `
     -Port 5000 `
-    -ProjectPath "$($backendRoot.Path)/src/timeseries-service/TimeseriesService.csproj"
+    -ProjectPath "$($backendRoot.Path)/src/timeseries-service/TimeseriesService.csproj" `
+    -ExtraEnv $localEnvironmentExports
 
 # Port 5000 hazır olana kadar bekle
 $tsReady = $false
 for ($i = 0; $i -lt 15; $i++) {
     Start-Sleep -Seconds 2
     try {
-        $r = Invoke-WebRequest -Uri "http://localhost:5000/api/structures" -TimeoutSec 2 -ErrorAction SilentlyContinue
+        $r = Invoke-WebRequest -Uri "http://localhost:5000/health" -TimeoutSec 2 -ErrorAction SilentlyContinue
         if ($null -ne $r -and $r.StatusCode -lt 500) { $tsReady = $true; break }
     } catch {}
     Write-Host "  Bekleniyor... ($($i*2+2)s)" -ForegroundColor DarkGray
@@ -194,25 +200,29 @@ else          { Write-Host "  UYARI: 30s icinde yanit alinamadi, devam ediliyor.
 # 2. auth-service
 Start-Service -Name "auth-service" `
     -Port 5100 `
-    -ProjectPath "$($backendRoot.Path)/src/auth-service/AuthService.csproj"
+    -ProjectPath "$($backendRoot.Path)/src/auth-service/AuthService.csproj" `
+    -ExtraEnv "$localEnvironmentExports`nexport ASPNETCORE_URLS='http://localhost:5100'"
 
 # 3. edge-layer
 Start-Service -Name "edge-layer" `
     -Port 5080 `
-    -ProjectPath "$($backendRoot.Path)/src/edge-layer/EdgeLayer.csproj"
+    -ProjectPath "$($backendRoot.Path)/src/edge-layer/EdgeLayer.csproj" `
+    -ExtraEnv $localEnvironmentExports
 Start-Sleep -Seconds 2
 
 # 4. Saha uygulamasının doğrudan yazdığı alert-events topic'ini dinler ve
 # Redis üzerinden portal'a canlı bildirim yayınlar.
 Start-Service -Name "alert-notification-worker" `
-    -ProjectPath "$($backendRoot.Path)/src/alert-notification-worker/AlertNotificationWorker.csproj"
+    -ProjectPath "$($backendRoot.Path)/src/alert-notification-worker/AlertNotificationWorker.csproj" `
+    -ExtraEnv $localEnvironmentExports
 
 # 5. panel
 Start-Service -Name "panel" `
     -Port 5056 `
     -ProjectPath $panelCsproj `
     -ExtraEnv @"
-export ASPNETCORE_URLS='http://localhost:5056'
+    $localEnvironmentExports
+    export ASPNETCORE_URLS='http://localhost:5056'
 export Services__TimeseriesApi='http://localhost:5000'
 export Services__AuthApi='http://localhost:5100'
 export Services__EdgeApi='http://localhost:5080'

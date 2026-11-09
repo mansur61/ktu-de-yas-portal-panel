@@ -9,6 +9,7 @@ using KtuDeYasPortal.Panel.Application.UseCases;
 using KtuDeYasPortal.Panel.Components.Pages;
 using KtuDeYasPortal.Panel.Domain.Entities;
 using KtuDeYasPortal.Panel.Domain.Interfaces;
+using KtuDeYasPortal.Panel.Infrastructure.Persistence;
 
 const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
 var type = typeof(Structures);
@@ -19,6 +20,7 @@ foreach (var error in new Exception[] { new HttpRequestException("HTTP 500", nul
     var page = new Structures();
     var repository = new FailingRepository(error);
     type.GetProperty("StructureUC", flags)!.SetValue(page, new StructureUseCases(repository, null!));
+    type.GetField("_manageAccess", flags)!.SetValue(page, new PanelAccessSnapshot(true, []));
     var id = Guid.NewGuid();
     type.GetMethod("ConfirmDelete", flags)!.Invoke(page, [id]);
     await (Task)type.GetMethod("DoDeleteAsync", flags)!.Invoke(page, null)!;
@@ -35,7 +37,9 @@ sealed class FailingRepository(Exception error) : IStructureRepository
     public int Calls;
     public Task DeleteAsync(Guid id, CancellationToken ct = default) { Calls++; return Task.FromException(error); }
     public Task<List<Structure>> GetAllAsync(CancellationToken ct = default) => throw new NotSupportedException();
+    public Task<List<Structure>> GetAllWithSensorsAsync(CancellationToken ct = default) => throw new NotSupportedException();
     public Task<Structure?> GetByIdAsync(Guid id, CancellationToken ct = default) => throw new NotSupportedException();
     public Task<Structure> CreateAsync(Structure s, List<Guid> ids, CancellationToken ct = default) => throw new NotSupportedException();
     public Task<Structure> UpdateAsync(Guid id, Structure s, List<Guid> ids, CancellationToken ct = default) => throw new NotSupportedException();
+    public Task<Structure> UpdateMetadataAsync(Guid id, Structure s, CancellationToken ct = default) => throw new NotSupportedException();
 }

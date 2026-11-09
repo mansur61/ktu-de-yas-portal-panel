@@ -27,7 +27,11 @@ public partial class Structures
             sensor.PositionZ,
             sensor.RotationX,
             sensor.RotationY,
-            sensor.RotationZ)).ToArray();
+            sensor.RotationZ,
+            DeviceId: sensor.DeviceId,
+            LastDataAt: sensor.LastUpdated,
+            LastValue: sensor.LastValue,
+            Metrics: sensor.Metrics)).ToArray();
     private IReadOnlyList<TwinModelSensor> DetailModelSensors => (_editingStructure?.Sensors ?? [])
         .Select(sensor => new TwinModelSensor(
             sensor.SensorId,
@@ -38,7 +42,9 @@ public partial class Structures
             sensor.PositionZ,
             sensor.RotationX,
             sensor.RotationY,
-            sensor.RotationZ))
+            sensor.RotationZ,
+            DeviceId: sensor.DeviceId,
+            Metrics: sensor.Metrics))
         .ToArray();
     private bool HasManualSensorBinding => !string.IsNullOrWhiteSpace(_bindingDeviceId) || !string.IsNullOrWhiteSpace(_bindingStreamKey);
     private bool ShouldRegisterSourceSensor => _registerSourceSensor && (_sensorSourceKind == "camera" || HasManualSensorBinding);
@@ -48,6 +54,12 @@ public partial class Structures
 
     private async Task AddSensorToExistingAsync(Guid id)
     {
+        if (!CanManageStructure(id))
+        {
+            _simulationErrorMessage = "Bu yapıya sensör eklemek için yönetim yetkisi gerekir.";
+            return;
+        }
+
         await EditSavedSourcesAsync(id);
         if (_createdStructureId == id && _wizardStep == 4) OpenWizardSensorEditor();
     }
@@ -137,8 +149,17 @@ public partial class Structures
 
     private void OnDetailSensorSelected(Sensor sensor) => _detailSelectedSensorId = sensor.Id;
 
+    private void OnDetailModelSensorChanged(TwinModelSensor? sensor) =>
+        _detailSelectedSensorId = sensor?.Id;
+
     private async Task SaveDetailModelPositionAsync(ModelPositionSelection position)
     {
+        if (!CanManageSelectedStructure)
+        {
+            _saveError = "Bu yapıda sensör konumunu düzenleme yetkiniz yok.";
+            return;
+        }
+
         var sensor = _editingStructure?.Sensors?.FirstOrDefault(item => item.SensorId == position.SensorId);
         if (sensor is null || string.IsNullOrWhiteSpace(_editingStructure?.ModelUrl))
         {
@@ -175,6 +196,7 @@ public partial class Structures
 
     private async Task SaveWizardModelPositionAsync(ModelPositionSelection position)
     {
+        if (!CanManageCurrentSetup) return;
         var sensor = _newStructureSensors.FirstOrDefault(item => item.Id == position.SensorId);
         if (sensor is null)
         {
@@ -211,6 +233,7 @@ public partial class Structures
 
     private async Task SaveWizardImagePositionAsync(ImagePositionSelection position)
     {
+        if (!CanManageCurrentSetup) return;
         var sensor = _newStructureSensors.FirstOrDefault(item => item.Id == position.SensorId);
         if (sensor is null)
         {
@@ -239,6 +262,12 @@ public partial class Structures
 
     private async Task SaveDetailImagePositionAsync(ImagePositionSelection position)
     {
+        if (!CanManageSelectedStructure)
+        {
+            _saveError = "Bu yapıda sensör konumunu düzenleme yetkiniz yok.";
+            return;
+        }
+
         var sensor = _editingStructure?.Sensors?.FirstOrDefault(item => item.SensorId == position.SensorId);
         if (sensor is null || string.IsNullOrWhiteSpace(_editingStructure?.ImageUrl))
         {

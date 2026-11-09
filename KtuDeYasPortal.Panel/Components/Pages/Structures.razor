@@ -103,9 +103,12 @@
         </div>
         <div class="d-flex gap-2 align-items-center">
 
-            <button class="btn btn-primary" @onclick="ShowCreateWizard">
-                <span class="bi bi-plus-lg me-1"></span> Yeni Baraj
-            </button>
+            @if (_manageAccess.IsAdmin)
+            {
+                <button class="btn btn-primary" @onclick="ShowCreateWizard">
+                    <span class="bi bi-plus-lg me-1"></span> Yeni Baraj
+                </button>
+            }
         </div>
     </div>
 
@@ -682,14 +685,17 @@
                 </div>
             </div>
             <div class="d-flex gap-2 flex-shrink-0">
-                <button class="btn btn-sm btn-outline-light" @onclick="() => EditSavedSourcesAsync(_editingStructure.Id)">Sensörleri ve kaynakları düzenle</button>
-                <button class="btn btn-sm btn-light" @onclick="() => AddSensorToExistingAsync(_editingStructure.Id)">Yeni sensör ekle</button>
-                <button class="btn btn-sm btn-outline-light" @onclick="() => EditSavedSourcesAsync(_editingStructure.Id)" title="Barajı ve sensörlerini düzenle">
-                    <span class="bi bi-pencil me-1"></span>Düzenle
-                </button>
-                <button class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmDelete(_editingStructure.Id)" title="Sil">
-                    <span class="bi bi-trash"></span>
-                </button>
+                @if (CanManageSelectedStructure)
+                {
+                    <button class="btn btn-sm btn-outline-light" @onclick="() => EditSavedSourcesAsync(_editingStructure.Id)">Sensörleri ve kaynakları düzenle</button>
+                    <button class="btn btn-sm btn-light" @onclick="() => AddSensorToExistingAsync(_editingStructure.Id)">Yeni sensör ekle</button>
+                    <button class="btn btn-sm btn-outline-light" @onclick="() => EditSavedSourcesAsync(_editingStructure.Id)" title="Barajı ve sensörlerini düzenle">
+                        <span class="bi bi-pencil me-1"></span>Düzenle
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmDelete(_editingStructure.Id)" title="Sil">
+                        <span class="bi bi-trash"></span>
+                    </button>
+                }
                 <button class="btn btn-sm btn-outline-light" @onclick="CloseDetail">
                     <span class="bi bi-x-lg"></span>
                 </button>
@@ -698,7 +704,7 @@
 
         @if (!string.IsNullOrWhiteSpace(_editingStructure.ModelUrl))
         {
-            @* GLB varsa — sensör pinleriyle birlikte DamModel3D bileşeni *@
+            @* GLB için paylaşılan görüntüleyici kullanılır; sensör ve kaynak listeleri modelin altında kalır. *@
             <div class="structure-glb-section">
                 <div class="structure-glb-header d-flex align-items-center gap-2">
                     <span class="bi bi-box-seam text-white-50"></span>
@@ -710,15 +716,15 @@
                 @if (!string.IsNullOrWhiteSpace(_editingStructure.ModelUrl))
                 {
                     <div class="px-3 py-2">
-                        <label class="form-label text-white-50 small mb-1" for="detail-glb-sensor">Konumlandırılacak sensör</label>
-                        <select id="detail-glb-sensor" class="form-select form-select-sm"
-                                @bind="_detailSelectedSensorId">
-                            <option value="">Sensör seçin</option>
-                            @foreach (var sensor in DetailModelSensors)
-                            {
-                                <option value="@sensor.Id">@sensor.Name</option>
-                            }
-                        </select>
+                        <label class="form-label text-white-50 small mb-1">Konumlandırılacak sensör</label>
+                        <SearchableSelect TItem="TwinModelSensor"
+                                          Items="@DetailModelSensors"
+                                          TextSelector="@(sensor => $"{sensor.Name} · {sensor.Id:D} · {sensor.DeviceId}")"
+                                          Value="@DetailSelectedModelSensor"
+                                          ValueChanged="OnDetailModelSensorChanged"
+                                          Placeholder="Sensör ara…"
+                                          AllowClear="true"
+                                          Disabled="@(!CanManageSelectedStructure)" />
                     </div>
                 }
                 @if (!string.IsNullOrWhiteSpace(_editingStructure.ModelUrl) &&
@@ -731,7 +737,7 @@
                                         Sensors="@DetailModelSensors"
                                         SelectedId="@_detailSelectedSensorId"
                                         OnSelect="OnDetailTwinSensorSelected"
-                                        EnablePositionEditing="@_detailSelectedSensorId.HasValue"
+                                        EnablePositionEditing="@(CanManageSelectedStructure && _detailSelectedSensorId.HasValue)"
                                         OnModelPositionSelected="SaveDetailModelPositionAsync"
                                         OnLoadFailed="DetailCustomModelLoadFailed" />
                 }
@@ -750,7 +756,7 @@
                                 ModelUrl="@_editingStructure.ModelUrl"
                                 SelectedId="@_detailSelectedSensorId"
                                 OnSelect="OnDetailSensorSelected"
-                                EnablePositionEditing="@_detailSelectedSensorId.HasValue"
+                                EnablePositionEditing="@(CanManageSelectedStructure && _detailSelectedSensorId.HasValue)"
                                 OnModelPositionSelected="SaveDetailModelPositionAsync"
                                 OnImagePositionSelected="SaveDetailImagePositionAsync"
                                 StatusFor="@(s => "no-data")"
@@ -766,10 +772,14 @@
             </div>
         }
         <div class="structure-image-click-hint">
-            <span class="bi bi-crosshair me-1"></span>@(_placingSensorId.HasValue ? "Seçili sensörün konumunu resme tıklayarak belirleyin" : IsGlbModelUrl(_editingStructure.ModelUrl) ? (_detailSelectedSensorId.HasValue ? "Seçili sensör için GLB sahnesinde konum seçin" : "GLB üzerinde düzenlemek için sensör seçin") : string.IsNullOrWhiteSpace(_editingStructure.ModelUrl) ? "Resme tıklayarak sensör ekleyin" : "")
+            @if (CanManageSelectedStructure)
+            {
+                <span class="bi bi-crosshair me-1"></span>@(_placingSensorId.HasValue ? "Seçili sensörün konumunu resme tıklayarak belirleyin" : IsGlbModelUrl(_editingStructure.ModelUrl) ? (_detailSelectedSensorId.HasValue ? "Seçili sensör için GLB sahnesinde konum seçin" : "GLB üzerinde düzenlemek için sensör seçin") : string.IsNullOrWhiteSpace(_editingStructure.ModelUrl) ? "Resme tıklayarak sensör ekleyin" : "")
+            }
         </div>
 
-        @if (string.IsNullOrWhiteSpace(_editingStructure.ModelUrl) &&
+        @if (CanManageSelectedStructure &&
+             string.IsNullOrWhiteSpace(_editingStructure.ModelUrl) &&
              _editingStructure.Sensors?.Any(s => !s.ImagePositionX.HasValue || !s.ImagePositionY.HasValue) == true)
         {
             <div class="alert alert-warning mx-3 mt-3 mb-0 d-flex align-items-center gap-2">
@@ -903,7 +913,7 @@
                                 <th>Tip</th>
                                 <th>Cihaz kimliği</th>
                                 <th>Metrikler</th>
-                                <th style="width:40px"></th>
+                                @if (CanManageSelectedStructure) { <th style="width:40px"></th> }
                             </tr>
                         </thead>
                         <tbody>
@@ -930,14 +940,17 @@
                                         }
                                         else { <small class="text-muted">-</small> }
                                     </td>
-                                    <td>
-                                        <button class="btn btn-outline-danger btn-sm py-0 px-1"
-                                                style="font-size:0.7rem;line-height:1.5"
-                                                title="Sensörü bu yapıdan kaldır"
-                                                @onclick="() => RemoveSensorFromStructureAsync(ss.SensorId)">
-                                            <span class="bi bi-trash"></span>
-                                        </button>
-                                    </td>
+                                    @if (CanManageSelectedStructure)
+                                    {
+                                        <td>
+                                            <button class="btn btn-outline-danger btn-sm py-0 px-1"
+                                                    style="font-size:0.7rem;line-height:1.5"
+                                                    title="Sensörü bu yapıdan kaldır"
+                                                    @onclick="() => RemoveSensorFromStructureAsync(ss.SensorId)">
+                                                <span class="bi bi-trash"></span>
+                                            </button>
+                                        </td>
+                                    }
                                 </tr>
                             }
                         </tbody>
@@ -1431,6 +1444,19 @@
 @code {
     // ── State ────────────────────────────────────────────────────────────────
     private Guid?   _detailSelectedSensorId;
+    private PanelAccessSnapshot _manageAccess = new(false, []);
+    private TwinModelSensor? DetailSelectedModelSensor =>
+        _detailSelectedSensorId is Guid id
+            ? DetailModelSensors.FirstOrDefault(sensor => sensor.Id == id)
+            : null;
+    private bool CanManageSelectedStructure =>
+        _editingStructure is not null && CanManageStructure(_editingStructure.Id);
+    private bool CanManageCurrentSetup =>
+        _createdStructureId == Guid.Empty
+            ? _manageAccess.IsAdmin
+            : CanManageStructure(_createdStructureId);
+    private bool CanManageStructure(Guid id) =>
+        _manageAccess.IsAdmin || _manageAccess.StructureIds.Contains(id);
 
     private List<Structure>? _structures;
     private Structure?       _editingStructure;
@@ -1866,6 +1892,9 @@
     private DeYas.Contracts.DsiRegionInfo? RegionFor(string province)=>_dsiRegions.FirstOrDefault(r=>r.Provinces.Contains(province,StringComparer.OrdinalIgnoreCase));
     protected override async Task OnInitializedAsync()
     {
+        try { _manageAccess = await SetupAccess.GetAsync(BarajPermissions.Manage, PortalMenuPermissions.Structures); }
+        catch { _manageAccess = new(false, []); }
+
         try {_dsiRegions=await ImageClients.CreateClient("timeseries-api").GetFromJsonAsync<List<DeYas.Contracts.DsiRegionInfo>>("api/dsi-regions")??[];}catch{ /* Province entry remains usable; region unavailable is displayed explicitly. */ }
 
         await LoadStructuresAsync();
@@ -2344,6 +2373,12 @@
     // ── Wizard ────────────────────────────────────────────────────────────────
     private void ShowCreateWizard()
     {
+        if (!_manageAccess.IsAdmin)
+        {
+            _simulationErrorMessage = "Yeni yapı oluşturmak için yönetim yetkisi gerekir.";
+            return;
+        }
+
         _wizardCustomGlbFailed = false;
         _sourceTcp = _sourceUdp = _sourceMqtt = false;
         _friendlyUdpSources = [];
@@ -2489,6 +2524,7 @@
 
     private async Task SaveStructureAndOpenSetupAsync()
     {
+        if (!CanManageCurrentSetup) return;
         if (string.IsNullOrWhiteSpace(_newName) || string.IsNullOrWhiteSpace(_newProvince) || !_newType.HasValue)
             return;
 
@@ -2556,7 +2592,7 @@
 
     private void OpenSetupStep()
     {
-        if (_createdStructureId == Guid.Empty) return;
+        if (!CanManageCurrentSetup || _createdStructureId == Guid.Empty) return;
         _wizardStep = 4;
         _wizardImageInitialized = false;
     }
@@ -2566,7 +2602,7 @@
 
     private async Task SaveFieldSetupAsync()
     {
-        if (_createdStructureId == Guid.Empty || _setupSaving) return;
+        if (!CanManageCurrentSetup || _createdStructureId == Guid.Empty || _setupSaving) return;
         _setupSaving = true;
         _saveError = null;
         try
@@ -2852,6 +2888,7 @@
 
     private async Task RemoveWizardSensor(int idx)
     {
+        if (!CanManageCurrentSetup) return;
         if (idx < 0 || idx >= _newStructureSensors.Count) return;
         var removedId=_newStructureSensors[idx].Id;
         var bindings=ReadSensorBindings();
@@ -3046,6 +3083,7 @@
         _detailCustomGlbFailed = false;
         _detailImageInitialized = false; // yeniden render etsin
         _placingSensorId = null;
+        _detailSelectedSensorId = null;
         _editingStructure = s;
         _detailTab = "sensors";
         _detailSensorSearch = string.Empty;
@@ -3119,6 +3157,11 @@
         try
         {
             if (!await JS.InvokeAsync<bool>("getHasPendingClickPosition")) return;
+            if (!CanManageSelectedStructure)
+            {
+                await JS.InvokeVoidAsync("clearPendingClickPosition");
+                return;
+            }
             double x = await JS.InvokeAsync<double>("getPendingClickPositionX");
             double y = await JS.InvokeAsync<double>("getPendingClickPositionY");
             await JS.InvokeVoidAsync("clearPendingClickPosition");
@@ -3143,6 +3186,11 @@
         try
         {
             if (!await JS.InvokeAsync<bool>("getHasPendingClickPosition")) return;
+            if (!CanManageCurrentSetup)
+            {
+                await JS.InvokeVoidAsync("clearPendingClickPosition");
+                return;
+            }
             double x = await JS.InvokeAsync<double>("getPendingClickPositionX");
             double y = await JS.InvokeAsync<double>("getPendingClickPositionY");
             await JS.InvokeVoidAsync("clearPendingClickPosition");
@@ -3314,7 +3362,7 @@
     // ── Yapıdan sensör kaldır (resim üzerinden + listeden) ───────────────────
     private async Task RemoveSensorFromStructureAsync(Guid sensorId)
     {
-        if (_editingStructure is null) return;
+        if (!CanManageSelectedStructure || _editingStructure is null) return;
         _isSaving = true;
         try
         {
@@ -3630,11 +3678,21 @@
 
     // ── Silme ─────────────────────────────────────────────────────────────────
     private string? _deleteError;
-    private void ConfirmDelete(Guid id) { _deleteError = null; _deletingId = id; }
+    private void ConfirmDelete(Guid id)
+    {
+        if (!CanManageStructure(id))
+        {
+            _deleteError = "Bu yapıyı silmek için yönetim yetkisi gerekir.";
+            return;
+        }
+
+        _deleteError = null;
+        _deletingId = id;
+    }
 
     private async Task DoDeleteAsync()
     {
-        if (_deletingId is null || _isSaving) return;
+        if (_deletingId is null || _isSaving || !CanManageStructure(_deletingId.Value)) return;
         _deleteError = null;
         _isSaving = true;
         try

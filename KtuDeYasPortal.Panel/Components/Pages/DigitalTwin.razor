@@ -270,7 +270,14 @@
             sensor.PositionZ,
             sensor.RotationX,
             sensor.RotationY,
-            sensor.RotationZ)).ToArray();
+            sensor.RotationZ,
+            Status: SensorStatus(sensor),
+            IsLive: HasLiveData(sensor),
+            DeviceId: sensor.DeviceId,
+            LastDataAt: LastSeen(sensor),
+            DataStatus: SensorStatus(sensor),
+            LastValue: sensor.LastValue,
+            Metrics: sensor.Metrics)).ToArray();
     private IEnumerable<Sensor> TelemetrySensors => _sensors
         .Where(s => MonitoringHealth.Category(s.SensorType.ToString()) == _category
                && Matches(s, _telemetrySearch, _telemetryType)

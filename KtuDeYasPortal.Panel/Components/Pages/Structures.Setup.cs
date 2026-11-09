@@ -38,6 +38,7 @@ public partial class Structures
 
     private void OpenWizardSensorEditor()
     {
+        if (!CanManageCurrentSetup) return;
         _registerSourceSensor=true; _bindingDeviceId=""; _bindingStreamKey=""; _editingMqttConnectionId=null;
         _sensorSourceKind = "";
         _selectedSourceKinds.Clear();
@@ -57,6 +58,12 @@ public partial class Structures
 
     private async Task EditSavedSourcesAsync(Guid id)
     {
+        if (!CanManageStructure(id))
+        {
+            _simulationErrorMessage = "Bu yapıyı düzenlemek için yönetim yetkisi gerekir.";
+            return;
+        }
+
         _editingStructure = null;
         await ResumeSetupAsync(id);
     }
@@ -182,6 +189,7 @@ public partial class Structures
 
     private async Task SaveBasicInfoAndContinueAsync()
     {
+        if (!CanManageCurrentSetup) return;
         if (_isSaving) return;
         if (string.IsNullOrWhiteSpace(_newName) || string.IsNullOrWhiteSpace(_newProvince) || !_newType.HasValue) { _saveError = "Baraj adını, ili ve ilçeyi doldurun."; return; }
         if (string.IsNullOrWhiteSpace(_newDistrict)) { _saveError = "İlçe seçimi zorunludur."; return; }

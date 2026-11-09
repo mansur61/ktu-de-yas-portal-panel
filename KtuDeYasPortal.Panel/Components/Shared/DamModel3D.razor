@@ -40,7 +40,11 @@
             sensor.ImagePositionX,
             sensor.ImagePositionY,
             StatusFor?.Invoke(sensor) ?? "no-data",
-            IsLiveFor?.Invoke(sensor) ?? false)).ToArray();
+            IsLiveFor?.Invoke(sensor) ?? false,
+            DeviceId: sensor.DeviceId,
+            LastDataAt: sensor.LastUpdated,
+            LastValue: sensor.LastValue,
+            Metrics: sensor.Metrics)).ToArray();
 
     private Task SelectSensor(Guid sensorId)
     {

@@ -114,7 +114,7 @@ public partial class Structures
     private async Task PlaceWizardSensorAsync(Sensor sensor)
     {
         _wizardPlacingSensorId=sensor.Id;
-        if (string.IsNullOrWhiteSpace(_editingStructure?.ModelUrl))
+        if (string.IsNullOrWhiteSpace(_wizardModelUrl))
             await JS.InvokeVoidAsync("openWizardPlacement");
         else
             StateHasChanged();
@@ -135,8 +135,9 @@ public partial class Structures
         return Task.CompletedTask;
     }
 
-    private Task DetailCustomModelLoadFailed(string _)
+    private Task DetailCustomModelLoadFailed(string message)
     {
+        _detailGlbError = message;
         _detailCustomGlbFailed = true;
         return Task.CompletedTask;
     }

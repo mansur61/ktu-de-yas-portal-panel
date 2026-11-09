@@ -449,9 +449,10 @@
             </div>
 
             <div hidden="@(_wizardStep != 4)">
-              @{ var hasPassiveSources = _friendlyUdpSources.Any() || MqttConnections().Any() || _cameraSettings.Cameras.Any(); }
+              @{ var hasPassiveSources = _friendlyUdpSources.Any() || MqttConnections().Any() || _cameraSettings.Cameras.Any();
+                 var wizGlb = IsGlbModelUrl(_wizardModelUrl) && !_wizardCustomGlbFailed; }
               <div class="dy-heading"><div><h2 class="dy-form-heading">Hangi sensörleri izleyeceksiniz?</h2><p>TCP cihaz bağlantısıyla sensörü hemen ekleyin ya da UDP/MQTT kaynağını tanımlayın; sensörler saha kurulumu sonrası otomatik bulunur.</p></div><button class="btn btn-primary" @onclick="OpenWizardSensorEditor">+ Sensör ekle</button></div>
-              @if (IsGlbModelUrl(_editingStructure?.ModelUrl) && !_wizardCustomGlbFailed)
+              @if (IsGlbModelUrl(_wizardModelUrl) && !_wizardCustomGlbFailed)
               {
                 <details id="wizard-placement" class="dy-technical" open>
                   <summary>GLB üzerinde sensör konumu seç</summary>
@@ -460,25 +461,26 @@
                   {
                     <div class="alert alert-info">Modelde seçili sensörün konumuna tıklayın.</div>
                   }
-                  <StructureGlbViewer @key="@($"{_editingStructure.Id:D}|{_editingStructure.ModelUrl}")"
-                                      ModelUrl="@_editingStructure!.ModelUrl"
-                                      StructureName="@_editingStructure.Name"
+                  <StructureGlbViewer @key="@($"{_createdStructureId:D}|{_wizardModelUrl}")"
+                                      ModelUrl="@(_wizardModelUrl!)"
+                                      StructureName="@_setupName"
                                       Sensors="@WizardModelSensors"
                                       SelectedId="@_wizardPlacingSensorId"
                                       OnSelect="SelectWizardSensorForPlacement"
-                                      EnablePositionEditing="@_wizardPlacingSensorId.HasValue"
+                                      OnRemoveSensor="@(id => RemoveWizardSensor(_newStructureSensors.FindIndex(sensor => sensor.Id == id)))"
+                                      EnablePositionEditing="@CanManageCurrentSetup"
                                       OnModelPositionSelected="SaveWizardModelPositionAsync"
                                       OnLoadFailed="WizardCustomModelLoadFailed" />
                 </details>
               }
-              else if (!string.IsNullOrWhiteSpace(_editingStructure?.ModelUrl))
+              else if (!string.IsNullOrWhiteSpace(_wizardModelUrl))
               {
                 <details id="wizard-placement" class="dy-technical" open>
                   <summary>Model üzerinde sensör konumu seç</summary>
                   <DamModel3D Sensors="@_newStructureSensors"
-                              StructureName="@_editingStructure.Name"
-                              ImageUrl="@_editingStructure.ImageUrl"
-                              ModelUrl="@_editingStructure.ModelUrl"
+                              StructureName="@_setupName"
+                              ImageUrl="@_wizardImageUrl"
+                              ModelUrl="@_wizardModelUrl"
                               SelectedId="@_wizardPlacingSensorId"
                               OnSelect="SelectWizardSensorForPlacement"
                               EnablePositionEditing="@_wizardPlacingSensorId.HasValue"
@@ -517,6 +519,7 @@
               }
 
               @* Tab başlıkları *@
+              @if (!wizGlb) {
               <div class="mt-3">
                 <ul class="nav nav-tabs border-0" role="tablist">
                   <li class="nav-item">
@@ -536,8 +539,9 @@
                 </ul>
               </div>
 
-              @* ── Tab: Sensörler ── *@
-              @if (_wizTab == "sensors") {
+              }
+              @* ── Tab: Sensörler (GLB yoksa; GLB'de sensörler modelin sağındaki listede) ── *@
+              @if (!wizGlb && _wizTab == "sensors") {
                 @if (_newStructureSensors.Count > 0) {
                   <div class="d-flex align-items-center gap-2 py-2">
                     <div class="input-group input-group-sm" style="max-width:280px">
@@ -552,14 +556,14 @@
                     <small class="text-muted">@wizFiltered.Count / @_newStructureSensors.Count sensör</small>
                     <small class="text-muted ms-1">— bağlantı testi yapılmış, DB'ye yazılmış</small>
                   </div>
-                  <div class="table-responsive wizard-sensor-table-wrap"><table class="table table-sm"><thead><tr><th>Sensör</th><th>Ölçüm türü</th><th>@(IsGlbModelUrl(_editingStructure?.ModelUrl) ? "GLB konumu" : !string.IsNullOrWhiteSpace(_editingStructure?.ModelUrl) ? "Model konumu" : "Görsel konumu")</th><th></th></tr></thead><tbody>
+                  <div class="table-responsive wizard-sensor-table-wrap"><table class="table table-sm"><thead><tr><th>Sensör</th><th>Ölçüm türü</th><th>@(IsGlbModelUrl(_wizardModelUrl) ? "GLB konumu" : !string.IsNullOrWhiteSpace(_wizardModelUrl) ? "Model konumu" : "Görsel konumu")</th><th></th></tr></thead><tbody>
                   @foreach (var sensor in wizPaged) {
                     var wizIdx = _newStructureSensors.IndexOf(sensor);
                     <tr>
                       <td><strong>@sensor.EffectiveDisplayName</strong><div class="dy-subtle small">@SensorSourceLabel(sensor)</div></td>
                       <td>@GetSensorTypeLabel(sensor.SensorType.ToString())</td>
                       <td>
-                        @if (!string.IsNullOrWhiteSpace(_editingStructure?.ModelUrl))
+                        @if (!string.IsNullOrWhiteSpace(_wizardModelUrl))
                         {
                           <span class="@(Has3DPosition(sensor) ? "text-success" : "text-muted") small">@(Has3DPosition(sensor) ? "✓ GLB üzerinde" : "Seçilmedi")</span>
                         }
@@ -569,7 +573,7 @@
                         }
                       </td>
                       <td class="text-nowrap">
-                        <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => PlaceWizardSensorAsync(sensor)">@(!string.IsNullOrWhiteSpace(_editingStructure?.ModelUrl) ? IsGlbModelUrl(_editingStructure.ModelUrl) ? "GLB'de konumlandır" : "Modelde konumlandır" : "Görselde yerleştir")</button>
+                        <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => PlaceWizardSensorAsync(sensor)">@(!string.IsNullOrWhiteSpace(_wizardModelUrl) ? IsGlbModelUrl(_wizardModelUrl) ? "GLB'de konumlandır" : "Modelde konumlandır" : "Görselde yerleştir")</button>
                         <button class="btn btn-sm btn-outline-danger" @onclick="() => RemoveWizardSensor(wizIdx)" aria-label="@($"{sensor.EffectiveDisplayName} sensörünü barajdan kaldır")">Kaldır</button>
                       </td>
                     </tr>
@@ -600,8 +604,9 @@
                 }
               }
 
-              @* ── Tab: Veri kaynakları ── *@
-              @if (_wizTab == "sources") {
+              @* ── Veri kaynakları: GLB'de modelin altında sürekli görünür ── *@
+              @if (wizGlb || _wizTab == "sources") {
+                @if (wizGlb) { <h3 class="h6 mt-4 mb-2"><span class="bi bi-broadcast me-1"></span>Veri kaynakları</h3> }
                 @if (hasPassiveSources) {
                   <div class="alert alert-warning py-2 small d-flex align-items-start gap-2 mt-2 mb-2">
                     <span class="bi bi-info-circle-fill mt-1 flex-shrink-0"></span>
@@ -713,20 +718,6 @@
                         <span class="bi bi-download me-1"></span>İndir
                     </a>
                 </div>
-                @if (!string.IsNullOrWhiteSpace(_editingStructure.ModelUrl))
-                {
-                    <div class="px-3 py-2">
-                        <label class="form-label text-white-50 small mb-1">Konumlandırılacak sensör</label>
-                        <SearchableSelect TItem="TwinModelSensor"
-                                          Items="@DetailModelSensors"
-                                          TextSelector="@(sensor => $"{sensor.Name} · {sensor.Id:D} · {sensor.DeviceId}")"
-                                          Value="@DetailSelectedModelSensor"
-                                          ValueChanged="OnDetailModelSensorChanged"
-                                          Placeholder="Sensör ara…"
-                                          AllowClear="true"
-                                          Disabled="@(!CanManageSelectedStructure)" />
-                    </div>
-                }
                 @if (!string.IsNullOrWhiteSpace(_editingStructure.ModelUrl) &&
                      IsGlbModelUrl(_editingStructure.ModelUrl) &&
                      !_detailCustomGlbFailed)
@@ -737,12 +728,17 @@
                                         Sensors="@DetailModelSensors"
                                         SelectedId="@_detailSelectedSensorId"
                                         OnSelect="OnDetailTwinSensorSelected"
-                                        EnablePositionEditing="@(CanManageSelectedStructure && _detailSelectedSensorId.HasValue)"
+                                        OnRemoveSensor="@(CanManageSelectedStructure ? RemoveSensorFromStructureAsync : default)"
+                                        EnablePositionEditing="@CanManageSelectedStructure"
                                         OnModelPositionSelected="SaveDetailModelPositionAsync"
                                         OnLoadFailed="DetailCustomModelLoadFailed" />
                 }
                 else if (!string.IsNullOrWhiteSpace(_editingStructure.ModelUrl))
                 {
+                    @if (_detailCustomGlbFailed)
+                    {
+                        <div class="alert alert-warning m-2 small" role="status">GLB sahnesi açılamadı (@_detailGlbError); yedek model görüntüleyici kullanılıyor.</div>
+                    }
                     <DamModel3D Sensors="@(_editingStructure.Sensors?.Select(ss => new Sensor {
                                     Id = ss.SensorId, Name = ss.Name, DisplayName = ss.DisplayName,
                                     DeviceId = ss.DeviceId, SensorType = Enum.TryParse<DeYas.Contracts.Sensors.SensorType>(ss.SensorType, out var st) ? st : DeYas.Contracts.Sensors.SensorType.Generic,
@@ -863,6 +859,8 @@
             } catch { /* JSON parse hatası — sessizce atla */ }
         }
 
+        @{ var detailGlb = IsGlbModelUrl(_editingStructure.ModelUrl) && !_detailCustomGlbFailed; }
+        @if (!detailGlb) {
         <div class="px-3 pt-2 pb-0 structure-detail-tabs">
             <ul class="nav nav-tabs nav-tabs-sm border-0" role="tablist">
                 <li class="nav-item">
@@ -884,8 +882,10 @@
             </ul>
         </div>
 
-        @* ── Tab içeriği: Sensörler ── *@
-        @if (_detailTab == "sensors") {
+        }
+
+        @* ── Tab içeriği: Sensörler (GLB'de sensörler modelin sağındaki listede) ── *@
+        @if (!detailGlb && _detailTab == "sensors") {
         <div class="px-3 pb-3 structure-detail-tab-content">
             @if (allDetailSensors.Count > 0) {
                 <div class="d-flex align-items-center gap-2 py-2">
@@ -984,9 +984,10 @@
         </div>
         }
 
-        @* ── Tab içeriği: Veri kaynakları ── *@
-        @if (_detailTab == "sources") {
+        @* ── Veri kaynakları: GLB'de kaynak varsa modelin altında görünür ── *@
+        @if (detailGlb ? detailSources.Count > 0 : _detailTab == "sources") {
         <div class="px-3 pb-3 pt-2 structure-detail-tab-content">
+            @if (detailGlb) { <h3 class="h6 mb-2"><span class="bi bi-broadcast me-1"></span>Veri kaynakları</h3> }
             @if (detailSources.Count > 0) {
                 @foreach (var src in detailSources) {
                     <div class="dy-source-row">
@@ -1715,7 +1716,9 @@
     private bool _wizardImageInitialized  = false;
     private bool _detailImageInitialized  = false;
     private bool _wizardCustomGlbFailed;
+    private string? _wizardModelUrl, _wizardImageUrl;
     private bool _detailCustomGlbFailed;
+    private string? _detailGlbError;
 
     // ── Lookup tables ─────────────────────────────────────────────────────────
     private record TypeInfo(string Label, string Emoji, string ImagePath);
@@ -2380,6 +2383,7 @@
         }
 
         _wizardCustomGlbFailed = false;
+        _wizardModelUrl = _wizardImageUrl = null;
         _sourceTcp = _sourceUdp = _sourceMqtt = false;
         _friendlyUdpSources = [];
         _resumedTcpSettings.Clear();

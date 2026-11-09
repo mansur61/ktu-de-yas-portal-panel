@@ -100,6 +100,8 @@ public partial class Structures
             if (structure is null) { _simulationErrorMessage = "Baraj kaydı bulunamadı. Listeyi yenileyin."; return; }
             ShowCreateWizard();
             _createdStructureId = structure.Id;
+            _wizardModelUrl = structure.ModelUrl;
+            _wizardImageUrl = structure.ImageUrl;
             _isEditingExistingStructure = true;
             _newName = _setupName = structure.Name;
             _newType = structure.StructureType;

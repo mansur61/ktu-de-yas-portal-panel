@@ -1,6 +1,7 @@
 param(
     [switch] $NoBuild,
-    [switch] $AutoConfirm
+    [switch] $AutoConfirm,
+    [switch] $Restart
 )
 
 $ErrorActionPreference = "Stop"
@@ -21,10 +22,9 @@ $localTimeseriesEnvironment = $localServiceEnvironment + (Get-DeYasLocalImageAss
 $localEnvironmentExports = ConvertTo-DeYasBashEnvironment -Environment $localServiceEnvironment
 $localTimeseriesEnvironmentExports = ConvertTo-DeYasBashEnvironment -Environment $localTimeseriesEnvironment
 
-# ── Log klasörü: her çalıştırmada sil → yeniden oluştur ─────────────────────
+# ── Log klasörü: geçmiş çalıştırmaları koru ──────────────────────────────────
 $logDir   = "$root/logs/ps1"
 $logStamp = Get-Date -Format "yyyyMMdd-HHmmss"
-if (Test-Path $logDir) { Remove-Item $logDir -Recurse -Force -ErrorAction SilentlyContinue }
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 
 # PID dosyası: başlatılan her dotnet process'inin PID'i buraya yazılır
@@ -44,6 +44,9 @@ Write-Log "run-panel.mac.ps1 started | NoBuild=$NoBuild AutoConfirm=$AutoConfirm
 Write-Host ""
 Write-Host "=== KTU DeYas Panel (macOS / Dev) ===" -ForegroundColor Cyan
 Write-Host "  Log: $logDir" -ForegroundColor DarkGray
+if ($Restart) {
+    Write-Host "  Uygulama yeniden baslatilacak." -ForegroundColor Yellow
+}
 Write-Host ""
 
 if (-not $AutoConfirm) {
@@ -69,7 +72,7 @@ if (-not $NoBuild) {
             Write-Host "HATA: $($proj.Name) build basarisiz!" -ForegroundColor Red
             Get-Content $buildLog | Select-Object -Last 20 | Write-Host
             Write-Log "build FAILED: $($proj.Name)"
-            Read-Host "Devam icin Enter"
+            if (-not $AutoConfirm) { Read-Host "Devam icin Enter" }
             exit 1
         }
         Write-Host "  [OK] $($proj.Name)" -ForegroundColor Green
@@ -83,6 +86,64 @@ if (-not $NoBuild) {
 function Test-PortListening([int]$Port) {
     $r = & lsof -ti ":$Port" 2>$null
     return ($null -ne $r -and "$r".Trim() -ne "")
+}
+
+function Test-ProjectProcessRunning([string]$ProjectPath) {
+    $expectedProjectPath = [IO.Path]::GetFullPath($ProjectPath)
+    $expectedBinPath = [IO.Path]::GetFullPath((Join-Path (Split-Path $expectedProjectPath) "bin/Release")) + "/"
+    foreach ($processLine in (& ps -axo pid=,command= 2>$null)) {
+        if ("$processLine" -notmatch '^\s*(\d+)\s+(.*)$') { continue }
+        $commandLine = [regex]::Match("$processLine", '^\s*(\d+)\s+(.*)$').Groups[2].Value
+        if (($commandLine.Contains($expectedProjectPath) -and $commandLine -match '(?i)\bdotnet\s+run\b') -or
+            $commandLine.Contains($expectedBinPath)) {
+            return $true
+        }
+    }
+    return $false
+}
+
+function Test-ProcessBelongsToProject([int]$ProcessId, [string]$ProjectPath) {
+    $expectedProjectPath = [IO.Path]::GetFullPath($ProjectPath)
+    $expectedBinPath = [IO.Path]::GetFullPath((Join-Path (Split-Path $expectedProjectPath) "bin/Release")) + "/"
+    $currentPid = $ProcessId
+
+    for ($depth = 0; $depth -lt 8 -and $currentPid -gt 1; $depth++) {
+        $details = & ps -p $currentPid -o ppid=,command= 2>$null
+        if (-not $details -or "$details" -notmatch '^\s*(\d+)\s+(.*)$') { return $false }
+
+        $match = [regex]::Match("$details", '^\s*(\d+)\s+(.*)$')
+        $commandLine = $match.Groups[2].Value
+        if ($commandLine.Contains($expectedProjectPath) -or $commandLine.Contains($expectedBinPath)) {
+            return $true
+        }
+
+        $currentPid = [int]$match.Groups[1].Value
+    }
+
+    return $false
+}
+
+function Stop-PanelListener([int]$Port, [string]$ProjectPath) {
+    $listenerPids = @(& lsof -tiTCP:$Port -sTCP:LISTEN 2>$null | Where-Object { $_ -match '^\d+$' } | Sort-Object -Unique)
+    if ($listenerPids.Count -eq 0) { return }
+
+    foreach ($listenerPid in $listenerPids) {
+        if (-not (Test-ProcessBelongsToProject -ProcessId ([int]$listenerPid) -ProjectPath $ProjectPath)) {
+            throw "Port $Port baska bir uygulama tarafindan kullaniliyor (PID $listenerPid); guvenlik icin durdurulmadi."
+        }
+    }
+
+    foreach ($listenerPid in $listenerPids) {
+        Write-Host "  [YENILE] Panel sureci durduruluyor (PID $listenerPid)" -ForegroundColor Yellow
+        & kill -TERM "$listenerPid" 2>$null
+    }
+
+    for ($attempt = 0; $attempt -lt 20 -and (Test-PortListening $Port); $attempt++) {
+        Start-Sleep -Milliseconds 500
+    }
+    if (Test-PortListening $Port) {
+        throw "Panel sureci durduruldu ancak port $Port hala kullanimda; yeni surec baslatilmadi."
+    }
 }
 
 # ── Servis başlatıcı ──────────────────────────────────────────────────────────
@@ -99,6 +160,12 @@ function Start-Service {
         [string] $ProjectPath,
         [string] $ExtraEnv = ""          # ek env satırları, bash syntax'ında
     )
+
+    if ($null -eq $Port -and (Test-ProjectProcessRunning -ProjectPath $ProjectPath)) {
+        Write-Host "  [SKIP] $Name — worker zaten calisiyor." -ForegroundColor Yellow
+        Write-Log "SKIP $Name — worker already running"
+        return
+    }
 
     if ($null -ne $Port -and (Test-PortListening $Port)) {
         Write-Host "  [SKIP] $Name — port $Port zaten kullanimda." -ForegroundColor Yellow
@@ -211,6 +278,9 @@ Start-Service -Name "alert-notification-worker" `
     -ExtraEnv $localEnvironmentExports
 
 # 5. panel
+if ($Restart) {
+    Stop-PanelListener -Port 5056 -ProjectPath $panelCsproj
+}
 Start-Service -Name "panel" `
     -Port 5056 `
     -ProjectPath $panelCsproj `

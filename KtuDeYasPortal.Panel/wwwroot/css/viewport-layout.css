@@ -84,6 +84,23 @@ body::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;ba
 /* Paint the landscape on the body, including the outer gutters and page bottom. */
 .dy-shell,.dy-shell>main,.dy-shell>main>#main-content{background:transparent!important}
 
+/* Panel kabuğu portal ile aynı kurumsal yüzeyi kullanır. Sol taraftaki
+   DE-YAS/DSİ kimliği korunur; üst çubukta ikinci bir logo yoktur. */
+.dy-shell .sidebar{width:244px;background:#10313c!important;border-right:1px solid #244752!important}
+.dy-shell .top-row{height:58px;background:rgba(255,255,255,.92)!important;border-bottom:1px solid #d5e2dc;box-shadow:0 2px 12px rgba(25,52,43,.035);backdrop-filter:blur(8px)}
+.dy-shell .sidebar .dy-brand{min-height:122px;padding:20px 22px;gap:13px;color:#f4fbfa!important;border-bottom:1px solid rgba(255,255,255,.08)}
+.dy-shell .sidebar .dy-brand-symbol{width:62px;height:62px;padding:5px;border-radius:12px;background:#fff;box-shadow:0 2px 7px rgba(0,0,0,.16)}
+.dy-shell .sidebar .dy-brand-symbol img{transform:none;object-fit:contain}
+.dy-shell .sidebar .dy-brand strong{font-size:25px;letter-spacing:1.5px;line-height:1.05}
+.dy-shell .sidebar .dy-brand small{margin-top:5px;color:#aebfc3;font-size:10px;letter-spacing:1px}
+.dy-shell .sidebar .dy-nav{padding:15px 14px 20px;max-height:calc(100dvh - 122px)}
+.dy-shell .sidebar .dy-nav-label{padding:15px 12px 7px;color:#91abb1}
+.dy-shell .sidebar .dy-nav a{color:#c4d3d5!important;border-radius:9px}
+.dy-shell .sidebar .dy-nav a.active{background:#205560;color:#f2fbfa!important;box-shadow:inset 4px 0 #62c9b3}
+.dy-shell .sidebar .dy-nav a:hover{background:#194651;color:#fff!important}
+.dy-shell .dy-top-label{color:#36515b;font-size:14px;font-weight:650}
+.dy-shell .top-row .small{color:#607881;font-size:13px!important;font-weight:600}
+
 /* Use the available workspace width instead of a centered, capped content column. */
 #main-content.content{width:100%;max-width:none;margin-inline:0;box-sizing:border-box;padding-inline:12px!important}
 #main-content>.container,#main-content>.container-fluid,#main-content>.saha-dashboard,#main-content>.monitor-page{width:100%;max-width:none;margin-inline:0;box-sizing:border-box;padding-inline:0!important}
@@ -108,9 +125,20 @@ body::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;ba
 @media(min-width:1001px){
   .structures-page{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px;padding:16px 0 0;overflow:hidden}
   .structures-page .structures-header{flex:none}
-  .structures-page .responsive-collection{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
-  .structures-page .adaptive-pagination{flex:none}
-  .structures-page .responsive-grid{flex:1;min-height:0;overflow:hidden}
+  .structures-page .structures-alert-banner{flex:none}
+  .structures-page .structures-filters{flex:none}
+  .structures-page .structures-grid-area{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;padding-bottom:8px}
+  .structures-page .responsive-collection--fill{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+  .structures-page .responsive-collection-toolbar{flex:none;min-height:30px;margin:0 1px 6px}
+  .structures-page .structures-listhead{display:flex;align-items:center;justify-content:space-between;gap:8px;flex:1;color:#516872;font-size:12px}
+  .structures-page .structures-listhead strong{color:#183642;font-size:15px}
+  .structures-page .responsive-collection-toolbar .adaptive-pagination{flex:none;margin:0;padding:0;gap:4px;font-size:11px}
+  .structures-page .responsive-collection-toolbar .adaptive-pagination span{margin-right:3px}
+  .structures-page .responsive-collection-toolbar .adaptive-pagination button{min-width:28px;min-height:28px;padding:3px 6px;border-radius:6px}
+  .structures-page .responsive-grid{flex:1;min-height:0;overflow:hidden;align-content:start!important}
+  /* Kartlardaki tüm bilgiler seçili yükseklikte görünür; kart içi kaydırma yok. */
+  .structures-page .responsive-grid-item .structure-card-body{overflow:hidden!important}
+  .structures-page .responsive-grid-item .structure-card-actions{margin-top:8px!important}
 }
 
 /* ── twin-page and monitor-page clip ────────────────────────────────── */

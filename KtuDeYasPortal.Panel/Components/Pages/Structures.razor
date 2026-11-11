@@ -129,7 +129,7 @@
     else
     {
         @* ── Filtreleme satırı ── *@
-        <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+        <div class="d-flex align-items-center gap-2 mb-1 flex-wrap structures-filters">
             <div class="input-group input-group-sm" style="max-width:220px">
                 <span class="input-group-text"><span class="bi bi-search"></span></span>
                 <input class="form-control" placeholder="Yapı adı…"
@@ -162,8 +162,12 @@
             }
         </div>
 
-        <div class="pb-4">
-        <ResponsiveGrid Items="FilteredStructures" ItemHeight="400" MinimumWidth="300" Context="s"><ItemTemplate>
+        <div class="structures-grid-area">
+        <ResponsiveGrid Items="FilteredStructures" ItemHeight="330" MinimumWidth="300" FillAvailable="true" PaginationInHeader="true" MaxColumns="3" MinRows="1" MaxRows="3" ResetKey="@($"{_structureSearch}|{_structureProvinceFilter}|{_structureIdFilter}")" Context="s">
+            <HeaderContent>
+                <div class="structures-listhead"><strong>Baraj listesi</strong><span>@FilteredStructures.Count kayıt</span></div>
+            </HeaderContent>
+            <ItemTemplate>
                     <div class="structure-card @(s.IsActive ? "" : "opacity-60")" @onclick="() => OpenStructureDetail(s.Id)">
                         @if (!string.IsNullOrWhiteSpace(s.ModelUrl))
                         {
@@ -189,14 +193,20 @@
                                 <span>@GetStructureEmoji(s.StructureType)</span>
                             </div>
                         }
-                        @* Silme ikonu — sağ üst köşe, kart tıklamasını geçirmez *@
-                        <button class="structure-card-delete-btn"
-                                title="Yapıyı sil"
-                                aria-label="@($"{s.Name} yapısını sil")"
-                                @onclick="() => ConfirmDelete(s.Id)"
-                                @onclick:stopPropagation="true">
-                            <span class="bi bi-trash"></span>
-                        </button>
+                        <div class="structure-card-tools" @onclick:stopPropagation="true">
+                            <div class="structure-card-sensor-summary" title="Sensör türlerine göre kayıtlı adetler">
+                                @foreach (var sensorType in GetSensorTypeSummary(s))
+                                {
+                                    <span>@sensorType</span>
+                                }
+                            </div>
+                            <button class="structure-card-delete-btn"
+                                    title="Yapıyı sil"
+                                    aria-label="@($"{s.Name} yapısını sil")"
+                                    @onclick="() => ConfirmDelete(s.Id)">
+                                <span class="bi bi-trash"></span>
+                            </button>
+                        </div>
                         <div class="structure-card-body">
                             <div class="structure-card-title" title="@s.Name">@s.Name</div>
                             <div class="structure-card-id" title="Yapı No: @s.Id">Yapı No: @s.Id</div>
@@ -212,73 +222,21 @@
                                 {
                                     <span class="badge bg-success"><span class="bi bi-box-seam me-1"></span>3B model yüklü</span>
                                 }
-                                @foreach (var sensorType in GetSensorTypeSummary(s))
-                                {
-                                    <span class="badge bg-light text-dark border">@sensorType</span>
-                                }
-                                @foreach (var runtimeSummary in GetDeviceRuntimeSummary(s))
-                                {
-                                    <span class="badge @(runtimeSummary.Passive > 0 ? "bg-warning text-dark" : "bg-light text-dark border")"
-                                          title="Node-RED cihaz kontrolü Edge Layer'da anlık saklanır.">
-                                        @runtimeSummary.Active aktif · @runtimeSummary.Passive pasif @runtimeSummary.Label
-                                    </span>
-                                }
-                                @if (_localPipelineStates.TryGetValue(s.Id, out var localPipelineEnabled))
-                                {
-                                    <span class="badge @(localPipelineEnabled ? "bg-success" : "bg-danger")">
-                                        <span class="bi @(localPipelineEnabled ? "bi-broadcast" : "bi-stop-circle") me-1"></span>
-                                        @(localPipelineEnabled ? "Saha yerel akış aktif" : "Saha yerel akış durduruldu")
-                                    </span>
-                                }
-                                else
-                                { <span class="badge bg-light text-dark border" title="@(string.IsNullOrWhiteSpace(s.EdgeApiUrl) ? "Saha bağlantısı tanımlanmamış; akış durumu doğrulanamıyor." : "Saha akış durumu alınamadı; akışın durduğu doğrulanmış değil.")">Saha akışı yok</span> }
-                                @if (_forwardingStates.TryGetValue(s.Id, out var forwarding))
-                                {
-                                    <span class="badge @(forwarding ? "bg-info text-dark" : "bg-secondary")">
-                                        @(forwarding ? "Merkeze iletim açık" : "Merkeze iletim kapalı")
-                                    </span>
-                                }
-                                @* Prod lifecycle özeti — yalnızca prod modda göster *@
-                                @if (_isProdMode && s.TotalSensorCount > 0)
-                                {
-                                    <span class="badge @(s.CanStart ? "bg-success" : "bg-warning text-dark")"
-                                          title="Ready: @s.ReadySensorCount / @s.TotalSensorCount">
-                                        ✓ @s.ReadySensorCount / @s.TotalSensorCount
-                                    </span>
-                                    @if (s.ConnectionPendingSensorCount > 0)
-                                    {
-                                        <span class="badge bg-danger" title="@s.ConnectionPendingSensorCount bağlantı testi eksik">
-                                            🔌 @s.ConnectionPendingSensorCount
-                                        </span>
-                                    }
-                                    @if (s.ParserPendingSensorCount > 0)
-                                    {
-                                        <span class="badge bg-warning text-dark" title="@s.ParserPendingSensorCount parser doğrulaması eksik">
-                                            ⚙️ @s.ParserPendingSensorCount
-                                        </span>
-                                    }
-                                    @if (s.MetricPreviewPendingCount > 0)
-                                    {
-                                        <span class="badge bg-secondary" title="@s.MetricPreviewPendingCount metrik önizleme eksik">
-                                            📊 @s.MetricPreviewPendingCount
-                                        </span>
-                                    }
-                                }
                             </div>
-                            <div class="structure-card-actions mt-3">
+                            <div class="structure-card-actions">
                                 @if (IsLocalPipelineEnabled(s.Id)) {
-                                    <IconActionButton Icon="bi-stop-fill" Label="Saha yerel akışını durdur" Disabled="_stoppingStructureIds.Contains(s.Id)" OnClick="() => StopStructureSimulationAsync(s.Id)" />
+                                    <IconActionButton Icon="bi-stop-fill" Label="Saha yerel akışını durdur" Tone="danger" Disabled="_stoppingStructureIds.Contains(s.Id)" OnClick="() => StopStructureSimulationAsync(s.Id)" />
                                 }
-                                <IconActionButton Icon="bi-play-fill" Label="@GetStartTooltip(s)" Disabled="@(_startingStructureIds.Contains(s.Id) || IsLocalPipelineEnabled(s.Id) || GetStartDisabled(s))" OnClick="() => StartStructureSimulationAsync(s.Id)" />
+                                <IconActionButton Icon="bi-play-fill" Label="@GetStartTooltip(s)" Tone="success" Disabled="@(_startingStructureIds.Contains(s.Id) || IsLocalPipelineEnabled(s.Id) || GetStartDisabled(s))" OnClick="() => StartStructureSimulationAsync(s.Id)" />
                                 @if (s.SensorCount > 0) {
                                     @* Forwarding aktifse durdurma ikonu, değilse başlatma ikonu *@
                                     @if (_forwardingStates.TryGetValue(s.Id, out var fwActive) && fwActive) {
-                                        <IconActionButton Icon="bi-cloud-slash" Label="Merkeze iletimi durdur" OnClick="() => SetStructureForwardingAsync(s.Id, false)" />
+                                        <IconActionButton Icon="bi-cloud-slash" Label="Merkeze iletimi durdur" Tone="warning" OnClick="() => SetStructureForwardingAsync(s.Id, false)" />
                                     } else {
-                                        <IconActionButton Icon="bi-cloud-arrow-up" Label="Merkeze ilet" OnClick="() => SetStructureForwardingAsync(s.Id, true)" />
+                                        <IconActionButton Icon="bi-cloud-arrow-up" Label="Merkeze ilet" Tone="primary" OnClick="() => SetStructureForwardingAsync(s.Id, true)" />
                                     }
                                 }
-                                <IconActionButton Icon="bi-file-earmark-zip" Label="Saha ZIP’ini indir" OnClick="() => DownloadSavedPackageAsync(s.Id)" />
+                                <IconActionButton Icon="bi-file-earmark-zip" Label="Saha ZIP’ini indir" Tone="neutral" OnClick="() => DownloadSavedPackageAsync(s.Id)" />
                             </div>
                         </div>
                     </div>
@@ -1907,7 +1865,7 @@
             if (image.TryGetProperty("imageUrl", out var property) && property.GetString() is { Length: > 0 } url)
                 _structureTypes[StructureType.Dam] = _structureTypes[StructureType.Dam] with { ImagePath = url };
         }
-        catch { _simulationErrorMessage = "Varsayılan baraj görseli alınamadı. Yeni yapı için standart görsel kullanılacak."; }
+        catch { /* Backend servisi çalışmıyorsa standart görsel kullanılır */ }
 
         // Operasyon haritasından gelen query string parametreleri
         var uri = new Uri(Nav.Uri);

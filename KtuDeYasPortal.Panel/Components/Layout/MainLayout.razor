@@ -36,20 +36,12 @@ else
     @* ── Normal sayfa düzeni ── *@
     <div class="page dy-shell @(IsTwin ? "dt-shell" : "") @(_menuOpen ? "dt-menu-open" : "")">
         <div class="sidebar">
-            <div class="sidebar-brand">
-                <div class="brandmark"><img src="/images/institutional/dsi-logo.png" alt="DSİ" /></div>
-                <div>
-                    <strong>DSİ</strong>
-                    <small>Devlet Su İşleri</small>
-                </div>
-            </div>
-            <hr class="sidebar-divider" />
             <NavMenu />
         </div>
         <main>
             <div class="top-row px-4">
                 @if (IsTwin) { <button class="dt-menu-button" @onclick="() => _menuOpen = !_menuOpen" aria-expanded="@(_menuOpen)">☰ Menü</button> }
-                <img class="dy-top-logo" src="/images/institutional/dsi-logo.png" alt="DSİ" /><span class="dy-top-label">DE-YAS · Baraj ve sensör yönetimi</span>
+                <span class="dy-top-label">DE-YAS · Baraj ve sensör yönetimi</span>
                 <span class="ms-auto small">Yönetim Paneli</span>
             </div>
             <article class="content px-4" id="main-content">

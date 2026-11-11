@@ -146,6 +146,36 @@ function Stop-PanelListener([int]$Port, [string]$ProjectPath) {
     }
 }
 
+# Alert worker, Flink'in yazdığı alert-events konusunu tüketir. Yerel Kafka
+# otomatik konu oluşturmuyorsa worker sürekli "Unknown topic" yazar. Sadece
+# yerel Docker Kafka'sında eksikse oluşturulur; mevcut konuya dokunulmaz.
+function Ensure-LocalKafkaTopic([string]$Topic, [int]$Partitions = 6) {
+    if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+        Write-Host "  [UYARI] Docker bulunamadı; $Topic konu kontrolü atlandı." -ForegroundColor Yellow
+        return
+    }
+
+    $kafkaContainer = @(& docker ps --filter "name=^/kafka$" --format '{{.Names}}' 2>$null | Where-Object { $_ -eq "kafka" } | Select-Object -First 1)
+    if ($kafkaContainer.Count -eq 0) {
+        Write-Host "  [UYARI] Yerel Kafka container bulunamadı; $Topic konu kontrolü atlandı." -ForegroundColor Yellow
+        return
+    }
+
+    & docker exec $kafkaContainer[0] kafka-topics --bootstrap-server localhost:29092 --describe --topic $Topic 2>$null | Out-Null
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "  [OK] Kafka konusu hazır: $Topic" -ForegroundColor DarkGreen
+        return
+    }
+
+    & docker exec $kafkaContainer[0] kafka-topics --bootstrap-server localhost:29092 --create --if-not-exists --topic $Topic --partitions $Partitions --replication-factor 1 2>$null | Out-Null
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "  [OK] Kafka konusu oluşturuldu: $Topic" -ForegroundColor Green
+    }
+    else {
+        Write-Host "  [UYARI] Kafka konusu oluşturulamadı: $Topic. Alert worker başlatılırken uyarı üretebilir." -ForegroundColor Yellow
+    }
+}
+
 # ── Servis başlatıcı ──────────────────────────────────────────────────────────
 # Her servis için:
 #   1. /tmp/ktu-deyas-<name>-<guid>.sh bash scripti oluşturur
@@ -273,6 +303,7 @@ Start-Sleep -Seconds 2
 
 # 4. Saha uygulamasının doğrudan yazdığı alert-events topic'ini dinler ve
 # Redis üzerinden portal'a canlı bildirim yayınlar.
+Ensure-LocalKafkaTopic -Topic "alert-events"
 Start-Service -Name "alert-notification-worker" `
     -ProjectPath "$($backendRoot.Path)/src/alert-notification-worker/AlertNotificationWorker.csproj" `
     -ExtraEnv $localEnvironmentExports
@@ -290,6 +321,8 @@ Start-Service -Name "panel" `
 export Services__TimeseriesApi='http://localhost:5000'
 export Services__AuthApi='http://localhost:5100'
 export Services__EdgeApi='http://localhost:5080'
+export Services__VideoApi='http://localhost:5010'
+export Services__AlertConfigApi='http://localhost:5020'
 "@
 Start-Sleep -Seconds 1
 

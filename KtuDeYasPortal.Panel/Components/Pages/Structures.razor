@@ -2713,7 +2713,6 @@
             AddDeploymentTemplateEntry(archive, _samePcDeployment ? "docker-compose.structure.yml" : "docker-compose.yml");
             if (_samePcDeployment)
                 AddDeploymentTemplateEntry(archive, "docker-compose.shared-services.yml");
-            AddDeploymentTemplateEntry(archive, "init-databases.sql");
             AddDeploymentTemplateEntry(archive, "DOCKERLI_SAHA_KURULUMU.md");
             var scenarioPath = Path.Combine(AppContext.BaseDirectory, "DeploymentTemplates", "saha-deployment", "SENARYOLAR.md");
             AddPackageEntry(archive, "ONCE_BUNU_OKUYUN.md", BuildFriendlyInstallGuide() + "\n\n" + (File.Exists(scenarioPath) ? File.ReadAllText(scenarioPath) : ""));
@@ -2798,8 +2797,12 @@
         string.Empty,
         "```bash",
         "# Yalnız ilk yapı ZIP'inden, ortak altyapıyı bir kez başlatın",
-        "docker compose -f docker-compose.shared-services.yml up -d",
+        "docker compose -p deyas-shared -f docker-compose.shared-services.yml config --quiet",
+        "docker compose -p deyas-shared -f docker-compose.shared-services.yml pull",
+        "docker compose -p deyas-shared -f docker-compose.shared-services.yml up -d",
         "# Bu yapıyı başlatın",
+        $"docker compose -p {_samePcProjectName} -f docker-compose.structure.yml config --quiet",
+        $"docker compose -p {_samePcProjectName} -f docker-compose.structure.yml pull",
         $"docker compose -p {_samePcProjectName} -f docker-compose.structure.yml up -d",
         $"docker compose -p {_samePcProjectName} ps",
         "```",

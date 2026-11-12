@@ -404,7 +404,7 @@ Bu dosya parola içermez; .env erişim bilgileri içerir, paketi yalnız kurulum
 Docker ile tam saha kurulumu yapıyorsanız paket klasöründe terminal açın. Yeni kurulumda:
 
 ```sh
-{(_samePcDeployment ? "docker compose -f docker-compose.shared-services.yml up -d\n" : "")}{command} config --quiet
+{(_samePcDeployment ? "docker compose -p deyas-shared -f docker-compose.shared-services.yml config --quiet\ndocker compose -p deyas-shared -f docker-compose.shared-services.yml pull\ndocker compose -p deyas-shared -f docker-compose.shared-services.yml up -d\n" : "")}{command} config --quiet
 {command} pull
 {command} up -d
 {command} ps

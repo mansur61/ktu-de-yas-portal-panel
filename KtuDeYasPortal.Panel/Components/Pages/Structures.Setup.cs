@@ -235,6 +235,17 @@ public partial class Structures
             if (!Uri.TryCreate(GetEnv(key), UriKind.Absolute, out var url) || url.Scheme is not ("http" or "https")) {
                 _packageSection = 2; _saveError = "Merkez hizmet adresini http:// veya https:// ile başlayacak şekilde yazın."; return false;
             }
+        if (!TryBuildDeploymentPublicUrl(_newEdgeApiUrl, _samePcEdgePort, out _)) {
+            _packageSection = 2;
+            _saveError = "Saha kontrol adresini http:// veya https:// ile yazın (örnek: http://100.116.167.67). ZIP'teki edgeApiUrl bu adresten oluşturulur.";
+            return false;
+        }
+        if (!string.IsNullOrWhiteSpace(_newNodeRedUrl)
+            && !TryBuildDeploymentPublicUrl(_newNodeRedUrl, _samePcNodeRedPort, out _)) {
+            _packageSection = 2;
+            _saveError = "Node-RED adresini http:// veya https:// ile yazın; boş bırakırsanız saha kontrol adresinin hostu kullanılır.";
+            return false;
+        }
         var signingKey = _deploymentSecrets["DEYAS_JWT_SIGNING_KEY"];
         if (!string.IsNullOrWhiteSpace(signingKey) && signingKey.Length < 32) {
             _packageSection = 3; _saveError = "Merkez erişim anahtarı en az 32 karakter olmalı. Bilmiyorsanız boş bırakın; kurulum sorumlusu sahada tamamlasın."; return false;

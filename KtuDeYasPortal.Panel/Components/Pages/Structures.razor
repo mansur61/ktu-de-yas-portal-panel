@@ -605,7 +605,7 @@
                             <button class="btn btn-primary" @onclick="() => _packageSection = 2">Devam: merkez bağlantısı →</button></div></div>
                             <div class="dy-package-step"><button class="dy-package-toggle" @onclick="() => _packageSection = 2" aria-expanded="@(_packageSection == 2)"><span>2</span><strong>Merkeze nasıl bağlanacak?</strong><small>Önceden tanımlı merkez adresleri</small></button><div class="p-3" hidden="@(_packageSection != 2)"><p>Merkez adresleri hazır gelir. Kurulum sorumlusu farklı adres verdiyse değiştirin. Sensör kaynaklarını önceki adımda tanımladınız.</p><div class="row g-3">
                             @foreach (var key in new[] { "CENTRAL_AUTH_API_BASE_URL", "CENTRAL_TIMESERIES_API_BASE_URL", "CENTRAL_MQTT_HOST" }) { <div class="col-md-6"><label class="form-label">@(key == "CENTRAL_AUTH_API_BASE_URL" ? "Merkez giriş hizmeti" : key == "CENTRAL_TIMESERIES_API_BASE_URL" ? "Merkez ölçüm hizmeti" : "Merkez veri iletim adresi")</label><input class="form-control" value="@GetEnv(key)" @onchange="e => SetEnv(key, e.Value?.ToString())" /></div> }
-                            </div><details class="dy-technical"><summary>Kurulum uzmanı için diğer saha ayarları</summary><div class="row g-3"><div class="col-md-6"><label class="form-label">Saha kontrol adresi</label><input class="form-control" @bind="_newEdgeApiUrl" /></div><div class="col-md-6"><label class="form-label">Node-RED adresi</label><input class="form-control" @bind="_newNodeRedUrl" /></div></div>
+                            </div><div class="border rounded p-3 mt-3 bg-light"><div class="row g-3"><div class="col-md-6"><label class="form-label">Saha kontrol adresi <span class="text-danger">*</span></label><input class="form-control" type="url" @bind="_newEdgeApiUrl" placeholder="http://100.116.167.67" /><div class="form-text">Zorunlu. Panelin Çalıştır/Durdur ve merkeze iletim denetimleri için kullanılır. Seçtiğiniz Edge portu (<code>@_samePcEdgePort</code>) ZIP'e otomatik eklenir.</div></div><div class="col-md-6"><label class="form-label">Node-RED izleme adresi</label><input class="form-control" type="url" @bind="_newNodeRedUrl" placeholder="Boş bırakılırsa saha kontrol adresinin hostu kullanılır" /><div class="form-text">İsteğe bağlıdır; boşsa aynı saha hostu ve seçilen Node-RED portu (<code>@_samePcNodeRedPort</code>) kullanılır. Veri aktarım hattını etkilemez.</div></div></div></div><details class="dy-technical"><summary>Kurulum uzmanı için diğer saha ayarları</summary>
                             @foreach (var group in EnvironmentGroups) { <details class="dy-technical"><summary>@group.Label</summary><div class="row g-3">@foreach (var field in SiteEnvironmentFields.Where(f => GetEnvironmentGroup(f.Key) == group.Key && ShouldShowEnvironmentField(f.Key))) { <div class="col-md-6"><label class="form-label">@field.Label</label>@if (IsGeneratedSourceField(field.Key)) { <textarea class="form-control" readonly>@(field.Key == "DEYAS_BRIDGE_TCP_SOURCES" ? BuildTcpSourcesJson() : GetEnv(field.Key))</textarea> } else { <input class="form-control" value="@GetEnv(field.Key)" @onchange="e => SetEnv(field.Key, e.Value?.ToString())" /> }<div class="form-text">@field.Description</div></div> }</div></details> }</details>
                             <button class="btn btn-primary" @onclick="() => _packageSection = 3">Devam: erişim bilgileri →</button></div></div>
                             <div class="dy-package-step"><button class="dy-package-toggle" @onclick="() => _packageSection = 3" aria-expanded="@(_packageSection == 3)"><span>3</span><strong>Kurulum erişim bilgileri</strong><small>Kurulum sorumlusunun dolduracağı alanlar</small></button><div class="p-3" hidden="@(_packageSection != 3)"><p>Bu bilgileri bilmiyorsanız boş bırakabilirsiniz. Kurulum sorumlusu ZIP içindeki erişim dosyasını sahada tamamlayabilir.</p>
@@ -2586,8 +2586,8 @@
             SetEnv("EDGE_API_HOST_PORT", _samePcEdgePort.ToString());
             SetEnv("NODERED_HOST_PORT", _samePcNodeRedPort.ToString());
             structure.Name = _setupName.Trim();
-            structure.NodeRedUrl = string.IsNullOrWhiteSpace(_newNodeRedUrl) ? null : _newNodeRedUrl.Trim();
-            structure.EdgeApiUrl = string.IsNullOrWhiteSpace(_newEdgeApiUrl) ? null : _newEdgeApiUrl.Trim();
+            structure.NodeRedUrl = BuildNodeRedPublicUrl();
+            structure.EdgeApiUrl = BuildDeploymentPublicUrl(_newEdgeApiUrl, _samePcEdgePort);
             structure.EdgeConfigJson = BuildEdgeConfigJson(structure);
             structure.SiteEnvironmentJson = BuildSiteEnvironmentJson();
             if (_removedWizardSensorIds.Count > 0)
@@ -2699,7 +2699,7 @@
         if (structure is null) return;
 
         structure.Name = _setupName.Trim();
-        structure.NodeRedUrl = BuildDeploymentPublicUrl(_newNodeRedUrl, _samePcNodeRedPort);
+        structure.NodeRedUrl = BuildNodeRedPublicUrl();
         structure.EdgeApiUrl = BuildDeploymentPublicUrl(_newEdgeApiUrl, _samePcEdgePort);
         var edgeConfig = BuildEdgeConfigJson(structure);
         var sensorIdMap = BuildSensorIdMap(structure.Sensors);
@@ -2816,13 +2816,25 @@
         $"Panelde bu yapının `EdgeApiUrl` değeri `http://PC-IP:{_samePcEdgePort}` olmalıdır. Aynı image kullanılır; yapı kimliği, config, project, volume/network ayrıdır. Ortak altyapı portları yalnız bir kez kullanılır."
     ]);
 
-    private static string? BuildDeploymentPublicUrl(string? value, int? port)
+    private string? BuildNodeRedPublicUrl() => BuildDeploymentPublicUrl(
+        string.IsNullOrWhiteSpace(_newNodeRedUrl) ? _newEdgeApiUrl : _newNodeRedUrl,
+        _samePcNodeRedPort);
+
+    private static bool TryBuildDeploymentPublicUrl(string? value, int? port, out string? result)
     {
-        if (string.IsNullOrWhiteSpace(value)) return null;
-        if (port is null || !Uri.TryCreate(value.Trim(), UriKind.Absolute, out var uri)) return value.Trim();
-        var builder = new UriBuilder(uri) { Port = port.Value };
-        return builder.Uri.GetLeftPart(UriPartial.Authority);
+        result = null;
+        if (string.IsNullOrWhiteSpace(value) || !Uri.TryCreate(value.Trim(), UriKind.Absolute, out var uri)
+            || uri.Scheme is not ("http" or "https") || string.IsNullOrWhiteSpace(uri.Host))
+            return false;
+
+        var builder = new UriBuilder(uri);
+        if (port is not null) builder.Port = port.Value;
+        result = builder.Uri.GetLeftPart(UriPartial.Authority);
+        return true;
     }
+
+    private static string? BuildDeploymentPublicUrl(string? value, int? port) =>
+        TryBuildDeploymentPublicUrl(value, port, out var result) ? result : null;
 
     private void BackFromStep2()
     {

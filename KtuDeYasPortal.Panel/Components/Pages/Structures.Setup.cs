@@ -155,7 +155,7 @@ public partial class Structures
                 ImagePositionX = s.ImagePositionX, ImagePositionY = s.ImagePositionY
             }).ToList();
             _sourceTcp |= HasTcpSensor;
-            _samePcDeployment = !string.Equals(GetEnv("DEYAS_SETUP_SHARED_PC"), "false", StringComparison.OrdinalIgnoreCase);
+            _samePcDeployment = string.Equals(GetEnv("DEYAS_SETUP_SHARED_INFRA_READY"), "true", StringComparison.OrdinalIgnoreCase);
             _samePcProjectName = string.IsNullOrWhiteSpace(GetEnv("DEYAS_SETUP_PROJECT_NAME")) ? "saha-a" : GetEnv("DEYAS_SETUP_PROJECT_NAME");
             if (int.TryParse(GetEnv("EDGE_API_HOST_PORT"), out var edgePort)) _samePcEdgePort = edgePort;
             if (int.TryParse(GetEnv("NODERED_HOST_PORT"), out var nodeRedPort)) _samePcNodeRedPort = nodeRedPort;
@@ -227,8 +227,8 @@ public partial class Structures
     private int _packageSection = 1;
     private bool ValidatePackageInputs()
     {
-        if (_samePcDeployment && (!System.Text.RegularExpressions.Regex.IsMatch(_samePcProjectName, "^[a-z0-9][a-z0-9_-]*$")
-            || _samePcEdgePort is < 1024 or > 65535 || _samePcNodeRedPort is < 1024 or > 65535 || _samePcEdgePort == _samePcNodeRedPort)) {
+        if (!System.Text.RegularExpressions.Regex.IsMatch(_samePcProjectName, "^[a-z0-9][a-z0-9_-]*$")
+            || _samePcEdgePort is < 1024 or > 65535 || _samePcNodeRedPort is < 1024 or > 65535 || _samePcEdgePort == _samePcNodeRedPort) {
             _packageSection = 1; _saveError = "Kurulumun kısa adını küçük harf, sayı veya tireyle yazın. İki bağlantı numarası 1024–65535 arasında ve birbirinden farklı olmalı."; return false;
         }
         foreach (var key in new[] { "CENTRAL_AUTH_API_BASE_URL", "CENTRAL_TIMESERIES_API_BASE_URL" })
@@ -380,9 +380,7 @@ public partial class Structures
 
     private string BuildFriendlyInstallGuide()
     {
-        var command = _samePcDeployment
-            ? $"docker compose -p {_samePcProjectName} -f docker-compose.structure.yml"
-            : "docker compose";
+        var command = $"docker compose -p {_samePcProjectName} -f docker-compose.structure.yml";
         return $"""
 # Önce bu dosyayı okuyun
 
@@ -404,13 +402,13 @@ Bu dosya parola içermez; .env erişim bilgileri içerir, paketi yalnız kurulum
 Docker ile tam saha kurulumu yapıyorsanız paket klasöründe terminal açın. Yeni kurulumda:
 
 ```sh
-{(_samePcDeployment ? "# Yalnız bu bilgisayarda ortak altyapı henüz yoksa:\ndocker compose -p deyas-shared -f docker-compose.shared-services.yml config --quiet\ndocker compose -p deyas-shared -f docker-compose.shared-services.yml pull\ndocker compose -p deyas-shared -f docker-compose.shared-services.yml up -d\n\n# Bu yapı için (her ZIP'te çalıştırılır):\n" : "")}{command} config --quiet
+{(!_samePcDeployment ? "# Bu bilgisayarda ortak altyapı ilk kez kuruluyor:\ndocker compose -p deyas-shared -f docker-compose.shared-services.yml config --quiet\ndocker compose -p deyas-shared -f docker-compose.shared-services.yml pull\ndocker compose -p deyas-shared -f docker-compose.shared-services.yml up -d\n\n# Bu yapı için:\n" : "")}{command} config --quiet
 {command} pull
 {command} up -d
 {command} ps
 ```
 
-Ortak saha altyapısı kullanılıyorsa ortak hizmetleri yalnız ilk kurulumda başlatın. Sonraki yapı ZIP'lerinde yalnız o yapının <code>docker-compose.structure.yml</code> komutları çalıştırılır; farklı proje adı ve kontrol/editör portları gerekir.
+Seçenek kapalıyken ZIP ortak altyapı ile bu yapının dosyasını içerir; ortak hizmetler ilk kurulumda başlatılır. Seçenek açıkken ortak hizmetlerin zaten çalıştığı kabul edilir ve ZIP yalnız bu yapının <code>docker-compose.structure.yml</code> dosyasını içerir. Sonraki yapıların proje adı ile Edge/Node-RED portları farklı olmalıdır.
 
 Docker kullanmayan kamera bilgisayarında ZIP içindeki dockerless-camera/ klasörünü kullanın. Bridge kodu, gereksinimleri, kamera ayarları ve işletim sistemi kılavuzları bu klasördedir. Python ve FFmpeg kamera bilgisayarında çalışır.
 

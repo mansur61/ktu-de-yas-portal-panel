@@ -23,7 +23,7 @@ public partial class Structures
             ["DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED"] = "true",
             ["SAHA_MEDIA_CONFIG_PATH"] = $"dockerless-camera/cameras/{camera.Id}/media-config.json",
             ["MQTT_HOST"] = Uri.TryCreate(_newEdgeApiUrl, UriKind.Absolute, out var edge) ? edge.Host : "",
-            ["MQTT_PORT"] = (_samePcDeployment ? _samePcMqttPort : 1883).ToString(),
+            ["MQTT_PORT"] = _samePcMqttPort.ToString(),
             ["MQTT_USERNAME"] = "",
             ["MQTT_PASSWORD"] = ""
         };

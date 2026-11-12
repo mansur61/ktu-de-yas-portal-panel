@@ -586,25 +586,22 @@
                     <div class="card border-success">
                         <div class="card-header bg-success text-white"><strong>Saha kurulum paketi</strong></div>
                         <div class="card-body">
-                            <h2 class="h4">Saha ZIP’ini hazırlayın</h2><p>Aşağıdaki bölümleri sırayla tamamlayın. Production kurulumlarında ortak saha altyapısı varsayılan olarak kullanılır; sensör ve kamera kaynaklarını tekrar girmeniz gerekmez.</p><div class="dy-chip neutral mb-3">@_setupName · @SourceCount kaynak</div>
+                            <h2 class="h4">Saha ZIP’ini hazırlayın</h2><p>Aşağıdaki bölümleri sırayla tamamlayın. Production paketleri ortak saha altyapısına bağlanır; <code>docker-compose.yml</code> yalnız repodaki local geliştirme akışında kalır ve ZIP'e eklenmez.</p><div class="dy-chip neutral mb-3">@_setupName · @SourceCount kaynak</div>
                             @if (_packageDownloaded) { <div class="alert alert-success">ZIP tarayıcıya gönderildi. Saha kurulumu ve veri gelişi kurulum sonrasında kontrol edilir.</div> }
-                            <div class="dy-package-step"><button class="dy-package-toggle" @onclick="() => _packageSection = 1" aria-expanded="@(_packageSection == 1)"><span>1</span><strong>Saha altyapısı</strong><small>@(_samePcDeployment ? "Ortak saha altyapısı" : "Tek dosyalı geliştirme kurulumu")</small></button><div class="p-3" hidden="@(_packageSection != 1)"><p>Production sahalarda ortak altyapı kullanın. Bu seçenek yalnız yerel geliştirme veya tek dosyalı test kurulumu için kapatılır.</p>
+                            <div class="dy-package-step"><button class="dy-package-toggle" @onclick="() => _packageSection = 1" aria-expanded="@(_packageSection == 1)"><span>1</span><strong>Saha altyapısı</strong><small>@(_samePcDeployment ? "Mevcut ortak altyapıya bağlanır" : "Ortak altyapıyı ilk kez kurar")</small></button><div class="p-3" hidden="@(_packageSection != 1)"><p>Bu bilgisayarda ortak servisler ilk kez kurulacaksa seçenek kapalı kalır; ZIP ortak altyapı ile bu yapının dosyasını içerir. Ortak servisler zaten çalışıyorsa açın; ZIP yalnız bu yapının dosyasını içerir.</p>
                             <div class="form-check form-switch mb-3">
                                 <input class="form-check-input" type="checkbox" @bind="_samePcDeployment" id="samePcDeployment" />
-                                <label class="form-check-label fw-semibold" for="samePcDeployment">Ortak saha altyapısı kullan</label>
+                                <label class="form-check-label fw-semibold" for="samePcDeployment">Ortak saha altyapısı</label>
                             </div>
-                            @if (_samePcDeployment)
-                            {
-                                <div class="border rounded p-3 mb-3 bg-light">
-                                    <div class="small text-success fw-semibold mb-2">ZIP yalnız bu yapının <code>docker-compose.structure.yml</code> dosyasını ve ortak altyapı şablonunu içerir. EMQX, Kafka, TimescaleDB ve Timeseries API ilk yapı tarafından bir kez başlatılır; her ek yapı yalnız kendi Edge + Node-RED servislerini başlatır.</div>
+                            <div class="border rounded p-3 mb-3 bg-light">
+                                    <div class="small text-success fw-semibold mb-2">@(_samePcDeployment ? "ZIP yalnız bu yapının docker-compose.structure.yml dosyasını içerir. EMQX, Kafka, TimescaleDB ve Timeseries API çalışmaya devam eder." : "ZIP docker-compose.shared-services.yml ile yalnız bu yapının docker-compose.structure.yml dosyasını içerir. Ortak servisler bu ilk yapı ile bir kez başlatılır.")</div>
                                     <div class="row g-2">
                                         <div class="col-md-4"><label class="form-label small">Bu kurulumun kısa adı</label><input class="form-control form-control-sm" @bind="_samePcProjectName" placeholder="saha-a" /><div class="form-text">İkinci ZIP'te farklı olmalı: <code>saha-b</code>.</div></div>
                                         <div class="col-md-4"><label class="form-label small">Edge API host portu</label><input class="form-control form-control-sm" type="number" @bind="_samePcEdgePort" min="1024" max="65535" /><div class="form-text">Mevcut: <code>5080</code>. İkinci örnek: <code>5081</code>.</div></div>
                                         <div class="col-md-4"><label class="form-label small">Node-RED host portu</label><input class="form-control form-control-sm" type="number" @bind="_samePcNodeRedPort" min="1024" max="65535" /><div class="form-text">Mevcut: <code>1880</code>. İkinci örnek: <code>1881</code>.</div></div>
                                     </div>
-                                    <div class="form-text mt-2">İlk yapı ZIP'inde ortak altyapıyı bir kez başlatın. Sonraki yapı ZIP'lerinde yalnız ilgili <code>docker-compose.structure.yml</code> komutunu çalıştırın; proje adı, Edge ve Node-RED portları farklı olsun. Edge/Node-RED URL'si ZIP'te seçilen portla güncellenir.</div>
-                                </div>
-                            }
+                                    <div class="form-text mt-2">İlk yapıda önce ortak altyapı, sonra bu yapının <code>docker-compose.structure.yml</code> komutu çalışır. Sonraki yapılarda yalnız ilgili <code>docker-compose.structure.yml</code> komutu çalışır; proje adı, Edge ve Node-RED portları farklı olmalıdır.</div>
+                            </div>
                             <button class="btn btn-primary" @onclick="() => _packageSection = 2">Devam: merkez bağlantısı →</button></div></div>
                             <div class="dy-package-step"><button class="dy-package-toggle" @onclick="() => _packageSection = 2" aria-expanded="@(_packageSection == 2)"><span>2</span><strong>Merkeze nasıl bağlanacak?</strong><small>Önceden tanımlı merkez adresleri</small></button><div class="p-3" hidden="@(_packageSection != 2)"><p>Merkez adresleri hazır gelir. Kurulum sorumlusu farklı adres verdiyse değiştirin. Sensör kaynaklarını önceki adımda tanımladınız.</p><div class="row g-3">
                             @foreach (var key in new[] { "CENTRAL_AUTH_API_BASE_URL", "CENTRAL_TIMESERIES_API_BASE_URL", "CENTRAL_MQTT_HOST" }) { <div class="col-md-6"><label class="form-label">@(key == "CENTRAL_AUTH_API_BASE_URL" ? "Merkez giriş hizmeti" : key == "CENTRAL_TIMESERIES_API_BASE_URL" ? "Merkez ölçüm hizmeti" : "Merkez veri iletim adresi")</label><input class="form-control" value="@GetEnv(key)" @onchange="e => SetEnv(key, e.Value?.ToString())" /></div> }
@@ -1474,7 +1471,9 @@
     private string          _setupStructureType = "Dam";
     private CameraDeploymentSettings _cameraSettings = new();
     private CameraDeploymentSettings _editCameraSettings = new();
-    private bool             _samePcDeployment = true;
+    // true: ortak servisler saha bilgisayarında zaten çalışıyor; ZIP yalnız
+    // ilgili structure Compose dosyasını içerir.
+    private bool             _samePcDeployment;
     private string           _samePcProjectName = "saha-a";
     private int              _samePcEdgePort = 5080;
     private int              _samePcNodeRedPort = 1880;
@@ -2373,7 +2372,7 @@
         _setupName              = "";
         _setupStructureType     = "Dam";
         _cameraSettings         = new();
-        _samePcDeployment       = true;
+        _samePcDeployment       = false;
         _samePcProjectName      = "saha-a";
         _samePcEdgePort         = 5080;
         _samePcNodeRedPort      = 1880;
@@ -2582,12 +2581,10 @@
                 && _newStructureSensors.All(sensor => sensor.SensorType is SensorType.Camera or SensorType.Image))
                 SetEnv("SAHA_ENABLED_PIPELINES", "kamera");
             SetEnv("DEYAS_SETUP_UDP_LABELS", System.Text.Json.JsonSerializer.Serialize(_friendlyUdpSources));
-            SetEnv("DEYAS_SETUP_SHARED_PC", _samePcDeployment ? "true" : "false");
+            SetEnv("DEYAS_SETUP_SHARED_INFRA_READY", _samePcDeployment ? "true" : "false");
             SetEnv("DEYAS_SETUP_PROJECT_NAME", _samePcProjectName);
-            if (_samePcDeployment) {
-                SetEnv("EDGE_API_HOST_PORT", _samePcEdgePort.ToString());
-                SetEnv("NODERED_HOST_PORT", _samePcNodeRedPort.ToString());
-            }
+            SetEnv("EDGE_API_HOST_PORT", _samePcEdgePort.ToString());
+            SetEnv("NODERED_HOST_PORT", _samePcNodeRedPort.ToString());
             structure.Name = _setupName.Trim();
             structure.NodeRedUrl = string.IsNullOrWhiteSpace(_newNodeRedUrl) ? null : _newNodeRedUrl.Trim();
             structure.EdgeApiUrl = string.IsNullOrWhiteSpace(_newEdgeApiUrl) ? null : _newEdgeApiUrl.Trim();
@@ -2702,16 +2699,16 @@
         if (structure is null) return;
 
         structure.Name = _setupName.Trim();
-        structure.NodeRedUrl = BuildDeploymentPublicUrl(_newNodeRedUrl, _samePcDeployment ? _samePcNodeRedPort : null);
-        structure.EdgeApiUrl = BuildDeploymentPublicUrl(_newEdgeApiUrl, _samePcDeployment ? _samePcEdgePort : null);
+        structure.NodeRedUrl = BuildDeploymentPublicUrl(_newNodeRedUrl, _samePcNodeRedPort);
+        structure.EdgeApiUrl = BuildDeploymentPublicUrl(_newEdgeApiUrl, _samePcEdgePort);
         var edgeConfig = BuildEdgeConfigJson(structure);
         var sensorIdMap = BuildSensorIdMap(structure.Sensors);
         var environment = BuildSiteEnvironmentEnv(sensorIdMap);
         await using var output = new MemoryStream();
         using (var archive = new System.IO.Compression.ZipArchive(output, System.IO.Compression.ZipArchiveMode.Create, true))
         {
-            AddDeploymentTemplateEntry(archive, _samePcDeployment ? "docker-compose.structure.yml" : "docker-compose.yml");
-            if (_samePcDeployment)
+            AddDeploymentTemplateEntry(archive, "docker-compose.structure.yml");
+            if (!_samePcDeployment)
                 AddDeploymentTemplateEntry(archive, "docker-compose.shared-services.yml");
             AddDeploymentTemplateEntry(archive, "DOCKERLI_SAHA_KURULUMU.md");
             var scenarioPath = Path.Combine(AppContext.BaseDirectory, "DeploymentTemplates", "saha-deployment", "SENARYOLAR.md");
@@ -3530,20 +3527,20 @@
                     foreach (var (key, value) in _localDeploymentSecrets)
                         values[key] = value;
 
-                    if (_samePcDeployment)
+                    if (!_samePcDeployment)
                     {
                         values["EMQX_MQTT_HOST_PORT"] = _samePcMqttPort.ToString();
                         values["EMQX_DASHBOARD_HOST_PORT"] = _samePcEmqxDashboardPort.ToString();
                         values["TIMESCALEDB_HOST_PORT"] = _samePcTimescaleDbPort.ToString();
                         values["TIMESERIES_HOST_PORT"] = _samePcTimeseriesPort.ToString();
-                        values["NODERED_HOST_PORT"] = _samePcNodeRedPort.ToString();
-                        values["EDGE_API_HOST_PORT"] = _samePcEdgePort.ToString();
                     }
+                    values["NODERED_HOST_PORT"] = _samePcNodeRedPort.ToString();
+                    values["EDGE_API_HOST_PORT"] = _samePcEdgePort.ToString();
 
                     var deploymentRoot = Path.Combine(AppContext.BaseDirectory, "DeploymentTemplates", "saha-deployment");
                     var composeFiles = _samePcDeployment
-                        ? new[] { "docker-compose.structure.yml", "docker-compose.shared-services.yml" }
-                        : new[] { "docker-compose.yml" };
+                        ? new[] { "docker-compose.structure.yml" }
+                        : new[] { "docker-compose.structure.yml", "docker-compose.shared-services.yml" };
                     var requiredKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                     foreach (var composeFile in composeFiles)
                     {

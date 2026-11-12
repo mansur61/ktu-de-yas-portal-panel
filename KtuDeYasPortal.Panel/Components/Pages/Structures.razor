@@ -586,23 +586,23 @@
                     <div class="card border-success">
                         <div class="card-header bg-success text-white"><strong>Saha kurulum paketi</strong></div>
                         <div class="card-body">
-                            <h2 class="h4">Saha ZIP’ini hazırlayın</h2><p>Aşağıdaki bölümleri sırayla tamamlayın. Sensör ve kamera kaynakları hazır; tekrar girmeniz gerekmez.</p><div class="dy-chip neutral mb-3">@_setupName · @SourceCount kaynak</div>
+                            <h2 class="h4">Saha ZIP’ini hazırlayın</h2><p>Aşağıdaki bölümleri sırayla tamamlayın. Production kurulumlarında ortak saha altyapısı varsayılan olarak kullanılır; sensör ve kamera kaynaklarını tekrar girmeniz gerekmez.</p><div class="dy-chip neutral mb-3">@_setupName · @SourceCount kaynak</div>
                             @if (_packageDownloaded) { <div class="alert alert-success">ZIP tarayıcıya gönderildi. Saha kurulumu ve veri gelişi kurulum sonrasında kontrol edilir.</div> }
-                            <div class="dy-package-step"><button class="dy-package-toggle" @onclick="() => _packageSection = 1" aria-expanded="@(_packageSection == 1)"><span>1</span><strong>Hangi bilgisayara kurulacak?</strong><small>@(_samePcDeployment ? "Başka barajla ortak bilgisayar" : "Bu baraja ayrılmış bilgisayar")</small></button><div class="p-3" hidden="@(_packageSection != 1)"><p>Bu baraj için ayrı bir bilgisayar varsa aşağıdaki seçeneği kapalı bırakın.</p>
+                            <div class="dy-package-step"><button class="dy-package-toggle" @onclick="() => _packageSection = 1" aria-expanded="@(_packageSection == 1)"><span>1</span><strong>Saha altyapısı</strong><small>@(_samePcDeployment ? "Ortak saha altyapısı" : "Tek dosyalı geliştirme kurulumu")</small></button><div class="p-3" hidden="@(_packageSection != 1)"><p>Production sahalarda ortak altyapı kullanın. Bu seçenek yalnız yerel geliştirme veya tek dosyalı test kurulumu için kapatılır.</p>
                             <div class="form-check form-switch mb-3">
                                 <input class="form-check-input" type="checkbox" @bind="_samePcDeployment" id="samePcDeployment" />
-                                <label class="form-check-label fw-semibold" for="samePcDeployment">Bu bilgisayarda başka bir baraj da çalışacak</label>
+                                <label class="form-check-label fw-semibold" for="samePcDeployment">Ortak saha altyapısı kullan</label>
                             </div>
                             @if (_samePcDeployment)
                             {
                                 <div class="border rounded p-3 mb-3 bg-light">
-                                    <div class="small text-success fw-semibold mb-2">Bu seçim ortak EMQX, Kafka, TimescaleDB ve Timeseries API paketi ile yalnız bu yapının Edge + Node-RED paketini üretir. Ortak altyapı portları bir kez açılır; her ek yapı için yalnız Edge ve Node-RED host portları farklı olmalıdır.</div>
+                                    <div class="small text-success fw-semibold mb-2">ZIP yalnız bu yapının <code>docker-compose.structure.yml</code> dosyasını ve ortak altyapı şablonunu içerir. EMQX, Kafka, TimescaleDB ve Timeseries API ilk yapı tarafından bir kez başlatılır; her ek yapı yalnız kendi Edge + Node-RED servislerini başlatır.</div>
                                     <div class="row g-2">
                                         <div class="col-md-4"><label class="form-label small">Bu kurulumun kısa adı</label><input class="form-control form-control-sm" @bind="_samePcProjectName" placeholder="saha-a" /><div class="form-text">İkinci ZIP'te farklı olmalı: <code>saha-b</code>.</div></div>
                                         <div class="col-md-4"><label class="form-label small">Edge API host portu</label><input class="form-control form-control-sm" type="number" @bind="_samePcEdgePort" min="1024" max="65535" /><div class="form-text">Mevcut: <code>5080</code>. İkinci örnek: <code>5081</code>.</div></div>
                                         <div class="col-md-4"><label class="form-label small">Node-RED host portu</label><input class="form-control form-control-sm" type="number" @bind="_samePcNodeRedPort" min="1024" max="65535" /><div class="form-text">Mevcut: <code>1880</code>. İkinci örnek: <code>1881</code>.</div></div>
                                     </div>
-                                    <div class="form-text mt-2">İlk ZIP'te ortak altyapıyı bir kez başlatın. Sonraki yapı ZIP'lerinde aynı ortak altyapı portlarını kullanın; yalnız <code>saha-b</code>, Edge <code>5081</code> ve Node-RED <code>1881</code> farklı olsun. Edge/Node-RED URL'si ZIP'te seçilen portla güncellenir.</div>
+                                    <div class="form-text mt-2">İlk yapı ZIP'inde ortak altyapıyı bir kez başlatın. Sonraki yapı ZIP'lerinde yalnız ilgili <code>docker-compose.structure.yml</code> komutunu çalıştırın; proje adı, Edge ve Node-RED portları farklı olsun. Edge/Node-RED URL'si ZIP'te seçilen portla güncellenir.</div>
                                 </div>
                             }
                             <button class="btn btn-primary" @onclick="() => _packageSection = 2">Devam: merkez bağlantısı →</button></div></div>
@@ -1474,7 +1474,7 @@
     private string          _setupStructureType = "Dam";
     private CameraDeploymentSettings _cameraSettings = new();
     private CameraDeploymentSettings _editCameraSettings = new();
-    private bool             _samePcDeployment;
+    private bool             _samePcDeployment = true;
     private string           _samePcProjectName = "saha-a";
     private int              _samePcEdgePort = 5080;
     private int              _samePcNodeRedPort = 1880;
@@ -2373,7 +2373,7 @@
         _setupName              = "";
         _setupStructureType     = "Dam";
         _cameraSettings         = new();
-        _samePcDeployment       = false;
+        _samePcDeployment       = true;
         _samePcProjectName      = "saha-a";
         _samePcEdgePort         = 5080;
         _samePcNodeRedPort      = 1880;

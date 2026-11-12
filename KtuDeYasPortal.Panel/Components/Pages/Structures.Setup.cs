@@ -155,7 +155,7 @@ public partial class Structures
                 ImagePositionX = s.ImagePositionX, ImagePositionY = s.ImagePositionY
             }).ToList();
             _sourceTcp |= HasTcpSensor;
-            _samePcDeployment = GetEnv("DEYAS_SETUP_SHARED_PC") == "true";
+            _samePcDeployment = !string.Equals(GetEnv("DEYAS_SETUP_SHARED_PC"), "false", StringComparison.OrdinalIgnoreCase);
             _samePcProjectName = string.IsNullOrWhiteSpace(GetEnv("DEYAS_SETUP_PROJECT_NAME")) ? "saha-a" : GetEnv("DEYAS_SETUP_PROJECT_NAME");
             if (int.TryParse(GetEnv("EDGE_API_HOST_PORT"), out var edgePort)) _samePcEdgePort = edgePort;
             if (int.TryParse(GetEnv("NODERED_HOST_PORT"), out var nodeRedPort)) _samePcNodeRedPort = nodeRedPort;
@@ -404,13 +404,13 @@ Bu dosya parola içermez; .env erişim bilgileri içerir, paketi yalnız kurulum
 Docker ile tam saha kurulumu yapıyorsanız paket klasöründe terminal açın. Yeni kurulumda:
 
 ```sh
-{(_samePcDeployment ? "docker compose -p deyas-shared -f docker-compose.shared-services.yml config --quiet\ndocker compose -p deyas-shared -f docker-compose.shared-services.yml pull\ndocker compose -p deyas-shared -f docker-compose.shared-services.yml up -d\n" : "")}{command} config --quiet
+{(_samePcDeployment ? "# Yalnız bu bilgisayarda ortak altyapı henüz yoksa:\ndocker compose -p deyas-shared -f docker-compose.shared-services.yml config --quiet\ndocker compose -p deyas-shared -f docker-compose.shared-services.yml pull\ndocker compose -p deyas-shared -f docker-compose.shared-services.yml up -d\n\n# Bu yapı için (her ZIP'te çalıştırılır):\n" : "")}{command} config --quiet
 {command} pull
 {command} up -d
 {command} ps
 ```
 
-Ortak bilgisayar kullanılıyorsa ortak hizmetleri yalnız ilk kurulumda başlatın. Diğer baraj için farklı proje adı ve kontrol/editör portları gerekir. Ayrıntı AYNI_PC_KURULUM.md içindedir.
+Ortak saha altyapısı kullanılıyorsa ortak hizmetleri yalnız ilk kurulumda başlatın. Sonraki yapı ZIP'lerinde yalnız o yapının <code>docker-compose.structure.yml</code> komutları çalıştırılır; farklı proje adı ve kontrol/editör portları gerekir.
 
 Docker kullanmayan kamera bilgisayarında ZIP içindeki dockerless-camera/ klasörünü kullanın. Bridge kodu, gereksinimleri, kamera ayarları ve işletim sistemi kılavuzları bu klasördedir. Python ve FFmpeg kamera bilgisayarında çalışır.
 

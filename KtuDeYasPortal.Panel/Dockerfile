@@ -1,6 +1,10 @@
+# syntax=docker/dockerfile:1
 # Build context: /Users/mansureminkaya/Desktop/Projects
 # Panel, ktu-de-yas-shared içindeki Contracts ve Realtime projelerine referans verir.
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+# Publish çıktısı mimariden bağımsız IL'dir. SDK'yı build makinesinin mimarisinde
+# çalıştırmak, ARM geliştirme ortamından linux/amd64 imaj üretirken QEMU ile yavaş
+# derlemeyi önler; final katmanı hedef mimaride kalır.
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /projects
 
 COPY ktu-de-yas-shared/ ktu-de-yas-shared/

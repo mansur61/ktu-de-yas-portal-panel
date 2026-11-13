@@ -419,7 +419,7 @@ Docker ile tam saha kurulumu yapıyorsanız paket klasöründe terminal açın. 
 {command} ps
 ```
 
-Seçenek kapalıyken ZIP ortak altyapı ile bu yapının dosyasını içerir; ortak hizmetler ilk kurulumda başlatılır. Seçenek açıkken ortak hizmetlerin zaten çalıştığı kabul edilir ve ZIP yalnız bu yapının <code>docker-compose.structure.yml</code> dosyasını içerir. Sonraki yapıların proje adı ile Edge/Node-RED portları farklı olmalıdır.
+Seçenek kapalıyken ZIP ortak altyapı ile bu yapının dosyasını içerir; ortak hizmetler ilk kurulumda başlatılır. Seçenek açıkken ortak hizmetlerin zaten çalıştığı kabul edilir ve ZIP yalnız bu yapının <code>docker-compose.structure.yml</code> dosyasını içerir. Saha portalı yapı dosyasındadır; sonraki yapıların proje adı ile Edge, Node-RED ve saha portalı portları farklı olmalıdır.
 
 Docker kullanmayan kamera bilgisayarında ZIP içindeki dockerless-camera/ klasörünü kullanın. Bridge kodu, gereksinimleri, kamera ayarları ve işletim sistemi kılavuzları bu klasördedir. Python ve FFmpeg kamera bilgisayarında çalışır.
 

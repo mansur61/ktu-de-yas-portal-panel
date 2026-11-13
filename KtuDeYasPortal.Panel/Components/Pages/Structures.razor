@@ -1533,7 +1533,6 @@
         new("DEYAS_BRIDGE_DEVICE_MAP", "Kaynak Stream/Metrik → Device ID Eşlemesi", "Bridge'in oluşturduğu stream'i sistemdeki kalıcı cihaz kimliğine bağlayan isteğe bağlı JSON nesnesidir. Çoklu scalar örneği: {\"mqtt/temperature\":\"baca-sicaklik\",\"mqtt/humidity\":\"baca-nem\"}. Eşleme yazılmazsa deviceId otomatik olarak stream-mqtt-temperature gibi üretilir.", "{}"),
         new("DEYAS_BRIDGE_MQTT_TOPIC_TEMPLATE", "Yerel Hedef MQTT Topic Şablonu", "Bridge'in yerel emqx'e yazdığı sözleşme topic'i; edge-layer uyumluluğu için varsayılanı değiştirmeyin.", "edge/sensors/{location_id}/{device_id}/data"),
         new("DEYAS_BRIDGE_MQTT_QOS", "Yerel Hedef MQTT QoS", "Bridge → yerel EMQX yayın QoS seviyesi.", "1"),
-        new("DEYAS_BRIDGE_MQTT_CLIENT_ID", "Bridge MQTT Client ID", "Yerel MQTT bağlantısının istemci kimliği.", "deyas-saha-bridge"),
         new("DEVICE_CONNECTION_WATCHDOG_ENABLED", "Device Watchdog", "Telemetry gelmeyen cihazları pasif göstermek için true.", "false"),
         new("DEVICE_OFFLINE_TIMEOUT_MS", "Offline Yanıt bekleme süresi (ms)", "Watchdog etkinse cihazın offline sayılacağı süre.", "30000"),
         new("EDGE_FORWARDING_ENABLED", "Merkeze İletim", "Edge telemetry'nin merkeze aktarılması.", "true"),
@@ -2814,6 +2813,7 @@
         $"- Compose project: `{_samePcProjectName}`",
         $"- Edge API: `http://PC-IP:{_samePcEdgePort}`",
         $"- Node-RED: `http://PC-IP:{_samePcNodeRedPort}`",
+        $"- Saha portalı: `http://PC-IP:{GetEnv("PORTAL_HOST_PORT")}`",
         string.Empty,
         "## Başlatma",
         string.Empty,
@@ -2835,10 +2835,11 @@
         "Compose project: saha-b",
         "Edge API portu: 5081",
         "Node-RED portu: 1881",
+        "Saha portal portu: 5051",
         "Ortak EMQX/Kafka/DB/API: aynı altyapı, tekrar başlatılmaz",
         "```",
         string.Empty,
-        $"Panelde bu yapının `EdgeApiUrl` değeri `http://PC-IP:{_samePcEdgePort}` olmalıdır. Aynı image kullanılır; yapı kimliği, config, project, volume/network ayrıdır. Ortak altyapı portları yalnız bir kez kullanılır."
+        $"Panelde bu yapının `EdgeApiUrl` değeri `http://PC-IP:{_samePcEdgePort}` olmalıdır. Her yapı kendi saha portalını da çalıştırır; Edge, Node-RED ve saha portalı host portları yapılara göre farklı olmalıdır. Aynı image kullanılır; yapı kimliği, config, project, volume/network ayrıdır. Ortak altyapı portları yalnız bir kez kullanılır."
     ]);
 
     private string? BuildNodeRedPublicUrl() => BuildDeploymentPublicUrl(

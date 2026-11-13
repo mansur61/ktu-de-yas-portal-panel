@@ -1019,6 +1019,11 @@
 .structure-glb-section .dam-scene,
 #wizard-placement .dam-scene { display: flex; flex-direction: column; height: clamp(520px, 74vh, 780px); }
 .structure-glb-section .dam-model-viewer model-viewer { height: 360px; }
+.fiber-route-editor { display:flex; align-items:center; gap:12px 18px; flex-wrap:wrap; padding:11px 14px; background:#102431; border-top:1px solid #285267; color:#e4f4f8; }
+.fiber-route-editor > div { display:grid; gap:1px; min-width:220px; }
+.fiber-route-editor small { color:#9fc4d1; }
+.fiber-route-editor p { margin:0; flex:1 1 390px; color:#c4dbe3; font-size:.82rem; }
+.fiber-route-editor em { color:#9ceaff; font-style:normal; }
 
 /* DSİ logosu sidebar üst köşesinde küçük */
 .dy-brand{display:flex;align-items:center;gap:8px;padding:12px 16px;text-decoration:none;color:#fff;border-bottom:1px solid rgba(255,255,255,0.12)}

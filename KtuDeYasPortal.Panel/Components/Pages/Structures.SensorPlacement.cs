@@ -8,6 +8,7 @@ namespace KtuDeYasPortal.Panel.Components.Pages;
 
 public partial class Structures
 {
+    private const string FiberRoutesEnvironmentKey = "DEYAS_TWIN_FIBER_ROUTES";
     private static bool IsGlbModelUrl(string? modelUrl) =>
         modelUrl?.Split('?', '#')[0].EndsWith(".glb", StringComparison.OrdinalIgnoreCase) == true;
 
@@ -32,20 +33,64 @@ public partial class Structures
             LastDataAt: sensor.LastUpdated,
             LastValue: sensor.LastValue,
             Metrics: sensor.Metrics)).ToArray();
-    private IReadOnlyList<TwinModelSensor> DetailModelSensors => (_editingStructure?.Sensors ?? [])
-        .Select(sensor => new TwinModelSensor(
-            sensor.SensorId,
-            sensor.EffectiveDisplayName,
-            sensor.SensorType,
-            sensor.PositionX,
-            sensor.PositionY,
-            sensor.PositionZ,
-            sensor.RotationX,
-            sensor.RotationY,
-            sensor.RotationZ,
-            DeviceId: sensor.DeviceId,
-            Metrics: sensor.Metrics))
-        .ToArray();
+    private IReadOnlyList<TwinModelSensor> DetailModelSensors
+    {
+        get
+        {
+            var routes = ReadDetailFiberRoutes();
+            return (_editingStructure?.Sensors ?? [])
+                .Select(sensor => new TwinModelSensor(
+                    sensor.SensorId,
+                    sensor.EffectiveDisplayName,
+                    sensor.SensorType,
+                    sensor.PositionX,
+                    sensor.PositionY,
+                    sensor.PositionZ,
+                    sensor.RotationX,
+                    sensor.RotationY,
+                    sensor.RotationZ,
+                    DeviceId: sensor.DeviceId,
+                    Metrics: sensor.Metrics,
+                    FiberRoute: routes.TryGetValue(sensor.SensorId, out var route) ? route : null))
+                .ToArray();
+        }
+    }
+    private StructureSensor? DetailSelectedFiberSensor => _detailSelectedSensorId is { } sensorId
+        ? _editingStructure?.Sensors?.FirstOrDefault(sensor => sensor.SensorId == sensorId && IsFiberOptic(sensor.SensorType))
+        : null;
+    private IReadOnlyList<TwinModelRoutePoint> DetailSelectedFiberRoute => DetailSelectedFiberSensor is { } sensor &&
+        ReadDetailFiberRoutes().TryGetValue(sensor.SensorId, out var route)
+            ? route
+            : [];
+    private static bool IsFiberOptic(string? sensorType) =>
+        !string.IsNullOrWhiteSpace(sensorType) &&
+        (sensorType.Contains("fiber", StringComparison.OrdinalIgnoreCase) ||
+         sensorType.Contains("fbg", StringComparison.OrdinalIgnoreCase) ||
+         sensorType.Contains("fbq", StringComparison.OrdinalIgnoreCase));
+
+    private Dictionary<Guid, List<TwinModelRoutePoint>> ReadDetailFiberRoutes()
+    {
+        try
+        {
+            var environment = JsonSerializer.Deserialize<Dictionary<string, string?>>(
+                _editingStructure?.SiteEnvironmentJson ?? "{}", SourceJson) ?? [];
+            if (!environment.TryGetValue(FiberRoutesEnvironmentKey, out var raw) || string.IsNullOrWhiteSpace(raw))
+                return [];
+
+            var parsed = JsonSerializer.Deserialize<Dictionary<Guid, List<TwinModelRoutePoint>>>(raw, SourceJson) ?? [];
+            return parsed.ToDictionary(
+                pair => pair.Key,
+                pair => pair.Value.Where(IsValidRoutePoint).Take(200).ToList());
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+    }
+
+    private static bool IsValidRoutePoint(TwinModelRoutePoint point) =>
+        double.IsFinite(point.X) && double.IsFinite(point.Y) && double.IsFinite(point.Z) &&
+        Math.Abs(point.X) <= 10000 && Math.Abs(point.Y) <= 10000 && Math.Abs(point.Z) <= 10000;
     private bool HasManualSensorBinding => !string.IsNullOrWhiteSpace(_bindingDeviceId) || !string.IsNullOrWhiteSpace(_bindingStreamKey);
     private bool ShouldRegisterSourceSensor => _registerSourceSensor && (_sensorSourceKind == "camera" || HasManualSensorBinding);
     private bool ValidSensorBinding => !string.IsNullOrWhiteSpace(_bindingDeviceId)
@@ -192,6 +237,83 @@ public partial class Structures
         {
             _saveError = $"GLB sensör konumu kaydedilemedi. {ex.Message}";
             throw;
+        }
+    }
+
+    private async Task SaveDetailFiberRoutePointAsync(ModelPositionSelection position)
+    {
+        if (!CanManageSelectedStructure || _editingStructure is null)
+        {
+            _saveError = "Bu yapıda fiber optik güzergâhını düzenleme yetkiniz yok.";
+            return;
+        }
+
+        var sensor = _editingStructure.Sensors?.FirstOrDefault(item => item.SensorId == position.SensorId);
+        if (sensor is null || !IsFiberOptic(sensor.SensorType))
+        {
+            _saveError = "Kablo güzergâhı yalnız fiber optik sensörler için tanımlanabilir.";
+            return;
+        }
+
+        var point = new TwinModelRoutePoint(position.PositionX, position.PositionY, position.PositionZ);
+        if (!IsValidRoutePoint(point))
+        {
+            _saveError = "Fiber optik hat noktası geçersiz.";
+            return;
+        }
+
+        var routes = ReadDetailFiberRoutes();
+        if (!routes.TryGetValue(sensor.SensorId, out var route))
+            routes[sensor.SensorId] = route = [];
+        if (route.Count >= 200)
+        {
+            _saveError = "Bir fiber optik güzergâhı en fazla 200 noktadan oluşabilir.";
+            return;
+        }
+        if (route.LastOrDefault() is { } last && Math.Sqrt(Math.Pow(last.X - point.X, 2) + Math.Pow(last.Y - point.Y, 2) + Math.Pow(last.Z - point.Z, 2)) < .01)
+        {
+            _saveError = "Bu nokta güzergâhtaki son noktayla aynı.";
+            return;
+        }
+
+        route.Add(point);
+        await PersistDetailFiberRoutesAsync(routes, $"{sensor.EffectiveDisplayName} kablo güzergâhına {route.Count}. nokta eklendi.");
+    }
+
+    private async Task RemoveLastDetailFiberRoutePointAsync()
+    {
+        if (!CanManageSelectedStructure || DetailSelectedFiberSensor is not { } sensor) return;
+        var routes = ReadDetailFiberRoutes();
+        if (!routes.TryGetValue(sensor.SensorId, out var route) || route.Count == 0) return;
+        route.RemoveAt(route.Count - 1);
+        if (route.Count == 0) routes.Remove(sensor.SensorId);
+        await PersistDetailFiberRoutesAsync(routes, $"{sensor.EffectiveDisplayName} kablo güzergâhının son noktası kaldırıldı.");
+    }
+
+    private async Task ClearDetailFiberRouteAsync()
+    {
+        if (!CanManageSelectedStructure || DetailSelectedFiberSensor is not { } sensor) return;
+        var routes = ReadDetailFiberRoutes();
+        if (!routes.Remove(sensor.SensorId)) return;
+        await PersistDetailFiberRoutesAsync(routes, $"{sensor.EffectiveDisplayName} kablo güzergâhı temizlendi.");
+    }
+
+    private async Task PersistDetailFiberRoutesAsync(Dictionary<Guid, List<TwinModelRoutePoint>> routes, string notice)
+    {
+        if (_editingStructure is null) return;
+        try
+        {
+            var environment = JsonSerializer.Deserialize<Dictionary<string, string?>>(
+                _editingStructure.SiteEnvironmentJson ?? "{}", SourceJson) ?? [];
+            environment[FiberRoutesEnvironmentKey] = JsonSerializer.Serialize(routes, SourceJson);
+            _editingStructure.SiteEnvironmentJson = JsonSerializer.Serialize(environment, SourceJson);
+            await StructureUC.UpdateMetadataAsync(_editingStructure.Id, _editingStructure);
+            _saveError = null;
+            _setupNotice = notice;
+        }
+        catch (Exception ex)
+        {
+            _saveError = $"Fiber optik kablo güzergâhı kaydedilemedi. {ex.Message}";
         }
     }
 

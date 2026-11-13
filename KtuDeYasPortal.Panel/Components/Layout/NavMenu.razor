@@ -6,15 +6,15 @@
 <button class="dy-mobile-toggle" @onclick="() => _expanded = !_expanded" aria-expanded="@_expanded" aria-label="Gezinme menüsünü aç veya kapat">Menü</button>
 <nav class="dy-nav @(_expanded ? "" : "collapsed")" aria-label="Ana gezinme">
     <div class="dy-nav-label">BARAJ VE SENSÖR YÖNETİMİ</div>
-    @if (Can("menu.structures")) { <NavLink href="structures"><span class="bi bi-building" aria-hidden="true"></span>Barajlar ve saha kurulumu</NavLink> }
-    @if (Can("menu.sensors")) { <NavLink href="sensor-assignment"><span class="bi bi-diagram-3" aria-hidden="true"></span>Sensör envanteri</NavLink> }
-    @if (Can("baraj.sensor-setup")) { <NavLink href="sensor-setup"><span class="bi bi-check2-circle" aria-hidden="true"></span>Bağlantı ve kurulum kontrolü</NavLink> }
+    @if (Can("menu.structures")) { <NavLink href="structures"><span class="bi bi-building" aria-hidden="true"></span>Barajlar ve Saha Kurulumu</NavLink> }
+    @if (Can("menu.sensors")) { <NavLink href="sensor-assignment"><span class="bi bi-diagram-3" aria-hidden="true"></span>Sensör Envanteri</NavLink> }
+    @if (Can("baraj.sensor-setup")) { <NavLink href="sensor-setup"><span class="bi bi-check2-circle" aria-hidden="true"></span>Bağlantı ve Kurulum Kontrolü</NavLink> }
     <div class="dy-nav-label">İZLEME</div>
     @if (Can("menu.digital-twin")) { <NavLink href="digital-twin"><span class="bi bi-box" aria-hidden="true"></span>Dijital İkiz</NavLink> }
-    @if (Can("menu.dashboard")) { <NavLink href="sensor-dashboard"><span class="bi bi-activity" aria-hidden="true"></span>Ölçümler ve grafikler</NavLink> }
-    @if (Can("menu.alerts")) { <NavLink href="field-alerts"><span class="bi bi-bell" aria-hidden="true"></span>Sahadan gelen alarmlar @if (AlertState.FieldAlertCount > 0) { <span class="badge bg-warning text-dark">@AlertState.FieldAlertCount</span> }</NavLink> }
-    @if (Can("menu.alerts")) { <NavLink href="stakeholder-alerts"><span class="bi bi-chat-square-text" aria-hidden="true"></span>İletilen incelemeler</NavLink> }
-    @if (Can("platform.admin")) { <NavLink href="support-requests"><span class="bi bi-life-preserver" aria-hidden="true"></span>Destek talepleri</NavLink> }
+    @if (Can("menu.dashboard")) { <NavLink href="sensor-dashboard"><span class="bi bi-activity" aria-hidden="true"></span>Ölçümler ve Grafikler</NavLink> }
+    @if (Can("menu.alerts")) { <NavLink href="field-alerts"><span class="bi bi-bell" aria-hidden="true"></span>Sahadan Gelen Alarmlar @if (AlertState.FieldAlertCount > 0) { <span class="badge bg-warning text-dark">@AlertState.FieldAlertCount</span> }</NavLink> }
+    @if (Can("menu.alerts")) { <NavLink href="stakeholder-alerts"><span class="bi bi-chat-square-text" aria-hidden="true"></span>İletilen İncelemeler</NavLink> }
+    @if (Can("platform.admin")) { <NavLink href="support-requests"><span class="bi bi-life-preserver" aria-hidden="true"></span>Destek Talepleri</NavLink> }
     <div class="dy-nav-label">AYARLAR</div>
     @if (Can("platform.admin")) { <NavLink href="settings"><span class="bi bi-gear" aria-hidden="true"></span>Genel Ayarlar</NavLink> }
 </nav>

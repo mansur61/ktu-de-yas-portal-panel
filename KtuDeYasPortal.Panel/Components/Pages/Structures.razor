@@ -685,8 +685,33 @@
                                         OnSelect="OnDetailTwinSensorSelected"
                                         OnRemoveSensor="@(CanManageSelectedStructure ? RemoveSensorFromStructureAsync : default)"
                                         EnablePositionEditing="@CanManageSelectedStructure"
+                                        ShowPositionDetails="true"
                                         OnModelPositionSelected="SaveDetailModelPositionAsync"
+                                        EnableFiberRouteEditing="@(CanManageSelectedStructure && DetailSelectedFiberSensor is not null)"
+                                        OnFiberRoutePointSelected="SaveDetailFiberRoutePointAsync"
                                         OnLoadFailed="DetailCustomModelLoadFailed" />
+
+                    @if (DetailSelectedFiberSensor is { } fiberSensor)
+                    {
+                        <div class="fiber-route-editor">
+                            <div>
+                                <strong><span class="bi bi-bezier2 me-1"></span>Fiber optik kablo güzergâhı</strong>
+                                <small>@fiberSensor.EffectiveDisplayName · @DetailSelectedFiberRoute.Count nokta</small>
+                            </div>
+                            @if (CanManageSelectedStructure)
+                            {
+                                <p>GLB içindeki <em>Kablo hattına nokta ekle</em> düğmesine basın; sonra güzergâh üzerindeki her dönüş veya sabitleme noktasına tıklayın. Noktalar sırasıyla kaydedilir.</p>
+                                <div class="d-flex gap-2 flex-wrap">
+                                    <button class="btn btn-sm btn-outline-light" disabled="@(DetailSelectedFiberRoute.Count == 0)" @onclick="RemoveLastDetailFiberRoutePointAsync"><span class="bi bi-arrow-counterclockwise me-1"></span>Son noktayı kaldır</button>
+                                    <button class="btn btn-sm btn-outline-danger" disabled="@(DetailSelectedFiberRoute.Count == 0)" @onclick="ClearDetailFiberRouteAsync"><span class="bi bi-trash me-1"></span>Güzergâhı temizle</button>
+                                </div>
+                            }
+                            else
+                            {
+                                <p>Bu fiber optik sensörün kaydedilmiş güzergâhı GLB üzerinde seçildiğinde görüntülenir.</p>
+                            }
+                        </div>
+                    }
                 }
                 else if (!string.IsNullOrWhiteSpace(_editingStructure.ModelUrl))
                 {

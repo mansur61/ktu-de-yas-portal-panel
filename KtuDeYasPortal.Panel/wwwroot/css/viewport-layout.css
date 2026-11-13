@@ -136,8 +136,15 @@ body::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;ba
   .structures-page .responsive-collection-toolbar .adaptive-pagination span{margin-right:3px}
   .structures-page .responsive-collection-toolbar .adaptive-pagination button{min-width:28px;min-height:28px;padding:3px 6px;border-radius:6px}
   .structures-page .responsive-grid{flex:1;min-height:0;overflow:hidden;align-content:start!important}
-  /* Kartlardaki tüm bilgiler seçili yükseklikte görünür; kart içi kaydırma yok. */
-  .structures-page .responsive-grid-item .structure-card-body{overflow:hidden!important}
+  /*
+     Grid sayfalama hesabı için ayrılan satır yüksekliği kartın yüksekliği olmak
+     zorunda değil. Kartlar içerik kadar yüksek kalır; böylece tek kayıtta
+     aksiyon ikonlarının altında büyük beyaz boşluk oluşmaz. Yeni rozet veya
+     aksiyon eklendiğinde kart da doğal olarak büyür.
+  */
+  .structures-page .responsive-grid-item{overflow:visible;align-self:start}
+  .structures-page .responsive-grid-item>.structure-card{height:auto!important;align-self:start}
+  .structures-page .responsive-grid-item .structure-card-body{flex:0 0 auto;overflow:visible!important}
   .structures-page .responsive-grid-item .structure-card-actions{margin-top:8px!important}
 }
 

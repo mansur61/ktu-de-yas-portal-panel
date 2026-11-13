@@ -14,6 +14,7 @@
 @inject IStructureSimulationClient StructureSimClient
 @inject ITimeseriesRepository TimeseriesRepo
 @inject IConfiguration Configuration
+@inject DockerHubDeploymentImageResolver DeploymentImages
 @inject IJSRuntime JS
 @inject NavigationManager Nav
 @implements IAsyncDisposable
@@ -2725,9 +2726,20 @@
         structure.Name = _setupName.Trim();
         structure.NodeRedUrl = BuildNodeRedPublicUrl();
         structure.EdgeApiUrl = BuildDeploymentPublicUrl(_newEdgeApiUrl, _samePcEdgePort);
+        IReadOnlyDictionary<string, string> latestImages;
+        try
+        {
+            latestImages = await DeploymentImages.ResolveLatestAsync();
+        }
+        catch (Exception ex)
+        {
+            _saveError = $"Docker Hub'dan güncel saha imajları alınamadı; eski imajlarla paket oluşturulmadı. Bağlantıyı kontrol edip tekrar deneyin. {ex.Message}";
+            return;
+        }
+
         var edgeConfig = BuildEdgeConfigJson(structure);
         var sensorIdMap = BuildSensorIdMap(structure.Sensors);
-        var environment = BuildSiteEnvironmentEnv(sensorIdMap);
+        var environment = BuildSiteEnvironmentEnv(sensorIdMap, latestImages);
         await using var output = new MemoryStream();
         using (var archive = new System.IO.Compression.ZipArchive(output, System.IO.Compression.ZipArchiveMode.Create, true))
         {
@@ -3530,7 +3542,7 @@
                 private string GetEnv(string key) => _siteEnvironment.TryGetValue(key, out var value) ? value ?? string.Empty : string.Empty;
                 private void SetEnv(string key, string? value) => _siteEnvironment[key] = value ?? string.Empty;
 
-                private string BuildSiteEnvironmentEnv(string sensorIdMap)
+                private string BuildSiteEnvironmentEnv(string sensorIdMap, IReadOnlyDictionary<string, string>? deploymentImages = null)
                 {
                     var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                     {
@@ -3545,6 +3557,12 @@
 
                     foreach (var field in SiteEnvironmentFields)
                         values[field.Key] = field.Key == "DEYAS_BRIDGE_TCP_SOURCES" ? BuildTcpSourcesJson() : GetEnv(field.Key);
+
+                    if (deploymentImages is not null)
+                    {
+                        foreach (var (key, image) in deploymentImages)
+                            values[key] = image;
+                    }
 
                     foreach (var (key, basis, port) in new[] {
                         ("CENTRAL_VIDEO_API_BASE_URL", "CENTRAL_TIMESERIES_API_BASE_URL", 5010),

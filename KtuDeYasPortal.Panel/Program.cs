@@ -32,6 +32,13 @@ builder.Services.AddAuthentication("panel-installation")
 builder.Services.AddSingleton<PanelServiceSession>();
 builder.Services.AddTransient<PanelServiceTokenHandler>();
 builder.Services.AddHttpClient("panel-auth-login",c=>{c.BaseAddress=new Uri(builder.Configuration["Services:AuthApi"]??"http://localhost:5100");c.Timeout=TimeSpan.FromSeconds(15);});
+builder.Services.AddHttpClient("docker-hub", c =>
+{
+    c.BaseAddress = new Uri("https://hub.docker.com/");
+    c.Timeout = TimeSpan.FromSeconds(10);
+    c.DefaultRequestHeaders.UserAgent.ParseAdd("DEYAS-Panel-Deployment/1.0");
+});
+builder.Services.AddScoped<DockerHubDeploymentImageResolver>();
 builder.Services.AddDataProtection().SetApplicationName("ktu-deyas-panel")
     .PersistKeysToFileSystem(new DirectoryInfo(builder.Configuration["DataProtection:KeysPath"] ?? Path.Combine(builder.Environment.ContentRootPath, "data-protection-keys")));
 

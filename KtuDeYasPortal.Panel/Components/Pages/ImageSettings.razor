@@ -191,6 +191,11 @@
             <p class="text-muted small mb-3">Portal ve yönetim panelinin sol menüsünde kullanılır. Logo yoksa standart DSİ logosu gösterilir.</p>
             <img src="@($"/institutional-logo?v={_logoVersion}")"
                  alt="Güncel kurumsal logo" class="asset-preview mb-3" />
+            <label class="form-label small">Menü alt başlığı</label>
+            <div class="input-group input-group-sm mb-3">
+                <input class="form-control" maxlength="200" @bind="_institutionalMenuSubtitle" aria-label="Kurumsal menü alt başlığı" />
+                <button class="btn btn-outline-success" type="button" @onclick="SaveInstitutionalMenuSubtitleAsync" disabled="@_busy">Kaydet</button>
+            </div>
             <label class="form-label small">PNG veya JPEG yükle</label>
             <InputFile OnChange="UploadLogo" accept="image/png,image/jpeg" disabled="@_busy" class="form-control form-control-sm" />
         </section>
@@ -228,6 +233,7 @@
 
     private long    _backgroundVersion = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
     private long    _logoVersion = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+    private string _institutionalMenuSubtitle = "Devlet Su İşleri Genel Müdürlüğü";
 
     private Structure? ImageStructure  => _structures.FirstOrDefault(s => s.Id.ToString() == _imageStructureId);
     private Structure? ModelStructure  => _structures.FirstOrDefault(s => s.Id.ToString() == _modelStructureId);
@@ -238,6 +244,7 @@
     private sealed record ImageResult(string? ImageUrl);
     private sealed record ModelResult(string? ModelUrl);
     private sealed record ErrorResult(string? Error);
+    private sealed record BrandingResult(string? MenuSubtitle);
 
     protected override async Task OnInitializedAsync()
     {
@@ -248,6 +255,8 @@
             try   { _structures = await Structures.GetAllWithSensorsAsync(); }
             catch { _structures = await Structures.GetAllAsync(); }
             _defaultImageUrl = (await api.GetFromJsonAsync<ImageResult>("api/image-assets/default"))?.ImageUrl;
+            _institutionalMenuSubtitle = (await api.GetFromJsonAsync<BrandingResult>("api/image-assets/branding"))?.MenuSubtitle
+                ?? _institutionalMenuSubtitle;
         }
         catch (Exception ex) { _error = $"Görsel ayarları yüklenemedi: {ex.Message}"; return; }
 
@@ -455,6 +464,28 @@
             _success = "Kurumsal logo kaydedildi.";
         }
         catch { _error = "Logo kaydedilemedi."; }
+        finally { _busy = false; }
+    }
+
+    private async Task SaveInstitutionalMenuSubtitleAsync()
+    {
+        if (_busy) return;
+        _busy = true; _error = null; _success = null;
+        try
+        {
+            var subtitle = _institutionalMenuSubtitle.Trim();
+            if (subtitle.Length == 0) { _error = "Menü alt başlığı boş bırakılamaz."; return; }
+            using var response = await Clients.CreateClient("timeseries-api").PutAsJsonAsync(
+                "api/image-assets/branding", new BrandingResult(subtitle));
+            if (!response.IsSuccessStatusCode)
+            {
+                _error = (await response.Content.ReadFromJsonAsync<ErrorResult>())?.Error ?? "Menü alt başlığı kaydedilemedi.";
+                return;
+            }
+            _institutionalMenuSubtitle = (await response.Content.ReadFromJsonAsync<BrandingResult>())?.MenuSubtitle ?? subtitle;
+            _success = "Kurumsal menü alt başlığı kaydedildi.";
+        }
+        catch { _error = "Menü alt başlığı kaydedilemedi."; }
         finally { _busy = false; }
     }
 }

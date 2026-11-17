@@ -74,7 +74,14 @@ public sealed class CameraDeploymentSettings
 
             cameras.Add(camera.Id, config);
         }
-        return new JsonObject { ["defaultCameraMode"] = "remote", ["cameras"] = cameras }.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+        // Aynı saha bilgisayarındaki USB kameralar doğrudan okunur (local).
+        // Ayrı bir kamera bilgisayarı/LattePanda varsa MQTT aktarımı kullanılır
+        // (remote). Her kamera kendi mode alanını taşıdığı için karma kurulumda
+        // remote güvenli varsayılan olarak kalır.
+        var defaultMode = Cameras.Count > 0 && Cameras.All(camera => camera.Mode == "local")
+            ? "local"
+            : "remote";
+        return new JsonObject { ["defaultCameraMode"] = defaultMode, ["cameras"] = cameras }.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
     }
 
     public string PublisherJson(CameraDeploymentEntry camera, Guid structureId)

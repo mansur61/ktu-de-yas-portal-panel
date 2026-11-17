@@ -600,8 +600,9 @@
                                         <div class="col-md-4"><label class="form-label small">Bu kurulumun kısa adı</label><input class="form-control form-control-sm" @bind="_samePcProjectName" placeholder="saha-a" /><div class="form-text">İkinci ZIP'te farklı olmalı: <code>saha-b</code>.</div></div>
                                         <div class="col-md-4"><label class="form-label small">Edge API host portu</label><input class="form-control form-control-sm" type="number" @bind="_samePcEdgePort" min="1024" max="65535" /><div class="form-text">Mevcut: <code>5080</code>. İkinci örnek: <code>5081</code>.</div></div>
                                         <div class="col-md-4"><label class="form-label small">Node-RED host portu</label><input class="form-control form-control-sm" type="number" @bind="_samePcNodeRedPort" min="1024" max="65535" /><div class="form-text">Mevcut: <code>1880</code>. İkinci örnek: <code>1881</code>.</div></div>
+                                        <div class="col-md-4"><label class="form-label small">Saha portalı host portu</label><input class="form-control form-control-sm" type="number" @bind="_samePcPortalPort" min="1024" max="65535" /><div class="form-text">Mevcut: <code>5050</code>. İkinci örnek: <code>5051</code>.</div></div>
                                     </div>
-                                    <div class="form-text mt-2">İlk yapıda önce ortak altyapı, sonra bu yapının <code>docker-compose.structure.yml</code> komutu çalışır. Sonraki yapılarda yalnız ilgili <code>docker-compose.structure.yml</code> komutu çalışır; proje adı, Edge ve Node-RED portları farklı olmalıdır.</div>
+                                    <div class="form-text mt-2">İlk yapıda önce ortak altyapı, sonra bu yapının <code>docker-compose.structure.yml</code> komutu çalışır. Sonraki yapılarda yalnız ilgili <code>docker-compose.structure.yml</code> komutu çalışır; proje adı, Edge, Node-RED ve saha portalı portları farklı olmalıdır.</div>
                             </div>
                             <button class="btn btn-primary" @onclick="() => _packageSection = 2">Devam: merkez bağlantısı →</button></div></div>
                             <div class="dy-package-step"><button class="dy-package-toggle" @onclick="() => _packageSection = 2" aria-expanded="@(_packageSection == 2)"><span>2</span><strong>Merkeze nasıl bağlanacak?</strong><small>Önceden tanımlı merkez adresleri</small></button><div class="p-3" hidden="@(_packageSection != 2)"><p>Merkez adresleri hazır gelir. Kurulum sorumlusu farklı adres verdiyse değiştirin. Sensör kaynaklarını önceki adımda tanımladınız.</p><div class="row g-3">
@@ -1503,6 +1504,7 @@
     private string           _samePcProjectName = "saha-a";
     private int              _samePcEdgePort = 5080;
     private int              _samePcNodeRedPort = 1880;
+    private int              _samePcPortalPort = 5050;
     private int              _samePcMqttPort = 1883;
     private int              _samePcEmqxDashboardPort = 18083;
     private int              _samePcTimescaleDbPort = 5432;
@@ -2401,6 +2403,7 @@
         _samePcProjectName      = "saha-a";
         _samePcEdgePort         = 5080;
         _samePcNodeRedPort      = 1880;
+        _samePcPortalPort       = 5050;
         _samePcMqttPort         = 1883;
         _samePcEmqxDashboardPort = 18083;
         _samePcTimescaleDbPort   = 5432;
@@ -2610,6 +2613,7 @@
             SetEnv("DEYAS_SETUP_PROJECT_NAME", _samePcProjectName);
             SetEnv("EDGE_API_HOST_PORT", _samePcEdgePort.ToString());
             SetEnv("NODERED_HOST_PORT", _samePcNodeRedPort.ToString());
+            SetEnv("PORTAL_HOST_PORT", _samePcPortalPort.ToString());
             structure.Name = _setupName.Trim();
             structure.NodeRedUrl = BuildNodeRedPublicUrl();
             structure.EdgeApiUrl = BuildDeploymentPublicUrl(_newEdgeApiUrl, _samePcEdgePort);
@@ -2747,6 +2751,7 @@
             if (!_samePcDeployment)
                 AddDeploymentTemplateEntry(archive, "docker-compose.shared-services.yml");
             AddDeploymentTemplateEntry(archive, "DOCKERLI_SAHA_KURULUMU.md");
+            AddDeploymentTemplateEntry(archive, "KAMERA_AKIS_OZET.md");
             var scenarioPath = Path.Combine(AppContext.BaseDirectory, "DeploymentTemplates", "saha-deployment", "SENARYOLAR.md");
             AddPackageEntry(archive, "ONCE_BUNU_OKUYUN.md", BuildFriendlyInstallGuide() + "\n\n" + (File.Exists(scenarioPath) ? File.ReadAllText(scenarioPath) : ""));
             AddPackageEntry(archive, "KAMERA_KURULUM.txt", BuildCameraGuide());
@@ -2789,8 +2794,9 @@
     }
 
     private string BuildCameraGuide() =>
-        "Aynı bilgisayar / USB: Linux saha Docker kurulumu kullanılır. Kamera cihazı Compose'a eklenir; saha-media-bridge imajında FFmpeg hazırdır. Host üzerine ayrıca kurulmaz.\n" +
-        "Başka bilgisayar / USB: Kamera seçilmişse dockerless-camera/BASLAT.md ile ilerleyin. Ortam dosyası, kamera ayarı ve servis dockerless-camera/ içindedir.\n" +
+        "Özet için ZIP içindeki KAMERA_AKIS_OZET.md dosyasını okuyun. JSON dosyaları yorum kabul etmez; açıklamalar bu dosyadadır.\n" +
+        "Aynı bilgisayar / USB: `mode=local`, `sourceType=usb` kullanılır. Linux saha Docker kurulumu kamera cihazını Compose'a ekler; saha-media-bridge imajında FFmpeg hazırdır.\n" +
+        "Başka bilgisayar / USB (LattePanda): saha dosyasında `mode=remote`, `sourceType=mqtt`; LattePanda dosyasında `mode=remote`, `sourceType=usb` kullanılır. dockerless-camera/BASLAT.md ile ilerleyin.\n" +
         "Ağ kamerası: RTSP adresi Docker .env dosyasındadır. Saha medya servisi kamerayı ağ üzerinden okur.\n" +
         "İvmeölçer UDP ayarları kamera konumundan bağımsızdır. Canlı görüntü RTSP/TCP ile merkeze aktarılır; mevcut MQTT kayıt akışı korunur.\n";
 
@@ -3592,6 +3598,7 @@
                     }
                     values["NODERED_HOST_PORT"] = _samePcNodeRedPort.ToString();
                     values["EDGE_API_HOST_PORT"] = _samePcEdgePort.ToString();
+                    values["PORTAL_HOST_PORT"] = _samePcPortalPort.ToString();
 
                     var deploymentRoot = Path.Combine(AppContext.BaseDirectory, "DeploymentTemplates", "saha-deployment");
                     var composeFiles = _samePcDeployment

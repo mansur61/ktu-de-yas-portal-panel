@@ -159,6 +159,7 @@ public partial class Structures
             _samePcProjectName = string.IsNullOrWhiteSpace(GetEnv("DEYAS_SETUP_PROJECT_NAME")) ? "saha-a" : GetEnv("DEYAS_SETUP_PROJECT_NAME");
             if (int.TryParse(GetEnv("EDGE_API_HOST_PORT"), out var edgePort)) _samePcEdgePort = edgePort;
             if (int.TryParse(GetEnv("NODERED_HOST_PORT"), out var nodeRedPort)) _samePcNodeRedPort = nodeRedPort;
+            if (int.TryParse(GetEnv("PORTAL_HOST_PORT"), out var portalPort)) _samePcPortalPort = portalPort;
             var sourceLabels = GetEnv("DEYAS_SETUP_UDP_LABELS");
             if (!string.IsNullOrWhiteSpace(sourceLabels)) {
                 var labels = JsonSerializer.Deserialize<List<FriendlyUdpSource>>(sourceLabels) ?? [];
@@ -227,9 +228,10 @@ public partial class Structures
     private int _packageSection = 1;
     private bool ValidatePackageInputs()
     {
+        var hostPorts = new[] { _samePcEdgePort, _samePcNodeRedPort, _samePcPortalPort };
         if (!System.Text.RegularExpressions.Regex.IsMatch(_samePcProjectName, "^[a-z0-9][a-z0-9_-]*$")
-            || _samePcEdgePort is < 1024 or > 65535 || _samePcNodeRedPort is < 1024 or > 65535 || _samePcEdgePort == _samePcNodeRedPort) {
-            _packageSection = 1; _saveError = "Kurulumun kısa adını küçük harf, sayı veya tireyle yazın. İki bağlantı numarası 1024–65535 arasında ve birbirinden farklı olmalı."; return false;
+            || hostPorts.Any(port => port is < 1024 or > 65535) || hostPorts.Distinct().Count() != hostPorts.Length) {
+            _packageSection = 1; _saveError = "Kurulumun kısa adını küçük harf, sayı veya tireyle yazın. Edge, Node-RED ve saha portalı portları 1024–65535 arasında ve birbirinden farklı olmalı."; return false;
         }
         foreach (var key in new[] { "CENTRAL_AUTH_API_BASE_URL", "CENTRAL_TIMESERIES_API_BASE_URL" })
             if (!Uri.TryCreate(GetEnv(key), UriKind.Absolute, out var url) || url.Scheme is not ("http" or "https")) {

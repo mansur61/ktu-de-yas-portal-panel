@@ -120,6 +120,10 @@
             <p class="mt-2 text-muted">Yükleniyor…</p>
         </div>
     }
+    else if (_structureLoadFailed)
+    {
+        <button class="btn btn-outline-secondary" @onclick="LoadStructuresAsync">Yeniden dene</button>
+    }
     else if (_structures.Count == 0)
     {
         <div class="alert alert-info d-flex align-items-center gap-3">
@@ -2022,8 +2026,12 @@
     }
 
     // ── Data ──────────────────────────────────────────────────────────────────
+    private bool _structureLoadFailed;
+
     private async Task LoadStructuresAsync()
     {
+        if (_structureLoadFailed) _simulationErrorMessage = null;
+        _structureLoadFailed = false;
         try
         {
             _structures = (await StructureUC.GetAllAsync())
@@ -2034,6 +2042,7 @@
         }
         catch (Exception ex)
         {
+            _structureLoadFailed = true;
             _structures = new();
             _simulationErrorMessage = $"Yapılar merkez API'den alınamadı: {ex.Message}";
             return;

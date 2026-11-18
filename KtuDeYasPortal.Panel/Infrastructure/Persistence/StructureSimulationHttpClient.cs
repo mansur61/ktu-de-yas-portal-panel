@@ -130,7 +130,7 @@ public sealed class StructureSimulationHttpClient : IStructureSimulationClient
             || (baseAddress.Scheme != Uri.UriSchemeHttp && baseAddress.Scheme != Uri.UriSchemeHttps))
             throw new InvalidOperationException("Yapının Edge URL değeri geçerli bir http/https adresi değil.");
 
-        var http = _factory.CreateClient("edge-api");
+        var http = _factory.CreateClient("field-lifecycle");
         http.BaseAddress = baseAddress;
         return http;
     }

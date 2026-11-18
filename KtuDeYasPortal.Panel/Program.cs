@@ -13,6 +13,8 @@ using KtuDeYasPortal.Panel.Infrastructure.Persistence;
 using KtuDeYasPortal.Panel.Infrastructure.Realtime;
 
 var builder = WebApplication.CreateBuilder(args);
+if (builder.Environment.IsDevelopment() && builder.Configuration["Panel:TokenPath"] is null)
+    builder.Configuration["Panel:TokenPath"] = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "deyas", "panel-session", "access-token");
 builder.Services.AddScoped<DeYas.DigitalTwin.IDigitalTwinSource, PanelTwinSource>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<PanelApiClients>();
@@ -29,9 +31,6 @@ builder.Services.AddAuthorization(options =>
 });
 builder.Services.AddAuthentication("panel-installation")
     .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions,PanelInstallationAuthentication>("panel-installation",_=>{});
-builder.Services.AddSingleton<PanelServiceSession>();
-builder.Services.AddTransient<PanelServiceTokenHandler>();
-builder.Services.AddHttpClient("panel-auth-login",c=>{c.BaseAddress=new Uri(builder.Configuration["Services:AuthApi"]??"http://localhost:5100");c.Timeout=TimeSpan.FromSeconds(15);});
 builder.Services.AddHttpClient("docker-hub", c =>
 {
     c.BaseAddress = new Uri("https://hub.docker.com/");
@@ -53,33 +52,36 @@ builder.Services.Configure<GrafanaOptions>(
     builder.Configuration.GetSection(GrafanaOptions.Section));
 
 // ── HTTP Clients ───────────────────────────────────────────────────────────────
+builder.Services.AddHttpClient("field-lifecycle");
+builder.Services.AddTransient<CentralApiBearerHandler>();
+
 builder.Services.AddHttpClient("timeseries-api", c =>
 {
     c.BaseAddress = new Uri(
         builder.Configuration["Services:TimeseriesApi"] ?? "http://localhost:5000");
     c.Timeout = TimeSpan.FromSeconds(30);
-}).AddHttpMessageHandler<PanelServiceTokenHandler>();
+}).AddHttpMessageHandler<CentralApiBearerHandler>();
 
 builder.Services.AddHttpClient("auth-api", c =>
 {
     c.BaseAddress = new Uri(
         builder.Configuration["Services:AuthApi"] ?? "http://localhost:5100");
     c.Timeout = TimeSpan.FromSeconds(30);
-}).AddHttpMessageHandler<PanelServiceTokenHandler>();
+}).AddHttpMessageHandler<CentralApiBearerHandler>();
 
 builder.Services.AddHttpClient("edge-api", c =>
 {
     c.BaseAddress = new Uri(
         builder.Configuration["Services:EdgeApi"] ?? "http://localhost:5080");
     c.Timeout = TimeSpan.FromSeconds(30);
-}).AddHttpMessageHandler<PanelServiceTokenHandler>();
+}).AddHttpMessageHandler<CentralApiBearerHandler>();
 
 builder.Services.AddHttpClient("video-api", c =>
 {
     c.BaseAddress = new Uri(
         builder.Configuration["Services:VideoApi"] ?? "http://localhost:5010");
     c.Timeout = TimeSpan.FromSeconds(30);
-}).AddHttpMessageHandler<PanelServiceTokenHandler>();
+}).AddHttpMessageHandler<CentralApiBearerHandler>();
 
 builder.Services.AddHttpClient("alert-config-api", c =>
 {
@@ -89,7 +91,7 @@ builder.Services.AddHttpClient("alert-config-api", c =>
             ? "http://localhost:5020"
             : "http://alert-config-service:5020"));
     c.Timeout = TimeSpan.FromSeconds(30);
-}).AddHttpMessageHandler<PanelServiceTokenHandler>();
+}).AddHttpMessageHandler<CentralApiBearerHandler>();
 
 // ── Panel's own SignalR hub (structure group management for Structures page) ──
 builder.Services.AddSignalR(options =>

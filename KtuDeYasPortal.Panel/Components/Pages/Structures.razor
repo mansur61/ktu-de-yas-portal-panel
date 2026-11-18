@@ -2762,7 +2762,7 @@
             {
                 var folder = $"camera-docker/{camera.Id}";
                 AddPackageEntry(archive, folder + "/media-config.json", _cameraSettings.PublisherJson(camera, _createdStructureId));
-                AddPackageEntry(archive, folder + "/docker-compose.yml", BuildCameraDockerCompose(camera));
+                AddPackageEntry(archive, folder + "/docker-compose.yml", BuildCameraDockerCompose(camera, latestImages["SAHA_MEDIA_BRIDGE_IMAGE"]));
                 AddPackageEntry(archive, folder + "/saha-media-bridge.env", BuildStandaloneCameraEnvironment(camera).Replace("$", "$$"));
                 AddPackageEntry(archive, folder + "/BASLAT.md", "# Linux USB kamera — Docker\nBu klasörü kamera bilgisayarına kopyalayın. Aynı klasörde:\n```sh\ndocker compose pull\ndocker compose up -d\ndocker compose logs --tail=50 saha-media-bridge\n```\nFFmpeg ve Python imajdadır. USB cihazını başka uygulamalarda kapatın. Ortam dosyasındaki MQTT adresleri bu bilgisayardan erişilebilir olmalıdır.\n");
             }

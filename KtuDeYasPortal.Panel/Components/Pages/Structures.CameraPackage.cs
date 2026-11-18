@@ -21,6 +21,9 @@ public partial class Structures
             ["EDGE_FORWARDING_ENABLED"] = "true",
             ["SAHA_LOCAL_MQTT_ENABLED"] = "true",
             ["DEYAS_BRIDGE_SENSOR_PROVISIONING_ENABLED"] = "true",
+            // Yeni bir yapı kurmuyoruz: panelde oluşturulmuş yapıya yalnız
+            // Camera sensörü eklenir. Köprü yapı adını/slug'ını değiştiremez.
+            ["DEYAS_MEDIA_ATTACH_TO_EXISTING_STRUCTURE"] = "true",
             ["SAHA_MEDIA_CONFIG_PATH"] = $"dockerless-camera/cameras/{camera.Id}/media-config.json",
             ["MQTT_HOST"] = Uri.TryCreate(_newEdgeApiUrl, UriKind.Absolute, out var edge) ? edge.Host : "",
             ["MQTT_PORT"] = _samePcMqttPort.ToString(),
@@ -42,13 +45,13 @@ public partial class Structures
             string.Join("\n", values.Select(pair => $"{pair.Key}={Quote(pair.Value)}")) + "\n";
     }
 
-    private static string BuildCameraDockerCompose(CameraDeploymentEntry camera) => System.Text.Json.JsonSerializer.Serialize(new
+    private static string BuildCameraDockerCompose(CameraDeploymentEntry camera, string mediaImage) => System.Text.Json.JsonSerializer.Serialize(new
     {
         services = new Dictionary<string, object>
         {
             ["saha-media-bridge"] = new
             {
-                image = "mansur61/ktu-saha-media-bridge:dsi-2026.10.21-media-r1",
+                image = mediaImage,
                 restart = "unless-stopped",
                 env_file = new[] { "saha-media-bridge.env" },
                 environment = new { SAHA_MEDIA_CONFIG_PATH = "/config/media-config.json" },

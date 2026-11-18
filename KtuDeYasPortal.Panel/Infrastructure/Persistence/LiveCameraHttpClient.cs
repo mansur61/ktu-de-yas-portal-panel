@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 
 namespace KtuDeYasPortal.Panel.Infrastructure.Persistence;
 
@@ -19,10 +20,10 @@ public sealed class LiveCameraHttpClient(PanelApiClients factory) : ILiveCameraC
 
     public async Task<LiveCameraSession> StartAsync(Guid structureId, string deviceId, CancellationToken ct = default)
     {
-        using var response = await _http.PostAsync(
-            $"api/live-cameras/{structureId:D}/{Uri.EscapeDataString(deviceId)}/sessions", null, ct);
+        using var response = await SendAsync(_http, client => client.PostAsync(
+            $"api/live-cameras/{structureId:D}/{Uri.EscapeDataString(deviceId)}/sessions", null, ct));
         if (!response.IsSuccessStatusCode)
-            throw new InvalidOperationException($"Canlı izleme başlatılamadı ({(int)response.StatusCode}).");
+            throw new InvalidOperationException(await ErrorMessageAsync("Canlı izleme", response, ct));
         return await response.Content.ReadFromJsonAsync<LiveCameraSession>(ct)
             ?? throw new InvalidOperationException("Canlı izleme oturum bilgisi alınamadı.");
     }
@@ -31,16 +32,52 @@ public sealed class LiveCameraHttpClient(PanelApiClients factory) : ILiveCameraC
     {
         using var captureClient = factory.CreateClient("video-api");
         captureClient.Timeout = TimeSpan.FromSeconds(200);
-        using var response = await captureClient.PostAsJsonAsync(
-            $"api/live-cameras/{structureId:D}/{Uri.EscapeDataString(deviceId)}/recordings", new { seconds, kind }, ct);
+        using var response = await SendAsync(captureClient, client => client.PostAsJsonAsync(
+            $"api/live-cameras/{structureId:D}/{Uri.EscapeDataString(deviceId)}/recordings", new { seconds, kind }, ct));
         if (!response.IsSuccessStatusCode)
-            throw new InvalidOperationException(CaptureErrorMessage(kind, response.StatusCode));
+            throw new InvalidOperationException(await ErrorMessageAsync(kind == "image" ? "Fotoğraf" : "Video kaydı", response, ct));
     }
 
-    private static string CaptureErrorMessage(string kind, HttpStatusCode statusCode)
+    private static async Task<HttpResponseMessage> SendAsync(
+        HttpClient client, Func<HttpClient, Task<HttpResponseMessage>> send)
     {
-        var assetName = kind == "image" ? "Fotoğraf" : "Video kaydı";
+        try
+        {
+            return await send(client);
+        }
+        catch (HttpRequestException ex)
+        {
+            var address = client.BaseAddress?.ToString().TrimEnd('/') ?? "tanımsız adres";
+            throw new InvalidOperationException(
+                $"Merkez video servisine ({address}) ulaşılamadı. video-service çalışıyor mu ve Services__VideoApi adresi doğru mu?", ex);
+        }
+    }
 
+    private static async Task<string> ErrorMessageAsync(string action, HttpResponseMessage response, CancellationToken ct)
+    {
+        var detail = await ReadErrorAsync(response, ct);
+        if (!string.IsNullOrWhiteSpace(detail))
+            return $"{action} başlatılamadı: {detail}";
+        return CaptureErrorMessage(action, response.StatusCode);
+    }
+
+    private static async Task<string?> ReadErrorAsync(HttpResponseMessage response, CancellationToken ct)
+    {
+        try
+        {
+            var raw = await response.Content.ReadAsStringAsync(ct);
+            if (string.IsNullOrWhiteSpace(raw)) return null;
+            using var json = JsonDocument.Parse(raw);
+            foreach (var field in new[] { "error", "detail", "message", "title" })
+                if (json.RootElement.TryGetProperty(field, out var value) && value.ValueKind == JsonValueKind.String)
+                    return value.GetString();
+        }
+        catch (JsonException) { }
+        return null;
+    }
+
+    private static string CaptureErrorMessage(string assetName, HttpStatusCode statusCode)
+    {
         return statusCode switch
         {
             HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden =>

@@ -70,11 +70,14 @@
     .op-structure-card {
         position: fixed;
         z-index: 1100;
+        top: 4.5rem;
+        right: 1rem;
         background: #fff;
         border-radius: 10px;
         box-shadow: 0 8px 32px rgba(0,0,0,.18);
-        width: 320px;
-        overflow: hidden;
+        width: min(340px, calc(100vw - 2rem));
+        max-height: calc(100dvh - 5.5rem);
+        overflow-y: auto;
         font-size: .85rem;
     }
     .op-structure-card-header {
@@ -84,6 +87,9 @@
         padding: .65rem 1rem;
         background: var(--dy-primary, #1a6b3c);
         color: #fff;
+        position: sticky;
+        top: 0;
+        z-index: 1;
     }
     .op-structure-card-header strong { flex: 1; font-size: .9rem; }
     .op-structure-card-header button {
@@ -130,7 +136,7 @@
             @if (_structures.Count == 0)
             { <span>Haritaya tıklayarak ilk barajı ekleyin</span> }
             else
-            { <span>Haritaya tıklayın → yeni baraj · Marker'a tıklayın → yapı detayı</span> }
+            { <span>Haritaya tıklayın → yeni baraj · Marker'a tıklayın → sağda yapı detayı</span> }
         </span>
         @if (_mapError is not null)
         {
@@ -147,11 +153,11 @@
 @* Yapı bilgi kartı *@
 @if (_selectedStructure is not null)
 {
-    <div class="op-structure-card" style="left:@(_cardX)px;top:@(_cardY)px">
+    <aside class="op-structure-card" role="dialog" aria-label="Seçili yapı detayı">
         <div class="op-structure-card-header">
             <span>@GetStructureEmoji(_selectedStructure.StructureType.ToString())</span>
             <strong>@_selectedStructure.Name</strong>
-            <button @onclick="CloseCard">&times;</button>
+            <button aria-label="Detayı kapat" @onclick="CloseCard">&times;</button>
         </div>
         <div class="op-structure-card-body">
             <div class="op-structure-card-row">
@@ -168,12 +174,12 @@
                     @(_selectedStructure.IsActive ? "Aktif" : "Pasif")
                 </span>
             </div>
-            @if (_selectedStructure.Latitude.HasValue) {
+            @if (_selectedStructure.Latitude.HasValue && _selectedStructure.Longitude.HasValue) {
                 <div class="op-structure-card-row">
                     <span class="label">Koordinat</span>
                     <span style="font-size:.75rem">
                         @_selectedStructure.Latitude.Value.ToString("F4"),
-                        @_selectedStructure.Longitude!.Value.ToString("F4")
+                        @_selectedStructure.Longitude.Value.ToString("F4")
                     </span>
                 </div>
             }
@@ -189,7 +195,7 @@
                 <span class="bi bi-check2-circle me-1"></span>Kurulum
             </a>
         </div>
-    </div>
+    </aside>
 }
 
 @* Yeni konum seçme ipucu *@
@@ -203,7 +209,6 @@
 @code {
     private List<Structure> _structures = [];
     private Structure? _selectedStructure;
-    private double _cardX, _cardY;
     private bool _showNewHint = true;
     private bool _mapInitialized;
     private string? _mapError;
@@ -259,13 +264,9 @@
         .ToList();
 
     [JSInvokable]
-    public void OnStructureMarkerClick(string structureId, double clientX, double clientY)
+    public void OnStructureMarkerClick(string structureId)
     {
         _selectedStructure = _structures.FirstOrDefault(s => s.Id.ToString() == structureId);
-        // Kart pencere dışına taşmasın
-        _cardX = Math.Min(clientX + 12, System.Math.Max(0, clientX - 332));
-        _cardY = Math.Min(clientY - 10, System.Math.Max(0, clientY - 10));
-        if (_cardX + 320 > 1400) _cardX = clientX - 332;
         StateHasChanged();
     }
 
@@ -277,7 +278,11 @@
         Nav.NavigateTo($"/structures?newLat={lat.ToString(System.Globalization.CultureInfo.InvariantCulture)}&newLng={lng.ToString(System.Globalization.CultureInfo.InvariantCulture)}&province={Uri.EscapeDataString(province)}&district={Uri.EscapeDataString(district)}&openWizard=1");
     }
 
-    private void CloseCard() { _selectedStructure = null; }
+    private async Task CloseCard()
+    {
+        _selectedStructure = null;
+        await JS.InvokeVoidAsync("clearOperationMapSelection");
+    }
 
     private static string GetStructureEmoji(string type) => type switch {
         "Dam"      => "🏔️",

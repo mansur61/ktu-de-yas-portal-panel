@@ -386,6 +386,12 @@ let opMarkersLayer = null;
 let opDotNet       = null;
 let opResizeObserver = null;
 let opProvinceCenters = new Map();
+let opProvinceLayers = new Map();
+let opCountryBounds = null;
+let opStructuresById = new Map();
+let opHoveredProvince = null;
+let opSelectedProvince = null;
+let opSelectedStructureId = null;
 
 const STRUCTURE_ICONS = {
     Dam:      { emoji: '🏔️', color: '#1a6b3c' },
@@ -400,6 +406,40 @@ const normalizeProvince = value => (value || '').toLocaleLowerCase('tr-TR').norm
 const hasValidCoordinates = structure => Number.isFinite(structure.lat) && Number.isFinite(structure.lng)
     && Math.abs(structure.lat) <= 90 && Math.abs(structure.lng) <= 180
     && (structure.lat !== 0 || structure.lng !== 0);
+
+function updateProvinceHighlight(provinceKey) {
+    const province = opProvinceLayers.get(provinceKey);
+    if (!province) return;
+    const highlighted = provinceKey === opHoveredProvince || provinceKey === opSelectedProvince;
+    province.setStyle({
+        fillColor: highlighted ? '#f6c945' : '#c8dbe9',
+        fillOpacity: highlighted ? 0.62 : 1
+    });
+    if (highlighted) province.bringToFront();
+}
+
+function setHoveredProvince(provinceKey) {
+    const previous = opHoveredProvince;
+    opHoveredProvince = provinceKey;
+    updateProvinceHighlight(previous);
+    updateProvinceHighlight(provinceKey);
+}
+
+function setSelectedOperationMapStructure(structureId) {
+    const previous = opSelectedProvince;
+    opSelectedStructureId = structureId;
+    const structure = opStructuresById.get(structureId);
+    opSelectedProvince = structure ? normalizeProvince(structure.province) : null;
+    updateProvinceHighlight(previous);
+    updateProvinceHighlight(opSelectedProvince);
+}
+
+function clearOperationMapSelection() {
+    const previous = opSelectedProvince;
+    opSelectedProvince = null;
+    opSelectedStructureId = null;
+    updateProvinceHighlight(previous);
+}
 
 function _opStructureIcon(type, isActive) {
     const def = STRUCTURE_ICONS[type] || STRUCTURE_ICONS.Other;
@@ -426,6 +466,7 @@ async function initOperationMap(elementId, structures, dotNetRef) {
     destroyOperationMap();
     opDotNet = dotNetRef;
     opProvinceCenters = new Map();
+    opProvinceLayers = new Map();
     opMap = L.map(container, {
         zoomControl: true,
         zoomSnap: 0.25,
@@ -442,14 +483,19 @@ async function initOperationMap(elementId, structures, dotNetRef) {
         },
         onEachFeature(feature, polygon) {
             const provinceName = feature.properties.il_adi;
+            const provinceKey = normalizeProvince(provinceName);
             const provinceBounds = polygon.getBounds();
-            opProvinceCenters.set(normalizeProvince(provinceName), provinceBounds.getCenter());
+            opProvinceCenters.set(provinceKey, provinceBounds.getCenter());
+            opProvinceLayers.set(provinceKey, polygon);
+            polygon.on('mouseover', () => setHoveredProvince(provinceKey));
+            polygon.on('mouseout', () => setHoveredProvince(null));
             provinceLabels.push({ polygon, provinceName, provinceBounds });
         }
     }).addTo(opMap);
 
     const bounds = provinceLayer.getBounds();
     if (!bounds.isValid()) throw new Error('Türkiye il sınırları haritaya eklenemedi.');
+    opCountryBounds = bounds;
     await new Promise(resolve => requestAnimationFrame(() => {
         opMap.invalidateSize();
         opMap.fitBounds(bounds, { padding: [14, 14] });
@@ -506,6 +552,7 @@ async function initOperationMap(elementId, structures, dotNetRef) {
     _addOpMarkers(structures);
 
     opMap.on('click', function (e) {
+        clearOperationMapSelection();
         const lat = e.latlng.lat;
         const lng = e.latlng.lng;
 
@@ -541,25 +588,32 @@ async function initOperationMap(elementId, structures, dotNetRef) {
 function _addOpMarkers(structures) {
     if (!opMarkersLayer) return;
     opMarkersLayer.clearLayers();
+    opStructuresById = new Map();
 
     const provinceOrder = new Map();
-    (structures || []).forEach(s => {
-        let point;
-        if (hasValidCoordinates(s)) {
-            point = L.latLng(s.lat, s.lng);
-        } else {
-            const provinceKey = normalizeProvince(s.province);
-            const center = opProvinceCenters.get(provinceKey);
-            if (!center) return;
-
-            const order = provinceOrder.get(provinceKey) || 0;
-            provinceOrder.set(provinceKey, order + 1);
-            const spread = Math.min(order, 3);
-            point = L.latLng(
-                center.lat + Math.sin(order * 2.4) * 0.06 * spread,
-                center.lng + Math.cos(order * 2.4) * 0.08 * spread
-            );
-        }
+    const orderedStructures = [...(structures || [])]
+        .sort((a, b) => String(a.id).localeCompare(String(b.id)));
+    orderedStructures.forEach(s => {
+        opStructuresById.set(s.id, s);
+        const provinceKey = normalizeProvince(s.province);
+        const center = opProvinceCenters.get(provinceKey);
+        const validCoordinates = hasValidCoordinates(s);
+        const exactPoint = validCoordinates ? L.latLng(s.lat, s.lng) : null;
+        const hasProvince = Boolean(center);
+        const pointWithinCountry = exactPoint && opCountryBounds.contains(exactPoint);
+        const anchor = center || (pointWithinCountry ? exactPoint : opCountryBounds.getCenter());
+        const highlightProvince = hasProvince ? provinceKey : null;
+        const groupKey = hasProvince ? provinceKey
+            : pointWithinCountry ? `point:${exactPoint.lat.toFixed(4)}:${exactPoint.lng.toFixed(4)}`
+            : '__unknown__';
+        const order = provinceOrder.get(groupKey) || 0;
+        provinceOrder.set(groupKey, order + 1);
+        const angle = order * 2.4;
+        const radius = order === 0 ? 0 : 46 + 4 * Math.floor(order / 6);
+        const anchorPixel = opMap.latLngToLayerPoint(anchor);
+        const point = radius
+            ? opMap.layerPointToLatLng(anchorPixel.add(L.point(Math.cos(angle) * radius, Math.sin(angle) * radius)))
+            : anchor;
 
         const marker = L.marker(point, {
             icon: _opStructureIcon(s.type, s.isActive),
@@ -569,21 +623,19 @@ function _addOpMarkers(structures) {
             riseOnHover: true
         });
 
+        marker.on('mouseover', () => setHoveredProvince(highlightProvince));
+        marker.on('mouseout', () => setHoveredProvince(null));
         marker.on('click', function (e) {
             L.DomEvent.stopPropagation(e.originalEvent);
-            if (!opDotNet) return;
-            const original = e.originalEvent || {};
-            const rect = opMap.getContainer().getBoundingClientRect();
-            const clientX = Number.isFinite(original.clientX) ? original.clientX : rect.left + rect.width / 2;
-            const clientY = Number.isFinite(original.clientY) ? original.clientY : rect.top + rect.height / 2;
-            opDotNet.invokeMethodAsync('OnStructureMarkerClick', s.id, clientX, clientY);
+            setSelectedOperationMapStructure(s.id);
+            opDotNet?.invokeMethodAsync('OnStructureMarkerClick', s.id);
         });
 
         const tooltip = document.createElement('div');
         const name = document.createElement('strong');
         name.textContent = s.name;
         const location = document.createElement('div');
-        location.textContent = [s.province, s.district].filter(Boolean).join(' / ');
+        location.textContent = [s.province || 'İl bilgisi yok', s.district].filter(Boolean).join(' / ');
         const sensors = document.createElement('div');
         sensors.textContent = `${s.sensorCount} sensör`;
         tooltip.append(name, location, sensors);
@@ -591,6 +643,11 @@ function _addOpMarkers(structures) {
 
         opMarkersLayer.addLayer(marker);
     });
+
+    if (opSelectedStructureId && opStructuresById.has(opSelectedStructureId))
+        setSelectedOperationMapStructure(opSelectedStructureId);
+    else if (opSelectedStructureId)
+        clearOperationMapSelection();
 }
 
 function refreshOperationMapMarkers(structures) {
@@ -604,4 +661,10 @@ function destroyOperationMap() {
     opMarkersLayer = null;
     opDotNet = null;
     opProvinceCenters = new Map();
+    opProvinceLayers = new Map();
+    opCountryBounds = null;
+    opStructuresById = new Map();
+    opHoveredProvince = null;
+    opSelectedProvince = null;
+    opSelectedStructureId = null;
 }

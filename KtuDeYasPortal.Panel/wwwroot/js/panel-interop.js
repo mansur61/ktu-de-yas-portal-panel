@@ -437,18 +437,24 @@ function clearOperationMapSelection() {
 
 function updateSelectedOperationMarker() {
     opMarkersLayer?.eachLayer(marker => {
-        marker.getElement()?.querySelector('.op-structure-pin')
-            ?.classList.toggle('selected', marker.options.structureId === opSelectedStructureId);
+        const selected = marker.options.structureId === opSelectedStructureId;
+        if (marker.options.selected !== selected) {
+            marker.options.selected = selected;
+            marker.setIcon(_opStructureIcon(selected));
+        }
     });
 }
 
 function _opStructureIcon(isSelected = false) {
-    const selected = isSelected ? ' selected' : '';
+    const selectedRing = isSelected
+        ? '<circle cx="12" cy="12" r="11.2" fill="#ffffff88" stroke="#86622f" stroke-width="1.35"/>'
+        : '';
+    const radius = isSelected ? 7.8 : 6.35;
     return L.divIcon({
-        html: `<span class="op-structure-pin${selected}" aria-hidden="true"><i></i></span>`,
+        html: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10.7" fill="none" stroke="#86622f" stroke-width="1.3" stroke-dasharray="2.5 2"/>${selectedRing}<circle cx="12" cy="12" r="${radius}" fill="#86622f" stroke="#fff" stroke-width="2.1"/><circle cx="12" cy="12" r="1.45" fill="#fff"/></svg>`,
         className: '',
-        iconSize: [22, 22],
-        iconAnchor: [11, 11]
+        iconSize: [24, 24],
+        iconAnchor: [12, 12]
     });
 }
 
@@ -472,6 +478,7 @@ async function initOperationMap(elementId, structures, dotNetRef) {
         zoomSnap: 0.25,
         maxBoundsViscosity: 1
     });
+    opMap.attributionControl.setPrefix(false);
 
     const provinceLabels = [];
     const provinceLayer = L.geoJSON(boundaries, {
@@ -595,7 +602,8 @@ function _addOpMarkers(structures) {
             alt: s.name,
             keyboard: true,
             riseOnHover: true,
-            structureId: s.id
+            structureId: s.id,
+            selected: s.id === opSelectedStructureId
         });
 
         marker.on('mouseover', () => setHoveredProvince(highlightProvince));

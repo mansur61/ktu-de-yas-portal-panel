@@ -65,33 +65,12 @@
         white-space: nowrap;
     }
     .op-province-label::before { display: none; }
-    .op-structure-pin {
-        position: relative;
-        display: grid;
-        place-items: center;
-        width: 22px;
-        height: 22px;
-        border-radius: 50%;
-        cursor: pointer;
-    }
-    .op-structure-pin::before {
-        content: "";
-        position: absolute;
-        inset: 1px;
-        border: 1.4px dashed #86622f;
-        border-radius: 50%;
-    }
-    .op-structure-pin i {
-        width: 13px;
-        height: 13px;
-        border: 2px solid #fff;
-        border-radius: 50%;
-        background: #86622f;
-        box-shadow: 0 1px 5px rgba(0,0,0,.4);
-    }
-    .op-structure-pin.selected {
-        background: rgba(255,255,255,.55);
-        box-shadow: 0 0 0 2px #86622f;
+    #op-turkey-map .leaflet-control-attribution {
+        padding: 1px 4px;
+        background: rgba(255,255,255,.58);
+        font-size: 8px;
+        line-height: 1.2;
+        opacity: .7;
     }
     /* Yapı popup kartı */
     .op-structure-card {

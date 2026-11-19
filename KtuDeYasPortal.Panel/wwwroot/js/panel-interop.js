@@ -384,6 +384,8 @@ function openWizardPlacement() {
 let opMap          = null;
 let opMarkersLayer = null;
 let opDotNet       = null;
+let opResizeObserver = null;
+let opProvinceCenters = new Map();
 
 const STRUCTURE_ICONS = {
     Dam:      { emoji: '🏔️', color: '#1a6b3c' },
@@ -393,73 +395,126 @@ const STRUCTURE_ICONS = {
     Other:    { emoji: '🏗️', color: '#546e7a' }
 };
 
+const normalizeProvince = value => (value || '').toLocaleLowerCase('tr-TR').normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '').replace(/ı/g, 'i').trim();
+const hasValidCoordinates = structure => Number.isFinite(structure.lat) && Number.isFinite(structure.lng)
+    && Math.abs(structure.lat) <= 90 && Math.abs(structure.lng) <= 180
+    && (structure.lat !== 0 || structure.lng !== 0);
+
 function _opStructureIcon(type, isActive) {
     const def = STRUCTURE_ICONS[type] || STRUCTURE_ICONS.Other;
     const opacity = isActive ? 1 : 0.5;
     const html = `
-        <div style="
-            display:flex;align-items:center;justify-content:center;
-            width:42px;height:42px;border-radius:50%;
-            background:${def.color};
-            border:3px solid #fff;
-            box-shadow:0 2px 8px rgba(0,0,0,.35);
-            font-size:1.1rem;
-            opacity:${opacity};
-            cursor:pointer;
-        ">${def.emoji}</div>
-        <div style="
-            width:0;height:0;
-            border-left:7px solid transparent;
-            border-right:7px solid transparent;
-            border-top:9px solid ${def.color};
-            margin:0 auto;opacity:${opacity};
-        "></div>`;
+        <div style="display:flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:50%;background:${def.color};border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35);font-size:1.1rem;opacity:${opacity};cursor:pointer">${def.emoji}</div>
+        <div style="width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-top:9px solid ${def.color};margin:0 auto;opacity:${opacity}"></div>`;
     return L.divIcon({
         html, className: '', iconSize: [42, 52], iconAnchor: [21, 52], popupAnchor: [0, -54]
     });
 }
 
-function initOperationMap(elementId, structures, dotNetRef) {
+async function initOperationMap(elementId, structures, dotNetRef) {
     const container = document.getElementById(elementId);
-    if (!container) return;
-    if (opMap) { opMap.remove(); opMap = null; opMarkersLayer = null; }
+    if (!container) throw new Error('Harita alanı bulunamadı.');
+    if (!window.L) throw new Error('Harita bileşeni yüklenemedi.');
 
+    const response = await fetch('./data/turkiye-iller.geojson');
+    if (!response.ok) throw new Error('İl sınırları yüklenemedi.');
+    const boundaries = await response.json();
+    if (!Array.isArray(boundaries.features) || boundaries.features.length === 0)
+        throw new Error('İl sınırları bulunamadı.');
+
+    destroyOperationMap();
     opDotNet = dotNetRef;
-
-    // Türkiye merkezi — tam ülke görünümü
-    opMap = L.map(elementId, {
-        center: [39.0, 35.5],
-        zoom: 6,
+    opProvinceCenters = new Map();
+    opMap = L.map(container, {
         zoomControl: true,
-        attributionControl: false
+        zoomSnap: 0.25,
+        maxBoundsViscosity: 1
     });
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 18,
-        attribution: '© OpenStreetMap'
+    const provinceLabels = [];
+    const provinceLayer = L.geoJSON(boundaries, {
+        style: {
+            color: '#f7fafc',
+            weight: 2,
+            fillColor: '#c8dbe9',
+            fillOpacity: 1
+        },
+        onEachFeature(feature, polygon) {
+            const provinceName = feature.properties.il_adi;
+            const provinceBounds = polygon.getBounds();
+            opProvinceCenters.set(normalizeProvince(provinceName), provinceBounds.getCenter());
+            provinceLabels.push({ polygon, provinceName, provinceBounds });
+        }
     }).addTo(opMap);
 
-    opMarkersLayer = L.layerGroup().addTo(opMap);
+    const bounds = provinceLayer.getBounds();
+    if (!bounds.isValid()) throw new Error('Türkiye il sınırları haritaya eklenemedi.');
+    await new Promise(resolve => requestAnimationFrame(() => {
+        opMap.invalidateSize();
+        opMap.fitBounds(bounds, { padding: [14, 14] });
+        opMap.setMinZoom(opMap.getZoom());
+        opMap.setMaxBounds(bounds.pad(0.08));
+        resolve();
+    }));
 
-    // Mevcut yapı marker'larını ekle
+    const occupiedLabels = [];
+    provinceLabels
+        .map(entry => {
+            const center = opMap.latLngToLayerPoint(entry.provinceBounds.getCenter());
+            const northWest = opMap.latLngToLayerPoint(entry.provinceBounds.getNorthWest());
+            const southEast = opMap.latLngToLayerPoint(entry.provinceBounds.getSouthEast());
+            const width = Math.max(28, entry.provinceName.length * 5.7 + 4);
+            const height = 15;
+            return {
+                ...entry,
+                center,
+                width,
+                height,
+                area: Math.abs((southEast.x - northWest.x) * (southEast.y - northWest.y)),
+                fitsProvince: Math.abs(southEast.x - northWest.x) >= width * 1.1
+                    && Math.abs(southEast.y - northWest.y) >= height * 1.2
+            };
+        })
+        .sort((a, b) => b.area - a.area)
+        .forEach(entry => {
+            const labelBox = {
+                left: entry.center.x - entry.width / 2,
+                right: entry.center.x + entry.width / 2,
+                top: entry.center.y - entry.height / 2,
+                bottom: entry.center.y + entry.height / 2
+            };
+            const overlaps = occupiedLabels.some(box =>
+                labelBox.left < box.right + 3 && labelBox.right > box.left - 3
+                && labelBox.top < box.bottom + 3 && labelBox.bottom > box.top - 3);
+            const permanent = entry.fitsProvince && !overlaps;
+            if (permanent) occupiedLabels.push(labelBox);
+            const label = document.createElement('span');
+            label.textContent = entry.provinceName;
+            entry.polygon.bindTooltip(label, {
+                permanent,
+                direction: 'center',
+                className: 'op-province-label',
+                opacity: 1
+            });
+        });
+
+    opMap.attributionControl.addAttribution(
+        'Sınırlar: © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · <a href="https://github.com/theaiagent/turkiye_iller_geojson">ODbL</a>'
+    );
+    opMarkersLayer = L.layerGroup().addTo(opMap);
     _addOpMarkers(structures);
 
-    // Harita tıklaması → yeni baraj kurulumu
     opMap.on('click', function (e) {
-        // Marker üzerine tıklanmış mı? Leaflet bu event'i engeller, buraya gelmez.
         const lat = e.latlng.lat;
         const lng = e.latlng.lng;
 
-        // Reverse geocode ile il/ilçe bul
         fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=tr`)
             .then(r => r.json())
             .then(data => {
                 const addr = data.address || {};
-                // Nominatim farklı alanlarda ili döndürebilir — öncelik sırası:
                 const rawProvince = addr.province || addr.state || addr.region || addr.county || '';
                 const rawDistrict = addr.county || addr.district || addr.city_district || addr.suburb || '';
-
-                // "Ankara İli" → "Ankara", "Gümüşhane Province" → "Gümüşhane" gibi temizle
                 const province = rawProvince
                     .replace(/\s*(İli|ili|Province|province|Şehri|şehri)\s*/g, '')
                     .trim();
@@ -469,52 +524,70 @@ function initOperationMap(elementId, structures, dotNetRef) {
 
                 // Türkiye sınırları içindeyse Blazor'a bildir
                 const countryCode = (data.address?.country_code || '').toLowerCase();
-                if (countryCode && countryCode !== 'tr') {
-                    return;
-                }
-                if (opDotNet) {
+                if (countryCode && countryCode !== 'tr') return;
+                if (opDotNet)
                     opDotNet.invokeMethodAsync('OnMapNewLocationClick', lat, lng, province, district);
-                }
             })
             .catch(() => {
-                // Offline — koordinatla devam et
-                if (opDotNet) {
+                if (opDotNet)
                     opDotNet.invokeMethodAsync('OnMapNewLocationClick', lat, lng, '', '');
-                }
             });
     });
+
+    opResizeObserver = new ResizeObserver(() => opMap?.invalidateSize());
+    opResizeObserver.observe(container);
 }
 
 function _addOpMarkers(structures) {
     if (!opMarkersLayer) return;
     opMarkersLayer.clearLayers();
 
+    const provinceOrder = new Map();
     (structures || []).forEach(s => {
-        if (s.lat == null || s.lng == null) return;
+        let point;
+        if (hasValidCoordinates(s)) {
+            point = L.latLng(s.lat, s.lng);
+        } else {
+            const provinceKey = normalizeProvince(s.province);
+            const center = opProvinceCenters.get(provinceKey);
+            if (!center) return;
 
-        const marker = L.marker([s.lat, s.lng], {
+            const order = provinceOrder.get(provinceKey) || 0;
+            provinceOrder.set(provinceKey, order + 1);
+            const spread = Math.min(order, 3);
+            point = L.latLng(
+                center.lat + Math.sin(order * 2.4) * 0.06 * spread,
+                center.lng + Math.cos(order * 2.4) * 0.08 * spread
+            );
+        }
+
+        const marker = L.marker(point, {
             icon: _opStructureIcon(s.type, s.isActive),
-            title: s.name
+            title: s.name,
+            alt: s.name,
+            keyboard: true,
+            riseOnHover: true
         });
 
         marker.on('click', function (e) {
-            // Haritanın kendi click event'inin tetiklenmesini engelle
-            L.DomEvent.stopPropagation(e);
-            if (opDotNet) {
-                opDotNet.invokeMethodAsync(
-                    'OnStructureMarkerClick',
-                    s.id,
-                    e.originalEvent.clientX,
-                    e.originalEvent.clientY
-                );
-            }
+            L.DomEvent.stopPropagation(e.originalEvent);
+            if (!opDotNet) return;
+            const original = e.originalEvent || {};
+            const rect = opMap.getContainer().getBoundingClientRect();
+            const clientX = Number.isFinite(original.clientX) ? original.clientX : rect.left + rect.width / 2;
+            const clientY = Number.isFinite(original.clientY) ? original.clientY : rect.top + rect.height / 2;
+            opDotNet.invokeMethodAsync('OnStructureMarkerClick', s.id, clientX, clientY);
         });
 
-        // Tooltip: kısa bilgi
-        marker.bindTooltip(
-            `<strong>${s.name}</strong><br>${s.province}${s.district ? ' / ' + s.district : ''}<br>${s.sensorCount} sensör`,
-            { direction: 'top', offset: [0, -52], opacity: 0.95 }
-        );
+        const tooltip = document.createElement('div');
+        const name = document.createElement('strong');
+        name.textContent = s.name;
+        const location = document.createElement('div');
+        location.textContent = [s.province, s.district].filter(Boolean).join(' / ');
+        const sensors = document.createElement('div');
+        sensors.textContent = `${s.sensorCount} sensör`;
+        tooltip.append(name, location, sensors);
+        marker.bindTooltip(tooltip, { direction: 'top', offset: [0, -52], opacity: 0.95 });
 
         opMarkersLayer.addLayer(marker);
     });
@@ -525,5 +598,10 @@ function refreshOperationMapMarkers(structures) {
 }
 
 function destroyOperationMap() {
-    if (opMap) { opMap.remove(); opMap = null; opMarkersLayer = null; opDotNet = null; }
+    opResizeObserver?.disconnect();
+    opResizeObserver = null;
+    if (opMap) { opMap.remove(); opMap = null; }
+    opMarkersLayer = null;
+    opDotNet = null;
+    opProvinceCenters = new Map();
 }

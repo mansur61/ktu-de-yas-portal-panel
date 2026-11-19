@@ -4,6 +4,7 @@
 @inject StructureUseCases StructureUC
 @inject NavigationManager Nav
 @inject IJSRuntime JS
+@inject ILogger<Home> Logger
 @implements IAsyncDisposable
 
 <PageTitle>DE-YAS · Operasyon Haritası</PageTitle>
@@ -42,11 +43,29 @@
         margin-left: auto;
         margin-right: 1rem;
     }
+    .op-map-error {
+        color: #a4262c;
+        font-size: .78rem;
+    }
     #op-turkey-map {
         flex: 1;
         min-height: 0;
         z-index: 1;
+        background: #eaf1f3;
     }
+    .op-province-label {
+        background: rgba(255,255,255,.62);
+        border: 0;
+        border-radius: 3px;
+        box-shadow: none;
+        color: #35566a;
+        font-size: 10px;
+        font-weight: 600;
+        padding: 0 2px;
+        text-shadow: 0 1px 2px #fff;
+        white-space: nowrap;
+    }
+    .op-province-label::before { display: none; }
     /* Yapı popup kartı */
     .op-structure-card {
         position: fixed;
@@ -113,7 +132,11 @@
             else
             { <span>Haritaya tıklayın → yeni baraj · Marker'a tıklayın → yapı detayı</span> }
         </span>
-        <button class="btn btn-sm btn-outline-secondary" @onclick="LoadAndRefreshAsync">
+        @if (_mapError is not null)
+        {
+            <span class="op-map-error" role="alert">@_mapError</span>
+        }
+        <button class="btn btn-sm btn-outline-secondary" aria-label="Haritayı yenile" title="Haritayı yenile" @onclick="LoadAndRefreshAsync">
             <span class="bi bi-arrow-clockwise"></span>
         </button>
     </div>
@@ -183,6 +206,7 @@
     private double _cardX, _cardY;
     private bool _showNewHint = true;
     private bool _mapInitialized;
+    private string? _mapError;
     private DotNetObjectReference<Home>? _objRef;
 
     protected override async Task OnInitializedAsync()
@@ -193,49 +217,46 @@
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender || _mapInitialized) return;
-        _mapInitialized = true;
-        _objRef = DotNetObjectReference.Create(this);
-
-        var markers = _structures
-            .Where(s => s.Latitude.HasValue && s.Longitude.HasValue)
-            .Select(s => new {
-                id         = s.Id.ToString(),
-                name       = s.Name,
-                lat        = s.Latitude!.Value,
-                lng        = s.Longitude!.Value,
-                type       = s.StructureType,
-                sensorCount = s.SensorCount,
-                isActive   = s.IsActive,
-                province   = s.Province,
-                district   = s.District ?? ""
-            }).ToList();
-
-        await JS.InvokeVoidAsync("initOperationMap", "op-turkey-map", markers, _objRef);
+        await InitializeMapAsync();
 
         // 4 saniye sonra ipucu gizle
         _ = Task.Delay(4000).ContinueWith(_ => InvokeAsync(() => { _showNewHint = false; StateHasChanged(); }));
     }
 
+    private async Task InitializeMapAsync()
+    {
+        _mapError = null;
+        _objRef ??= DotNetObjectReference.Create(this);
+        try
+        {
+            await JS.InvokeVoidAsync("initOperationMap", "op-turkey-map", CreateMapMarkers(), _objRef);
+            _mapInitialized = true;
+        }
+        catch (Microsoft.JSInterop.JSException ex)
+        {
+            _mapInitialized = false;
+            Logger.LogError(ex, "Operasyon haritası yüklenemedi.");
+            _mapError = "Harita yüklenemedi. Tekrar denemek için Yenile düğmesini kullanın.";
+        }
+    }
+
     private async Task LoadAndRefreshAsync()
     {
         _structures = await StructureUC.GetAllAsync();
-        if (!_mapInitialized) return;
-        var markers = _structures
-            .Where(s => s.Latitude.HasValue && s.Longitude.HasValue)
-            .Select(s => new {
-                id          = s.Id.ToString(),
-                name        = s.Name,
-                lat         = s.Latitude!.Value,
-                lng         = s.Longitude!.Value,
-                type        = s.StructureType,
-                sensorCount = s.SensorCount,
-                isActive    = s.IsActive,
-                province    = s.Province,
-                district    = s.District ?? ""
-            }).ToList();
-        await JS.InvokeVoidAsync("refreshOperationMapMarkers", markers);
+        if (!_mapInitialized)
+        {
+            await InitializeMapAsync();
+            return;
+        }
+        await JS.InvokeVoidAsync("refreshOperationMapMarkers", CreateMapMarkers());
         StateHasChanged();
     }
+
+    private List<OperationMapMarker> CreateMapMarkers() => _structures
+        .Select(s => new OperationMapMarker(
+            s.Id.ToString(), s.Name, s.Latitude, s.Longitude,
+            s.StructureType.ToString(), s.SensorCount, s.IsActive, s.Province, s.District ?? ""))
+        .ToList();
 
     [JSInvokable]
     public void OnStructureMarkerClick(string structureId, double clientX, double clientY)
@@ -265,6 +286,10 @@
         "Building" => "🏢",
         _          => "🏗️"
     };
+
+    private sealed record OperationMapMarker(
+        string Id, string Name, double? Lat, double? Lng, string Type,
+        int SensorCount, bool IsActive, string Province, string District);
 
     public async ValueTask DisposeAsync()
     {

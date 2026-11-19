@@ -393,14 +393,6 @@ let opHoveredProvince = null;
 let opSelectedProvince = null;
 let opSelectedStructureId = null;
 
-const STRUCTURE_ICONS = {
-    Dam:      { emoji: '🏔️', color: '#1a6b3c' },
-    Bridge:   { emoji: '🌉', color: '#1565c0' },
-    Tunnel:   { emoji: '🚇', color: '#6a1b9a' },
-    Building: { emoji: '🏢', color: '#e65100' },
-    Other:    { emoji: '🏗️', color: '#546e7a' }
-};
-
 const normalizeProvince = value => (value || '').toLocaleLowerCase('tr-TR').normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '').replace(/ı/g, 'i').trim();
 const hasValidCoordinates = structure => Number.isFinite(structure.latitude) && Number.isFinite(structure.longitude)
@@ -432,6 +424,7 @@ function setSelectedOperationMapStructure(structureId) {
     opSelectedProvince = structure ? normalizeProvince(structure.province) : null;
     updateProvinceHighlight(previous);
     updateProvinceHighlight(opSelectedProvince);
+    updateSelectedOperationMarker();
 }
 
 function clearOperationMapSelection() {
@@ -439,16 +432,23 @@ function clearOperationMapSelection() {
     opSelectedProvince = null;
     opSelectedStructureId = null;
     updateProvinceHighlight(previous);
+    updateSelectedOperationMarker();
 }
 
-function _opStructureIcon(type, isActive) {
-    const def = STRUCTURE_ICONS[type] || STRUCTURE_ICONS.Other;
-    const opacity = isActive ? 1 : 0.5;
-    const html = `
-        <div style="display:flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:50%;background:${def.color};border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35);font-size:1.1rem;opacity:${opacity};cursor:pointer">${def.emoji}</div>
-        <div style="width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-top:9px solid ${def.color};margin:0 auto;opacity:${opacity}"></div>`;
+function updateSelectedOperationMarker() {
+    opMarkersLayer?.eachLayer(marker => {
+        marker.getElement()?.querySelector('.op-structure-pin')
+            ?.classList.toggle('selected', marker.options.structureId === opSelectedStructureId);
+    });
+}
+
+function _opStructureIcon(isSelected = false) {
+    const selected = isSelected ? ' selected' : '';
     return L.divIcon({
-        html, className: '', iconSize: [42, 52], iconAnchor: [21, 52], popupAnchor: [0, -54]
+        html: `<span class="op-structure-pin${selected}" aria-hidden="true"><i></i></span>`,
+        className: '',
+        iconSize: [22, 22],
+        iconAnchor: [11, 11]
     });
 }
 
@@ -560,7 +560,7 @@ function _addOpMarkers(structures) {
     opMarkersLayer.clearLayers();
     opStructuresById = new Map();
 
-    const provinceOrder = new Map();
+    const placedMarkerPoints = [];
     const orderedStructures = [...(structures || [])]
         .sort((a, b) => String(a.id).localeCompare(String(b.id)));
     orderedStructures.forEach(s => {
@@ -573,24 +573,29 @@ function _addOpMarkers(structures) {
         const pointWithinCountry = exactPoint && opCountryBounds.contains(exactPoint);
         const anchor = pointWithinCountry ? exactPoint : center || opCountryBounds.getCenter();
         const highlightProvince = hasProvince ? provinceKey : null;
-        const groupKey = pointWithinCountry
-            ? `point:${exactPoint.lat.toFixed(4)}:${exactPoint.lng.toFixed(4)}`
-            : hasProvince ? provinceKey : '__unknown__';
-        const order = provinceOrder.get(groupKey) || 0;
-        provinceOrder.set(groupKey, order + 1);
-        const angle = order * 2.4;
-        const radius = order === 0 ? 0 : 46 + 4 * Math.floor(order / 6);
         const anchorPixel = opMap.latLngToLayerPoint(anchor);
-        const point = radius
-            ? opMap.layerPointToLatLng(anchorPixel.add(L.point(Math.cos(angle) * radius, Math.sin(angle) * radius)))
-            : anchor;
+        let markerPixel = anchorPixel;
+        if (placedMarkerPoints.some(point => point.distanceTo(markerPixel) < 22)) {
+            for (let attempt = 0; attempt < orderedStructures.length * 8; attempt++) {
+                const angle = attempt * 2.4;
+                const radius = 22 + 4 * Math.floor(attempt / 8);
+                const candidate = anchorPixel.add(L.point(Math.cos(angle) * radius, Math.sin(angle) * radius));
+                if (placedMarkerPoints.every(point => point.distanceTo(candidate) >= 22)) {
+                    markerPixel = candidate;
+                    break;
+                }
+            }
+        }
+        placedMarkerPoints.push(markerPixel);
+        const point = opMap.layerPointToLatLng(markerPixel);
 
         const marker = L.marker(point, {
-            icon: _opStructureIcon(s.type, s.isActive),
+            icon: _opStructureIcon(s.id === opSelectedStructureId),
             title: s.name,
             alt: s.name,
             keyboard: true,
-            riseOnHover: true
+            riseOnHover: true,
+            structureId: s.id
         });
 
         marker.on('mouseover', () => setHoveredProvince(highlightProvince));
@@ -609,11 +614,12 @@ function _addOpMarkers(structures) {
         const sensors = document.createElement('div');
         sensors.textContent = `${s.sensorCount} sensör`;
         tooltip.append(name, location, sensors);
-        marker.bindTooltip(tooltip, { direction: 'top', offset: [0, -52], opacity: 0.95 });
+        marker.bindTooltip(tooltip, { direction: 'top', offset: [0, -14], opacity: 0.95 });
 
         opMarkersLayer.addLayer(marker);
     });
 
+    updateSelectedOperationMarker();
     if (opSelectedStructureId && opStructuresById.has(opSelectedStructureId))
         setSelectedOperationMapStructure(opSelectedStructureId);
     else if (opSelectedStructureId)

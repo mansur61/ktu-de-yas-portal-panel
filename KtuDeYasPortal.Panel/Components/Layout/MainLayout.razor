@@ -5,35 +5,7 @@
 
 <a class="dy-skip" href="#main-content">İçeriğe geç</a>
 
-@if (IsOpMap)
-{
-    @* ── Operasyon Haritası: tam ekran, sidebar/topbar yok ── *@
-    <div class="opmap-shell @(_drawerOpen ? "drawer-open" : "")">
-
-        @* Floating menü butonu *@
-        <button class="opmap-menu-btn" @onclick="ToggleDrawer" aria-label="Menü">
-            <span class="bi @(_drawerOpen ? "bi-x-lg" : "bi-list")"></span>
-        </button>
-
-        @* Overlay — drawer açıkken tıklayınca kapat *@
-        @if (_drawerOpen) {
-            <div class="opmap-overlay" @onclick="CloseDrawer"></div>
-        }
-
-        @* Slide-in drawer menüsü *@
-        <nav class="opmap-drawer" aria-label="Gezinme menüsü">
-            <NavMenu />
-        </nav>
-
-        @* İçerik — harita doğrudan burada *@
-        <main id="main-content" class="opmap-content">
-            @Body
-        </main>
-    </div>
-}
-else
-{
-    @* ── Normal sayfa düzeni ── *@
+@* ── Normal sayfa düzeni ── *@
     <div class="page dy-shell @(IsTwin ? "dt-shell" : "") @(_menuOpen ? "dt-menu-open" : "")">
         <div class="sidebar">
             <NavMenu />
@@ -49,7 +21,6 @@ else
             </article>
         </main>
     </div>
-}
 
 <div id="blazor-error-ui" data-nosnippet>
     Beklenmedik bir hata oluştu.
@@ -59,7 +30,6 @@ else
 
 @code {
     private bool _menuOpen;
-    private bool _drawerOpen;
 
     private bool IsTwin
     {
@@ -70,8 +40,4 @@ else
                 || path.StartsWith("digital-twin/", StringComparison.OrdinalIgnoreCase);
         }
     }
-    private bool IsOpMap  => Navigation.ToBaseRelativePath(Navigation.Uri).Split('?')[0].Trim('/') is "";
-
-    private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
-    private void CloseDrawer()  => _drawerOpen = false;
 }

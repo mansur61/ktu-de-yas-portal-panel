@@ -403,9 +403,9 @@ const STRUCTURE_ICONS = {
 
 const normalizeProvince = value => (value || '').toLocaleLowerCase('tr-TR').normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '').replace(/ı/g, 'i').trim();
-const hasValidCoordinates = structure => Number.isFinite(structure.lat) && Number.isFinite(structure.lng)
-    && Math.abs(structure.lat) <= 90 && Math.abs(structure.lng) <= 180
-    && (structure.lat !== 0 || structure.lng !== 0);
+const hasValidCoordinates = structure => Number.isFinite(structure.latitude) && Number.isFinite(structure.longitude)
+    && Math.abs(structure.latitude) <= 90 && Math.abs(structure.longitude) <= 180
+    && (structure.latitude !== 0 || structure.longitude !== 0);
 
 function updateProvinceHighlight(provinceKey) {
     const province = opProvinceLayers.get(provinceKey);
@@ -551,36 +551,6 @@ async function initOperationMap(elementId, structures, dotNetRef) {
     opMarkersLayer = L.layerGroup().addTo(opMap);
     _addOpMarkers(structures);
 
-    opMap.on('click', function (e) {
-        clearOperationMapSelection();
-        const lat = e.latlng.lat;
-        const lng = e.latlng.lng;
-
-        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=tr`)
-            .then(r => r.json())
-            .then(data => {
-                const addr = data.address || {};
-                const rawProvince = addr.province || addr.state || addr.region || addr.county || '';
-                const rawDistrict = addr.county || addr.district || addr.city_district || addr.suburb || '';
-                const province = rawProvince
-                    .replace(/\s*(İli|ili|Province|province|Şehri|şehri)\s*/g, '')
-                    .trim();
-                const district = rawDistrict
-                    .replace(/\s*(İlçesi|ilçesi|District|district)\s*/g, '')
-                    .trim();
-
-                // Türkiye sınırları içindeyse Blazor'a bildir
-                const countryCode = (data.address?.country_code || '').toLowerCase();
-                if (countryCode && countryCode !== 'tr') return;
-                if (opDotNet)
-                    opDotNet.invokeMethodAsync('OnMapNewLocationClick', lat, lng, province, district);
-            })
-            .catch(() => {
-                if (opDotNet)
-                    opDotNet.invokeMethodAsync('OnMapNewLocationClick', lat, lng, '', '');
-            });
-    });
-
     opResizeObserver = new ResizeObserver(() => opMap?.invalidateSize());
     opResizeObserver.observe(container);
 }
@@ -598,14 +568,14 @@ function _addOpMarkers(structures) {
         const provinceKey = normalizeProvince(s.province);
         const center = opProvinceCenters.get(provinceKey);
         const validCoordinates = hasValidCoordinates(s);
-        const exactPoint = validCoordinates ? L.latLng(s.lat, s.lng) : null;
+        const exactPoint = validCoordinates ? L.latLng(s.latitude, s.longitude) : null;
         const hasProvince = Boolean(center);
         const pointWithinCountry = exactPoint && opCountryBounds.contains(exactPoint);
-        const anchor = center || (pointWithinCountry ? exactPoint : opCountryBounds.getCenter());
+        const anchor = pointWithinCountry ? exactPoint : center || opCountryBounds.getCenter();
         const highlightProvince = hasProvince ? provinceKey : null;
-        const groupKey = hasProvince ? provinceKey
-            : pointWithinCountry ? `point:${exactPoint.lat.toFixed(4)}:${exactPoint.lng.toFixed(4)}`
-            : '__unknown__';
+        const groupKey = pointWithinCountry
+            ? `point:${exactPoint.lat.toFixed(4)}:${exactPoint.lng.toFixed(4)}`
+            : hasProvince ? provinceKey : '__unknown__';
         const order = provinceOrder.get(groupKey) || 0;
         provinceOrder.set(groupKey, order + 1);
         const angle = order * 2.4;

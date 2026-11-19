@@ -2,7 +2,6 @@
 @rendermode InteractiveServer
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @inject StructureUseCases StructureUC
-@inject NavigationManager Nav
 @inject IJSRuntime JS
 @inject ILogger<Home> Logger
 @implements IAsyncDisposable
@@ -108,21 +107,6 @@
         background: #f8f9fa; border-top: 1px solid #dee2e6;
         flex-wrap: wrap;
     }
-    .op-new-hint {
-        position: fixed;
-        bottom: 1.5rem;
-        left: 50%;
-        transform: translateX(-50%);
-        background: rgba(26,107,60,.92);
-        color: #fff;
-        padding: .5rem 1.25rem;
-        border-radius: 2rem;
-        font-size: .82rem;
-        pointer-events: none;
-        z-index: 1050;
-        opacity: 1;
-        transition: opacity .5s;
-    }
 </style>
 
 <div class="op-map-shell">
@@ -132,12 +116,7 @@
         @if (_structures.Count > 0) {
             <span class="badge bg-success">@_structures.Count yapı</span>
         }
-        <span class="op-map-hint">
-            @if (_structures.Count == 0)
-            { <span>Haritaya tıklayarak ilk barajı ekleyin</span> }
-            else
-            { <span>Haritaya tıklayın → yeni baraj · Marker'a tıklayın → sağda yapı detayı</span> }
-        </span>
+        <span class="op-map-hint">Marker'a tıklayın → sağda yapı detayı</span>
         @if (_mapError is not null)
         {
             <span class="op-map-error" role="alert">@_mapError</span>
@@ -198,18 +177,9 @@
     </aside>
 }
 
-@* Yeni konum seçme ipucu *@
-@if (_showNewHint) {
-    <div class="op-new-hint">
-        <span class="bi bi-plus-circle me-1"></span>
-        Haritaya tıklayın → yeni baraj konumu seçin
-    </div>
-}
-
 @code {
     private List<Structure> _structures = [];
     private Structure? _selectedStructure;
-    private bool _showNewHint = true;
     private bool _mapInitialized;
     private string? _mapError;
     private DotNetObjectReference<Home>? _objRef;
@@ -223,9 +193,6 @@
     {
         if (!firstRender || _mapInitialized) return;
         await InitializeMapAsync();
-
-        // 4 saniye sonra ipucu gizle
-        _ = Task.Delay(4000).ContinueWith(_ => InvokeAsync(() => { _showNewHint = false; StateHasChanged(); }));
     }
 
     private async Task InitializeMapAsync()
@@ -270,14 +237,6 @@
         StateHasChanged();
     }
 
-    [JSInvokable]
-    public void OnMapNewLocationClick(double lat, double lng, string province, string district)
-    {
-        _selectedStructure = null;
-        // Structures sayfasına koordinatı query string ile geç
-        Nav.NavigateTo($"/structures?newLat={lat.ToString(System.Globalization.CultureInfo.InvariantCulture)}&newLng={lng.ToString(System.Globalization.CultureInfo.InvariantCulture)}&province={Uri.EscapeDataString(province)}&district={Uri.EscapeDataString(district)}&openWizard=1");
-    }
-
     private async Task CloseCard()
     {
         _selectedStructure = null;
@@ -293,7 +252,7 @@
     };
 
     private sealed record OperationMapMarker(
-        string Id, string Name, double? Lat, double? Lng, string Type,
+        string Id, string Name, double? Latitude, double? Longitude, string Type,
         int SensorCount, bool IsActive, string Province, string District);
 
     public async ValueTask DisposeAsync()

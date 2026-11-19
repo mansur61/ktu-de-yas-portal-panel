@@ -1,4 +1,5 @@
 @page "/"
+@layout KtuDeYasPortal.Panel.Components.Layout.MapLayout
 @rendermode InteractiveServer
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @inject StructureUseCases StructureUC
@@ -9,13 +10,11 @@
 <PageTitle>DE-YAS · Operasyon Haritası</PageTitle>
 
 <style>
-    /* Operasyon haritası ortak yönetim paneli menüsünün yanındaki alanı kaplar. */
     .op-map-shell {
         display: flex;
         flex-direction: column;
         flex: 1 1 auto;
-        height: 100%;
-        min-height: calc(100dvh - 58px);
+        height: 100dvh;
         width: 100%;
         position: relative;
     }
@@ -92,15 +91,15 @@
         align-items: center;
         gap: .5rem;
         padding: .65rem 1rem;
-        background: var(--dy-primary, #1a6b3c);
-        color: #fff;
+        background: #fff;
+        color: #28574f;
         position: sticky;
         top: 0;
         z-index: 1;
     }
     .op-structure-card-header strong { flex: 1; font-size: .9rem; }
     .op-structure-card-header button {
-        background: none; border: none; color: rgba(255,255,255,.8);
+        background: none; border: none; color: inherit;
         font-size: 1.2rem; cursor: pointer; line-height: 1;
     }
     .op-structure-card-body { padding: .75rem 1rem; }
@@ -110,10 +109,14 @@
     }
     .op-structure-card-row:last-child { border-bottom: none; }
     .op-structure-card-row .label { color: #6c757d; }
-    .op-structure-card-actions {
-        display: flex; gap: .5rem; padding: .6rem 1rem;
-        background: #f8f9fa; border-top: 1px solid #dee2e6;
-        flex-wrap: wrap;
+    .op-structure-card-body img {
+        display: block;
+        width: 100%;
+        height: clamp(100px, 22dvh, 180px);
+        object-fit: contain;
+        background: #eef5f6;
+        border-radius: 8px;
+        margin-bottom: 1rem;
     }
 </style>
 
@@ -142,11 +145,12 @@
 {
     <aside class="op-structure-card" role="dialog" aria-label="Seçili yapı detayı">
         <div class="op-structure-card-header">
-            <span>@GetStructureEmoji(_selectedStructure.StructureType.ToString())</span>
-            <strong>@_selectedStructure.Name</strong>
+            <strong>Seçili yapı</strong>
             <button aria-label="Detayı kapat" @onclick="CloseCard">&times;</button>
         </div>
         <div class="op-structure-card-body">
+            <img src="@StructureImage(_selectedStructure)" alt="@_selectedStructure.Name" />
+            <h2 class="h5">@_selectedStructure.Name</h2>
             <div class="op-structure-card-row">
                 <span class="label">Konum</span>
                 <span>@_selectedStructure.Province@(string.IsNullOrEmpty(_selectedStructure.District) ? "" : " / " + _selectedStructure.District)</span>
@@ -171,17 +175,6 @@
                 </div>
             }
         </div>
-        <div class="op-structure-card-actions">
-            <a class="btn btn-sm btn-success" href="structures">
-                <span class="bi bi-pencil me-1"></span>Düzenle
-            </a>
-            <a class="btn btn-sm btn-outline-primary" href="sensor-dashboard">
-                <span class="bi bi-activity me-1"></span>Ölçümler
-            </a>
-            <a class="btn btn-sm btn-outline-secondary" href="sensor-setup">
-                <span class="bi bi-check2-circle me-1"></span>Kurulum
-            </a>
-        </div>
     </aside>
 }
 
@@ -192,15 +185,11 @@
     private string? _mapError;
     private DotNetObjectReference<Home>? _objRef;
 
-    protected override async Task OnInitializedAsync()
-    {
-        _structures = await StructureUC.GetAllAsync();
-    }
-
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || _mapInitialized) return;
-        await InitializeMapAsync();
+        if (!firstRender) return;
+        await LoadAndRefreshAsync();
+        StateHasChanged();
     }
 
     private async Task InitializeMapAsync()
@@ -222,7 +211,17 @@
 
     private async Task LoadAndRefreshAsync()
     {
-        _structures = await StructureUC.GetAllAsync();
+        try
+        {
+            _structures = await StructureUC.GetAllAsync();
+            _mapError = null;
+        }
+        catch (HttpRequestException ex)
+        {
+            Logger.LogError(ex, "Harita için yapılar alınamadı.");
+            _mapError = "Yapılar alınamadı. Lütfen haritayı yenileyin.";
+            return;
+        }
         if (!_mapInitialized)
         {
             await InitializeMapAsync();
@@ -251,13 +250,15 @@
         await JS.InvokeVoidAsync("clearOperationMapSelection");
     }
 
-    private static string GetStructureEmoji(string type) => type switch {
-        "Dam"      => "🏔️",
-        "Bridge"   => "🌉",
-        "Tunnel"   => "🚇",
-        "Building" => "🏢",
-        _          => "🏗️"
-    };
+    private static string StructureImage(Structure structure) =>
+        !string.IsNullOrWhiteSpace(structure.ImageUrl) ? structure.ImageUrl : structure.StructureType switch
+        {
+            StructureType.Dam => "images/structures/dam.svg",
+            StructureType.Bridge => "images/structures/bridge.jpg",
+            StructureType.Building => "images/structures/building.svg",
+            StructureType.Tunnel => "images/structures/tunnel.svg",
+            _ => "images/structures/other.svg"
+        };
 
     private sealed record OperationMapMarker(
         string Id, string Name, double? Latitude, double? Longitude, string Type,

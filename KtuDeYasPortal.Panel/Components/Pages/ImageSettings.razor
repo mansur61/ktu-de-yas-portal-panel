@@ -75,7 +75,7 @@
                     ? "Dijital ikizde yapı bazında model yoksa kullanılır. En fazla 50 MB."
                     : "Bu yapının dijital ikiz görünümünde kullanılır. En fazla 50 MB.")
             </p>
-            @{ var modelUrl = ModelStructure?.ModelUrl ?? _defaultModelUrl; }
+            @{ var modelUrl = CurrentModelUrl; }
             @if (!string.IsNullOrWhiteSpace(modelUrl))
             {
                 <div class="asset-preview-3d dam-model-viewer mb-3 p-2">
@@ -92,8 +92,8 @@
                     </model-viewer>
                     <span class="model-status" data-model-status role="status" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);padding:8px 12px;border-radius:8px;background:#102b3be8;color:#e7f0f3;font-size:12px">3B model yükleniyor…</span>
                     <div class="d-flex align-items-center justify-content-between gap-2 mt-2">
-                        <div class="text-truncate fw-semibold small text-success">3D Model Yüklü</div>
-                        <a href="@modelUrl" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary py-0">
+                        <div class="text-truncate fw-semibold small text-success">Model dosyası kayıtlı</div>
+                        <a download href="@modelUrl" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary py-0">
                         <span class="bi bi-download me-1"></span>İndir
                         </a>
                     </div>
@@ -237,7 +237,7 @@
 
     private Structure? ImageStructure  => _structures.FirstOrDefault(s => s.Id.ToString() == _imageStructureId);
     private Structure? ModelStructure  => _structures.FirstOrDefault(s => s.Id.ToString() == _modelStructureId);
-    private string? CurrentModelUrl => ModelStructure?.ModelUrl ?? _defaultModelUrl;
+    private string? CurrentModelUrl => PanelModelContent.BrowserUrl(ModelStructure?.ModelUrl ?? _defaultModelUrl);
     private Structure? SensorStructure => _structures.FirstOrDefault(s => s.Id.ToString() == _sensorStructureId);
     private Sensor?    SelectedSensor  => _structureSensors.FirstOrDefault(s => s.Id.ToString() == _sensorId);
 

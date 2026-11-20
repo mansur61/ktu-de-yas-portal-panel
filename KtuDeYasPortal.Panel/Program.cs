@@ -55,6 +55,9 @@ builder.Services.Configure<GrafanaOptions>(
 builder.Services.AddHttpClient("field-lifecycle");
 builder.Services.AddTransient<CentralApiBearerHandler>();
 
+builder.Services.AddHttpClient("model-content", c =>
+    c.BaseAddress = new Uri(builder.Configuration["Services:TimeseriesApi"] ?? "http://localhost:5000"));
+
 builder.Services.AddHttpClient("timeseries-api", c =>
 {
     c.BaseAddress = new Uri(
@@ -163,6 +166,7 @@ app.MapGet("/media-preview/{fileName}", (string fileName, IConfiguration configu
 }).RequireAuthorization("platform.admin");
 
 app.MapInstitutionalBackground();
+app.MapPanelModelContent();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();

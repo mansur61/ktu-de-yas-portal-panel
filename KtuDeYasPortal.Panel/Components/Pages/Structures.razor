@@ -178,7 +178,8 @@
                         {
                             <model-viewer @key="s.ModelUrl"
                                           class="structure-card-model"
-                                          src="@s.ModelUrl"
+                                          camera-orbit="auto auto 82%"
+                                          src="@(PanelModelContent.BrowserUrl(s.ModelUrl))"
                                           alt="@($"{s.Name} 3B modeli")"
                                           camera-controls
                                           touch-action="pan-y"
@@ -425,7 +426,7 @@
                     <div class="alert alert-info">Modelde seçili sensörün konumuna tıklayın.</div>
                   }
                   <StructureGlbViewer @key="@($"{_createdStructureId:D}|{_wizardModelUrl}")"
-                                      ModelUrl="@(_wizardModelUrl!)"
+                                      ModelUrl="@(PanelModelContent.BrowserUrl(_wizardModelUrl))"
                                       StructureName="@_setupName"
                                       Sensors="@WizardModelSensors"
                                       SelectedId="@_wizardPlacingSensorId"
@@ -443,7 +444,7 @@
                   <DamModel3D Sensors="@_newStructureSensors"
                               StructureName="@_setupName"
                               ImageUrl="@_wizardImageUrl"
-                              ModelUrl="@_wizardModelUrl"
+                              ModelUrl="@(PanelModelContent.BrowserUrl(_wizardModelUrl))"
                               SelectedId="@_wizardPlacingSensorId"
                               OnSelect="SelectWizardSensorForPlacement"
                               EnablePositionEditing="@_wizardPlacingSensorId.HasValue"
@@ -675,7 +676,7 @@
                 <div class="structure-glb-header d-flex align-items-center gap-2">
                     <span class="bi bi-box-seam text-white-50"></span>
                     <strong class="text-white-50" style="font-size:12px">3B MODEL</strong>
-                    <a class="btn btn-sm btn-outline-light ms-auto py-0" href="@_editingStructure.ModelUrl" target="_blank" rel="noopener" style="font-size:11px">
+                    <a class="btn btn-sm btn-outline-light ms-auto py-0" href="@(PanelModelContent.BrowserUrl(_editingStructure.ModelUrl))" target="_blank" rel="noopener" style="font-size:11px">
                         <span class="bi bi-download me-1"></span>İndir
                     </a>
                 </div>
@@ -684,7 +685,7 @@
                      !_detailCustomGlbFailed)
                 {
                     <StructureGlbViewer @key="@($"{_editingStructure.Id:D}|{_editingStructure.ModelUrl}")"
-                                        ModelUrl="@_editingStructure.ModelUrl"
+                                        ModelUrl="@(PanelModelContent.BrowserUrl(_editingStructure.ModelUrl))"
                                         StructureName="@_editingStructure.Name"
                                         Sensors="@DetailModelSensors"
                                         SelectedId="@_detailSelectedSensorId"
@@ -735,7 +736,7 @@
                                 }).ToList() ?? [])"
                                 StructureName="@_editingStructure.Name"
                                 ImageUrl="@_editingStructure.ImageUrl"
-                                ModelUrl="@_editingStructure.ModelUrl"
+                                ModelUrl="@(PanelModelContent.BrowserUrl(_editingStructure.ModelUrl))"
                                 SelectedId="@_detailSelectedSensorId"
                                 OnSelect="OnDetailSensorSelected"
                                 EnablePositionEditing="@(CanManageSelectedStructure && _detailSelectedSensorId.HasValue)"

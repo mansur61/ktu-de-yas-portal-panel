@@ -9,6 +9,7 @@ public interface IStructureSimulationClient
     Task<EdgeLifecycleState> GetStateAsync(string edgeApiUrl, Guid structureId, CancellationToken ct = default);
     Task StartAsync(string edgeApiUrl, Guid structureId, CancellationToken ct = default);
     Task StopAsync(string edgeApiUrl, Guid structureId, CancellationToken ct = default);
+    Task SetMonitoringAsync(string edgeApiUrl, Guid structureId, bool enabled, CancellationToken ct = default);
     Task SetForwardingAsync(string edgeApiUrl, Guid structureId, bool enabled, CancellationToken ct = default);
     Task UpdateConfigAsync(string edgeApiUrl, EdgeConfigUpdateRequest request, CancellationToken ct = default);
 }
@@ -22,6 +23,7 @@ public sealed record EdgeConfigUpdateRequest(
 public sealed class EdgeLifecycleState
 {
     public Guid StructureId { get; init; }
+    public bool? MonitoringEnabled { get; init; }
     public bool LocalPipelinesEnabled { get; init; }
     public bool ForwardingEnabled { get; init; }
     public Dictionary<string, EdgeDeviceLifecycleState> DeviceStates { get; init; } = new(StringComparer.OrdinalIgnoreCase);
@@ -105,6 +107,13 @@ public sealed class StructureSimulationHttpClient : IStructureSimulationClient
 
             throw new InvalidOperationException($"[{(int)resp.StatusCode}] {detail}");
         }
+    }
+
+    public async Task SetMonitoringAsync(string edgeApiUrl, Guid structureId, bool enabled, CancellationToken ct = default)
+    {
+        using var http = CreateEdgeClient(edgeApiUrl);
+        using var response = await http.PutAsJsonAsync($"api/edge/lifecycle/monitoring/{structureId}", enabled, ct);
+        response.EnsureSuccessStatusCode();
     }
 
     public async Task SetForwardingAsync(string edgeApiUrl, Guid structureId, bool enabled, CancellationToken ct = default)

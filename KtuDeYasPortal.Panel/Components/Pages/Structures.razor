@@ -235,11 +235,12 @@
                                 }
                                 <IconActionButton Icon="bi-play-fill" Label="@GetStartTooltip(s)" Tone="success" Disabled="@(_startingStructureIds.Contains(s.Id) || IsLocalPipelineEnabled(s.Id) || GetStartDisabled(s))" OnClick="() => StartStructureSimulationAsync(s.Id)" />
                                 @if (s.SensorCount > 0) {
-                                    @* Forwarding aktifse durdurma ikonu, değilse başlatma ikonu *@
+                                    var monitoring = _monitoringStates.GetValueOrDefault(s.Id);
+                                    <IconActionButton Icon="@(monitoring == true ? "bi-eye-fill" : "bi-eye")" Label="@(monitoring == true ? "Merkezden izlemeyi durdur" : "Merkezden izle")" Tone="@(monitoring == true ? "success" : "neutral")" Disabled="@(!monitoring.HasValue)" OnClick="() => SetMonitoringAsync(s.Id, s.EdgeApiUrl!, monitoring != true)" />
                                     @if (_forwardingStates.TryGetValue(s.Id, out var fwActive) && fwActive) {
-                                        <IconActionButton Icon="bi-cloud-slash" Label="Merkeze iletimi durdur" Tone="warning" OnClick="() => SetStructureForwardingAsync(s.Id, false)" />
+                                        <IconActionButton Icon="bi-cloud-slash" Label="Merkezde tutmayı durdur" Tone="warning" OnClick="() => SetStructureForwardingAsync(s.Id, false)" />
                                     } else {
-                                        <IconActionButton Icon="bi-cloud-arrow-up" Label="Merkeze ilet" Tone="primary" OnClick="() => SetStructureForwardingAsync(s.Id, true)" />
+                                        <IconActionButton Icon="bi-cloud-arrow-up" Label="Merkezde tut" Tone="primary" OnClick="() => SetStructureForwardingAsync(s.Id, true)" />
                                     }
                                 }
                                 <IconActionButton Icon="bi-file-earmark-zip" Label="Saha ZIP’ini indir" Tone="neutral" OnClick="() => DownloadSavedPackageAsync(s.Id)" />
@@ -1475,6 +1476,7 @@
     private HashSet<Guid>    _runningStructureIds  = new(); // aktif çalışan simülasyonlar
     private HashSet<Guid>    _stoppingStructureIds = new(); // durdurma isteği gönderildi
     private HashSet<Guid>    _telemetryRunningStructureIds = new();
+    private readonly Dictionary<Guid, bool?> _monitoringStates = new();
     private Dictionary<Guid, bool> _forwardingStates = new();
     private Dictionary<Guid, bool> _localPipelineStates = new();
     private Dictionary<Guid, Dictionary<string, EdgeDeviceLifecycleState>> _deviceLifecycleStates = new();
@@ -2113,6 +2115,7 @@
 
     private async Task LoadEdgeLifecycleStatesAsync()
     {
+        _monitoringStates.Clear();
         _forwardingStates.Clear();
         _localPipelineStates.Clear();
         _deviceLifecycleStates.Clear();
@@ -2140,6 +2143,7 @@
         {
             if (result.Success && result.State is not null)
             {
+                _monitoringStates[result.Id] = result.State.MonitoringEnabled;
                 _forwardingStates[result.Id] = result.State.ForwardingEnabled;
                 _localPipelineStates[result.Id] = result.State.LocalPipelinesEnabled;
                 _deviceLifecycleStates[result.Id] = result.State.DeviceStates;
@@ -2299,6 +2303,17 @@
         }
     }
 
+    private async Task SetMonitoringAsync(Guid id, string edgeUrl, bool enabled)
+    {
+        try
+        {
+            await StructureSimClient.SetMonitoringAsync(edgeUrl, id, enabled);
+            _monitoringStates[id] = enabled;
+            SetStatus($"Merkezden canlı izleme {(enabled ? "açıldı" : "durduruldu")}.", "info");
+        }
+        catch (Exception ex) { _simulationErrorMessage = $"Merkezden izleme değiştirilemedi: {ex.Message}"; }
+    }
+
     private async Task SetStructureForwardingAsync(Guid structureId, bool enabled)
     {
         var structure = _structures?.FirstOrDefault(s => s.Id == structureId);
@@ -2312,7 +2327,7 @@
         {
             await StructureSimClient.SetForwardingAsync(structure.EdgeApiUrl, structureId, enabled);
             _forwardingStates[structureId] = enabled;
-            SetStatus($"{structure.Name} için merkeze aktarım {(enabled ? "açıldı" : "durduruldu")}. Yerel saha akışı değişmedi.", "info");
+            SetStatus($"{structure.Name} için merkezde kayıt {(enabled ? "açıldı" : "durduruldu")}. Yerel saha akışı değişmedi.", "info");
         }
         catch (Exception ex)
         {

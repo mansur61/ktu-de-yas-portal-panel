@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using DeYas.Contracts.Realtime;
+using Microsoft.Extensions.Logging;
 
 namespace KtuDeYasPortal.Panel.Application.Services;
 
@@ -18,9 +19,16 @@ namespace KtuDeYasPortal.Panel.Application.Services;
 /// </summary>
 public sealed class SensorDataState
 {
+    private readonly ILogger<SensorDataState>? _logger;
+
     // Key: DeviceId → latest SensorData record as SignalR event
     private readonly ConcurrentDictionary<string, SensorUpdatedEvent> _latestData =
         new(StringComparer.OrdinalIgnoreCase);
+
+    public SensorDataState(ILogger<SensorDataState>? logger = null)
+    {
+        _logger = logger;
+    }
 
     /// <summary>
     /// Fired on the thread that calls Update, which is typically the SignalR
@@ -34,10 +42,28 @@ public sealed class SensorDataState
     /// <summary>
     /// Called by the SignalR client when a ReceiveSensorUpdate message arrives.
     /// Only call this when the message comes from an actual SensorData insertion event.
+    /// Veri tutarlılığı için StructureId ve DeviceId kontrolü yapılır.
     /// </summary>
     public void Update(SensorUpdatedEvent evt)
     {
+        // Veri tutarlılığı kontrolü
+        if (evt.StructureId == null || string.IsNullOrWhiteSpace(evt.DeviceId))
+        {
+            _logger?.LogWarning(
+                "[SensorDataState] Sensor update rejected - StructureId={StructureId} DeviceId={DeviceId}",
+                evt.StructureId,
+                evt.DeviceId);
+            return; // Geçersiz veri, state'e ekleme
+        }
+        
         _latestData[evt.DeviceId] = evt;
+        
+        _logger?.LogDebug(
+            "[SensorDataState] Sensor updated - Device={DeviceId} Structure={StructureId} Metrics={MetricCount}",
+            evt.DeviceId,
+            evt.StructureId,
+            evt.AllMetrics?.Count ?? 0);
+        
         OnSensorDataReceived?.Invoke(evt);
     }
 
@@ -47,6 +73,28 @@ public sealed class SensorDataState
     /// </summary>
     public SensorUpdatedEvent? GetLatest(string deviceId) =>
         _latestData.TryGetValue(deviceId, out var v) ? v : null;
+
+    /// <summary>
+    /// Veri tutarlılığı kontrolü: Verinin gerçekten belirtilen yapıya ait olup olmadığını kontrol eder
+    /// </summary>
+    public SensorUpdatedEvent? GetLatestForStructure(string deviceId, Guid structureId)
+    {
+        if (_latestData.TryGetValue(deviceId, out var v) && v.StructureId == structureId)
+            return v;
+        return null;
+    }
+
+    /// <summary>
+    /// Belirtilen yapıya ait gerçek zamanlı veri akışı olan sensörleri döndürür
+    /// </summary>
+    public IReadOnlyList<string> GetActiveDeviceIdsForStructure(Guid structureId)
+    {
+        return _latestData.Values
+            .Where(s => s.StructureId == structureId)
+            .Select(s => s.DeviceId)
+            .Distinct()
+            .ToList();
+    }
 
     /// <summary>
     /// Returns true if at least one real SensorData record has been received

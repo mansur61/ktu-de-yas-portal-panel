@@ -232,8 +232,9 @@
                             <div class="structure-card-actions">
                                 @if (IsLocalPipelineEnabled(s.Id)) {
                                     <IconActionButton Icon="bi-stop-fill" Label="Saha yerel akışını durdur" Tone="danger" Disabled="_stoppingStructureIds.Contains(s.Id)" OnClick="() => StopStructureSimulationAsync(s.Id)" />
+                                } else {
+                                    <IconActionButton Icon="bi-play-fill" Label="@GetStartTooltip(s)" Tone="success" Disabled="@(_startingStructureIds.Contains(s.Id) || GetStartDisabled(s))" OnClick="() => StartStructureSimulationAsync(s.Id)" />
                                 }
-                                <IconActionButton Icon="bi-play-fill" Label="@GetStartTooltip(s)" Tone="success" Disabled="@(_startingStructureIds.Contains(s.Id) || IsLocalPipelineEnabled(s.Id) || GetStartDisabled(s))" OnClick="() => StartStructureSimulationAsync(s.Id)" />
                                 @if (s.SensorCount > 0) {
                                     var monitoring = _monitoringStates.GetValueOrDefault(s.Id);
                                     <IconActionButton Icon="@(monitoring == true ? "bi-eye-fill" : "bi-eye")" Label="@(monitoring == true ? "Merkezden izlemeyi durdur" : "Merkezden izle")" Tone="@(monitoring == true ? "success" : "neutral")" Disabled="@(!monitoring.HasValue)" OnClick="() => SetMonitoringAsync(s.Id, s.EdgeApiUrl!, monitoring != true)" />
@@ -2307,11 +2308,37 @@
     {
         try
         {
-            await StructureSimClient.SetMonitoringAsync(edgeUrl, id, enabled);
+            // Database-first persistence: Update central database first
+            var centralClient = ImageClients.CreateClient("TimeseriesApi");
+            var centralUrl = Configuration["TimeseriesApi:BaseUrl"] ?? "http://localhost:5000";
+            var requestUri = $"{centralUrl}/api/structures/{id}/monitoring";
+            var response = await centralClient.PutAsJsonAsync(requestUri, new { enabled });
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                _simulationErrorMessage = $"Merkez veritabanı güncellenemedi: {response.ReasonPhrase}";
+                return;
+            }
+
+            // Then synchronize with Edge API (graceful degradation on failure)
+            try
+            {
+                await StructureSimClient.SetMonitoringAsync(edgeUrl, id, enabled);
+            }
+            catch (Exception edgeEx)
+            {
+                SetStatus($"Merkezden canlı izleme {(enabled ? "açıldı" : "kapatıldı")}. Edge senkronizasyonu başarısız: {edgeEx.Message}. Ayar veritabanına kaydedildi.", "warning");
+                _monitoringStates[id] = enabled;
+                return;
+            }
+
             _monitoringStates[id] = enabled;
             SetStatus($"Merkezden canlı izleme {(enabled ? "açıldı" : "durduruldu")}.", "info");
         }
-        catch (Exception ex) { _simulationErrorMessage = $"Merkezden izleme değiştirilemedi: {ex.Message}"; }
+        catch (Exception ex) 
+        { 
+            _simulationErrorMessage = $"Merkezden izleme değiştirilemedi: {ex.Message}"; 
+        }
     }
 
     private async Task SetStructureForwardingAsync(Guid structureId, bool enabled)
@@ -2325,7 +2352,30 @@
 
         try
         {
-            await StructureSimClient.SetForwardingAsync(structure.EdgeApiUrl, structureId, enabled);
+            // Database-first persistence: Update central database first
+            var centralClient = ImageClients.CreateClient("TimeseriesApi");
+            var centralUrl = Configuration["TimeseriesApi:BaseUrl"] ?? "http://localhost:5000";
+            var requestUri = $"{centralUrl}/api/structures/{structureId}/forwarding";
+            var response = await centralClient.PutAsJsonAsync(requestUri, new { enabled });
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                _simulationErrorMessage = $"Merkez veritabanı güncellenemedi: {response.ReasonPhrase}";
+                return;
+            }
+
+            // Then synchronize with Edge API (graceful degradation on failure)
+            try
+            {
+                await StructureSimClient.SetForwardingAsync(structure.EdgeApiUrl, structureId, enabled);
+            }
+            catch (Exception edgeEx)
+            {
+                SetStatus($"{structure.Name} için merkezde kayıt {(enabled ? "açıldı" : "durduruldu")}. Edge senkronizasyonu başarısız: {edgeEx.Message}. Ayar veritabanına kaydedildi. Yerel saha akışı değişmedi.", "warning");
+                _forwardingStates[structureId] = enabled;
+                return;
+            }
+
             _forwardingStates[structureId] = enabled;
             SetStatus($"{structure.Name} için merkezde kayıt {(enabled ? "açıldı" : "durduruldu")}. Yerel saha akışı değişmedi.", "info");
         }

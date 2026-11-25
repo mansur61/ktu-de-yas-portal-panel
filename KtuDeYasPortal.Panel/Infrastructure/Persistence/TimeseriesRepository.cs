@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using KtuDeYasPortal.Panel.Domain.Interfaces;
@@ -12,6 +13,22 @@ public class TimeseriesRepository : ITimeseriesRepository
     public TimeseriesRepository(KtuDeYasPortal.Panel.Infrastructure.Persistence.PanelApiClients factory)
     {
         _http = factory.CreateClient("timeseries-api");
+    }
+
+    public async Task<SensorDataPoint?> GetLatestAsync(
+        string deviceId,
+        Guid structureId,
+        CancellationToken ct = default)
+    {
+        var url = $"api/sensor-data/latest/{Uri.EscapeDataString(deviceId)}?structureId={structureId:D}";
+        using var response = await _http.GetAsync(url, ct);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return null;
+
+        response.EnsureSuccessStatusCode();
+        var row = await response.Content.ReadFromJsonAsync<ApiRow>(_json, ct)
+            ?? throw new InvalidDataException("Timeseries API returned an empty latest-data response.");
+        return ToDataPoint(row);
     }
 
     public async Task<List<SensorDataPoint>> QueryAsync(
@@ -37,20 +54,19 @@ public class TimeseriesRepository : ITimeseriesRepository
             q.Add($"structureId={Uri.EscapeDataString(structureId)}");
         var url = $"api/sensor-data?{string.Join('&', q)}";
 
-        try
-        {
-            var rows = await _http.GetFromJsonAsync<List<ApiRow>>(url, _json, ct);
-            if (rows is null) return new();
-            return rows.Select(r => new SensorDataPoint(r.DeviceId, r.LocationId, r.Timestamp, r.Metrics)).ToList();
-        }
-        catch { return new(); }
+        var rows = await _http.GetFromJsonAsync<List<ApiRow>>(url, _json, ct)
+            ?? throw new InvalidDataException("Timeseries API returned an empty query response.");
+        return rows.Select(ToDataPoint).ToList();
     }
+
+    private static SensorDataPoint ToDataPoint(ApiRow row) =>
+        new(row.DeviceId, row.LocationId, row.Timestamp, row.Metrics ?? new());
 
     private sealed class ApiRow
     {
         public string DeviceId { get; set; } = string.Empty;
         public string LocationId { get; set; } = string.Empty;
         public DateTime Timestamp { get; set; }
-        public Dictionary<string, double> Metrics { get; set; } = new();
+        public Dictionary<string, double>? Metrics { get; set; } = new();
     }
 }

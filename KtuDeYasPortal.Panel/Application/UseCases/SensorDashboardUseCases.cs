@@ -65,26 +65,33 @@ public class SensorDashboardUseCases
     }
 
     /// <summary>
-    /// Returns the most recent SensorData record for each device in the given list.
+    /// Returns the latest record per device from the source selected by the
+    /// central routing configuration for this structure.
     /// </summary>
     public async Task<List<SensorDataPoint>> GetLatestPerDeviceAsync(
         IEnumerable<string> deviceIds,
-        int lookbackHours = 24,
+        Guid structureId,
         CancellationToken ct = default)
     {
         var deviceList = deviceIds.Where(d => !string.IsNullOrWhiteSpace(d)).ToList();
         if (deviceList.Count == 0) return new();
 
-        var to   = DateTime.UtcNow;
-        var from = to.AddHours(-lookbackHours);
-        var result = new List<SensorDataPoint>();
-
-        foreach (var deviceId in deviceList)
+        using var semaphore = new SemaphoreSlim(8);
+        var tasks = deviceList.Select(async deviceId =>
         {
-            var data = await _timeseriesRepo.QueryAsync(deviceId, null, from, to, limit: 1, ct: ct);
-            if (data.Count > 0) result.Add(data[0]);
-        }
-        return result;
+            await semaphore.WaitAsync(ct);
+            try
+            {
+                return await _timeseriesRepo.GetLatestAsync(deviceId, structureId, ct);
+            }
+            finally
+            {
+                semaphore.Release();
+            }
+        });
+
+        var result = await Task.WhenAll(tasks);
+        return result.Where(point => point is not null).Select(point => point!).ToList();
     }
 
     public Task<ConnectionTestResultDto> TestConnectionLifecycleAsync(

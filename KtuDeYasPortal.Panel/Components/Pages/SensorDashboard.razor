@@ -1,9 +1,9 @@
 @using DeYas.Contracts
+@using KtuDeYasPortal.Panel.Domain.Interfaces
 @page "/sensor-dashboard"
 @rendermode InteractiveServer
 @implements IAsyncDisposable
 @inject SensorDashboardUseCases DashboardUC
-@inject SensorDataState SensorDataState
 @inject IOptions<GrafanaOptions> GrafanaOpts
 @inject IJSRuntime JS
 @inject PanelAccess Access
@@ -12,6 +12,10 @@
 <PageTitle>Baraj Bazlı Sensör İzleme</PageTitle>
 
 <h3>Ölçümler ve grafikler <small class="text-muted fs-6">— Baraj Bazlı Zaman Serisi İzleme</small></h3>
+@if (!string.IsNullOrWhiteSpace(_routedDataError))
+{
+    <div class="alert alert-warning py-2 small" role="status">@_routedDataError</div>
+}
 
 @* ── Yükleniyor ─────────────────────────────────────────────────────────────── *@
 @if (_loading)
@@ -314,8 +318,8 @@ else
                 @foreach (var s in _structureSensors.Take(10))
                 {
                     var isSelected = _selectedSensorId == s.SensorId;
-                    var liveCheck  = SensorDataState.GetLatest(s.DeviceId);
-                    var dotColor   = liveCheck is not null ? "success" : "secondary";
+                    var hasData = HasLatestData(s.DeviceId);
+                    var dotColor = hasData ? "success" : "secondary";
                     <button class="btn btn-sm @(isSelected ? "btn-primary" : "btn-outline-secondary")"
                             disabled="@(!SensorAnalysisPolicy.CanSelect(s.SensorType, _analysisType))"
                             @onclick="() => SelectSensor(s.SensorId)">
@@ -357,8 +361,6 @@ else
                 @foreach (var sensor in GetVisibleSensors())
                 {
                     var metrics  = GetSensorMetrics(sensor);
-                    var liveData = SensorDataState.GetLatest(sensor.DeviceId);
-                    if (liveData?.StructureId != _selectedStructureId) liveData = null;
 
                     @if (IsMediaSensor(sensor))
                     {
@@ -405,19 +407,10 @@ else
 
                     @foreach (var metric in metrics)
                     {
-                        double?   val = null;
-                        DateTime? ts  = null;
-
-                        if (liveData is not null)
-                        {
-                            if (liveData.AllMetrics?.TryGetValue(metric, out var mv) == true)
-                            { val = mv; ts = liveData.Timestamp; }
-                            else if (string.Equals(liveData.MetricKey, metric, StringComparison.OrdinalIgnoreCase))
-                            { val = liveData.CurrentValue; ts = liveData.Timestamp; }
-                        }
+                        var (val, ts) = GetLatestMetric(sensor.DeviceId, metric);
 
                         var ageSec      = ts.HasValue
-                            ? (DateTime.UtcNow - DateTime.SpecifyKind(ts.Value, DateTimeKind.Utc)).TotalSeconds
+                            ? (DateTime.UtcNow - AsUtc(ts.Value)).TotalSeconds
                             : double.MaxValue;
                         var statusColor = val.HasValue
                             ? (ageSec < 15 ? "success" : ageSec < 60 ? "warning" : "danger")
@@ -462,7 +455,7 @@ else
                                         @if (ts.HasValue)
                                         {
                                             <span class="text-muted">
-                                                @DateTime.SpecifyKind(ts.Value, DateTimeKind.Utc).ToLocalTime().ToString("HH:mm:ss")
+                                                @AsUtc(ts.Value).ToLocalTime().ToString("HH:mm:ss")
                                             </span>
                                         }
                                     </div>
@@ -522,16 +515,15 @@ else
     private List<Domain.Entities.Structure>? _structures;
     private Guid   _selectedStructureId;
     private Domain.Entities.Structure? _selectedStructure;
+    private Dictionary<string, SensorDataPoint> _routedLatestData =
+        new(StringComparer.OrdinalIgnoreCase);
+    private string? _routedDataError;
 
     // Sensors of the selected structure (from GetByIdAsync — includes Sensors)
     private List<Domain.Entities.StructureSensor> _structureSensors = new();
 
     // Sensor filter: null = tümü, value = belirli sensörün SensorId'si
     private Guid? _selectedSensorId;
-
-    // Kafka lag guard — current structure's device IDs
-    private readonly HashSet<string> _structureDeviceSet =
-        new(StringComparer.OrdinalIgnoreCase);
 
     // Grafana iframe
     private string _iframeSrc     = string.Empty;
@@ -545,12 +537,12 @@ else
     // ── Lifecycle ──────────────────────────────────────────────────────────────
     protected override async Task OnInitializedAsync()
     {
-        SensorDataState.OnSensorDataReceived += OnSensorDataReceived;
         await LoadStructuresAsync();
 
         _cts  = new CancellationTokenSource();
         _tick = new PeriodicTimer(TimeSpan.FromSeconds(1));
         _ = TickAsync(_cts.Token);
+        _ = PollRoutedLatestDataAsync(_cts.Token);
     }
 
     // ── Load structure list ────────────────────────────────────────────────────
@@ -622,7 +614,8 @@ else
         var generation = ++_structureGeneration;
         _analysisType = string.Empty;
         _structureSensors.Clear();
-        _structureDeviceSet.Clear();
+        _routedLatestData.Clear();
+        _routedDataError = null;
         _selectedSensorId   = null;
         _sensorReadinessMap = new();
 
@@ -636,8 +629,7 @@ else
             .OrderBy(s => s.SensorOrder)
             .ToList();
 
-        foreach (var s in _structureSensors)
-            _structureDeviceSet.Add(s.DeviceId);
+        await RefreshRoutedLatestDataAsync(structureId, generation);
 
         // Lifecycle panel'i arka planda yükle
         if (_showLifecyclePanel) _ = RefreshLifecycleAsync();
@@ -722,6 +714,126 @@ else
             await LoadStructureDetailAsync(_selectedStructureId);
         await InvokeAsync(StateHasChanged);
     }
+
+    private async Task RefreshRoutedLatestDataAsync(
+        Guid structureId,
+        int generation,
+        CancellationToken ct = default)
+    {
+        if (_structureSensors.Count == 0)
+        {
+            _routedLatestData.Clear();
+            _routedDataError = null;
+            return;
+        }
+
+        try
+        {
+            var latest = await DashboardUC.GetLatestPerDeviceAsync(
+                _structureSensors.Select(sensor => sensor.DeviceId),
+                structureId,
+                ct);
+            await InvokeAsync(() =>
+            {
+                if (generation != _structureGeneration || structureId != _selectedStructureId)
+                    return;
+
+                _routedLatestData = latest.ToDictionary(
+                    point => point.DeviceId,
+                    StringComparer.OrdinalIgnoreCase);
+                _routedDataError = null;
+                StateHasChanged();
+            });
+        }
+        catch (HttpRequestException ex)
+        {
+            await SetRoutedDataErrorAsync(structureId, generation,
+                $"Ölçüm kaynağına erişilemedi: {ex.Message}");
+        }
+        catch (InvalidDataException ex)
+        {
+            await SetRoutedDataErrorAsync(structureId, generation,
+                $"Ölçüm kaynağı geçersiz yanıt verdi: {ex.Message}");
+        }
+        catch (System.Text.Json.JsonException ex)
+        {
+            await SetRoutedDataErrorAsync(structureId, generation,
+                $"Ölçüm yanıtı okunamadı: {ex.Message}");
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            await SetRoutedDataErrorAsync(structureId, generation,
+                "Ölçüm kaynağından yanıt alınamadı (zaman aşımı).");
+        }
+    }
+
+    private async Task SetRoutedDataErrorAsync(Guid structureId, int generation, string message)
+    {
+        await InvokeAsync(() =>
+        {
+            if (generation != _structureGeneration || structureId != _selectedStructureId)
+                return;
+            _routedDataError = message;
+            StateHasChanged();
+        });
+    }
+
+    private async Task PollRoutedLatestDataAsync(CancellationToken ct)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(ct))
+            {
+                var structureId = _selectedStructureId;
+                if (structureId == Guid.Empty || _structureSensors.Count == 0)
+                    continue;
+
+                await RefreshRoutedLatestDataAsync(structureId, _structureGeneration, ct);
+            }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+        }
+    }
+
+    private bool HasLatestData(string deviceId) => _routedLatestData.ContainsKey(deviceId);
+
+    private (double? Value, DateTime? Timestamp) GetLatestMetric(string deviceId, string metric)
+    {
+        if (_routedLatestData.TryGetValue(deviceId, out var routed) &&
+            TryGetMetric(routed.Metrics, metric, out var value))
+            return (value, routed.Timestamp);
+        return (null, null);
+    }
+
+    private static bool TryGetMetric(
+        IReadOnlyDictionary<string, double>? metrics,
+        string metric,
+        out double value)
+    {
+        if (metrics is not null)
+        {
+            foreach (var pair in metrics)
+            {
+                if (string.Equals(pair.Key, metric, StringComparison.OrdinalIgnoreCase))
+                {
+                    value = pair.Value;
+                    return true;
+                }
+            }
+        }
+
+        value = default;
+        return false;
+    }
+
+    private static DateTime AsUtc(DateTime timestamp) => timestamp.Kind switch
+    {
+        DateTimeKind.Utc => timestamp,
+        DateTimeKind.Local => timestamp.ToUniversalTime(),
+        _ => DateTime.SpecifyKind(timestamp, DateTimeKind.Utc)
+    };
 
     private void OpenSensorManagement(Guid sensorId)
     {
@@ -857,13 +969,6 @@ else
         };
     }
 
-    // ── Realtime (Kafka lag guard) ─────────────────────────────────────────────
-    private void OnSensorDataReceived(SensorUpdatedEvent evt)
-    {
-        if (!_structureDeviceSet.Contains(evt.DeviceId)) return;
-        InvokeAsync(StateHasChanged);
-    }
-
     // ── Helpers ────────────────────────────────────────────────────────────────
     private string _analysisType = string.Empty;
     private void AnalysisTypeChanged() { _selectedSensorId = null; CloseGrafana(); }
@@ -941,7 +1046,6 @@ else
     // ── Cleanup ───────────────────────────────────────────────────────────────
     public ValueTask DisposeAsync()
     {
-        SensorDataState.OnSensorDataReceived -= OnSensorDataReceived;
         _cts?.Cancel();
         _tick?.Dispose();
         _cts?.Dispose();

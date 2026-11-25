@@ -237,11 +237,12 @@
                                 }
                                 @if (s.SensorCount > 0) {
                                     var monitoring = _monitoringStates.GetValueOrDefault(s.Id);
-                                    <IconActionButton Icon="@(monitoring == true ? "bi-eye-fill" : "bi-eye")" Label="@(monitoring == true ? "Merkezden izlemeyi durdur" : "Merkezden izle")" Tone="@(monitoring == true ? "success" : "neutral")" Disabled="@(!monitoring.HasValue)" OnClick="() => SetMonitoringAsync(s.Id, s.EdgeApiUrl!, monitoring != true)" />
-                                    @if (_forwardingStates.TryGetValue(s.Id, out var fwActive) && fwActive) {
+                                    var forwardingKnown = _forwardingStates.TryGetValue(s.Id, out var fwActive);
+                                    <IconActionButton Icon="@(monitoring == true ? "bi-eye-fill" : "bi-eye")" Label="@(monitoring == true ? "Merkezden izlemeyi durdur" : "Merkezden izle")" Tone="@(monitoring == true ? "success" : "neutral")" Disabled="@(!monitoring.HasValue || string.IsNullOrWhiteSpace(s.EdgeApiUrl))" OnClick="() => SetMonitoringAsync(s.Id, s.EdgeApiUrl!, monitoring != true)" />
+                                    @if (forwardingKnown && fwActive) {
                                         <IconActionButton Icon="bi-cloud-slash" Label="Merkezde tutmayı durdur" Tone="warning" OnClick="() => SetStructureForwardingAsync(s.Id, false)" />
                                     } else {
-                                        <IconActionButton Icon="bi-cloud-arrow-up" Label="Merkezde tut" Tone="primary" OnClick="() => SetStructureForwardingAsync(s.Id, true)" />
+                                        <IconActionButton Icon="bi-cloud-arrow-up" Label="@(forwardingKnown ? "Merkezde tut" : "Merkez durumu okunamadı")" Tone="primary" Disabled="@(!forwardingKnown || string.IsNullOrWhiteSpace(s.EdgeApiUrl))" OnClick="() => SetStructureForwardingAsync(s.Id, true)" />
                                     }
                                 }
                                 <IconActionButton Icon="bi-file-earmark-zip" Label="Saha ZIP’ini indir" Tone="neutral" OnClick="() => DownloadSavedPackageAsync(s.Id)" />
@@ -1481,6 +1482,7 @@
     private Dictionary<Guid, bool> _forwardingStates = new();
     private Dictionary<Guid, bool> _localPipelineStates = new();
     private Dictionary<Guid, Dictionary<string, EdgeDeviceLifecycleState>> _deviceLifecycleStates = new();
+    private sealed record StructureRoutingConfiguration(bool MonitoringEnabled, bool ForwardingEnabled);
     private string _simulationStatusAlertClass = "alert-success";
     private string _simulationStatusIcon = "bi-play-circle";
 
@@ -2116,6 +2118,9 @@
 
     private async Task LoadEdgeLifecycleStatesAsync()
     {
+        if (_structures is null)
+            return;
+
         _monitoringStates.Clear();
         _forwardingStates.Clear();
         _localPipelineStates.Clear();
@@ -2124,6 +2129,41 @@
             .Where(structure => !string.IsNullOrWhiteSpace(structure.EdgeApiUrl))
             .ToList();
         var semaphore = new SemaphoreSlim(12);
+        var centralClient = ImageClients.CreateClient("timeseries-api");
+        var configurationChecks = edgeStructures.Select(async structure =>
+        {
+            await semaphore.WaitAsync();
+            try
+            {
+                var configuration = await centralClient.GetFromJsonAsync<StructureRoutingConfiguration>(
+                    $"api/structures/{structure.Id}/configuration");
+                return (structure.Id, Configuration: configuration, Error: (string?)null);
+            }
+            catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException or TaskCanceledException)
+            {
+                return (structure.Id, Configuration: (StructureRoutingConfiguration?)null, Error: ex.Message);
+            }
+            finally { semaphore.Release(); }
+        });
+
+        var configurationResults = await Task.WhenAll(configurationChecks);
+        var configurationErrors = new List<(Guid Id, string Message)>();
+        foreach (var result in configurationResults)
+        {
+            if (result.Configuration is not null)
+            {
+                _monitoringStates[result.Id] = result.Configuration.MonitoringEnabled;
+                _forwardingStates[result.Id] = result.Configuration.ForwardingEnabled;
+            }
+            else
+            {
+                configurationErrors.Add((result.Id, result.Error ?? "merkez yapılandırması boş döndü"));
+            }
+        }
+
+        if (configurationErrors.Count > 0)
+            _simulationErrorMessage = $"Merkez routing ayarı okunamadı ({configurationErrors[0].Id}): {configurationErrors[0].Message}";
+
         var checks = edgeStructures.Select(async structure =>
         {
             await semaphore.WaitAsync();
@@ -2144,8 +2184,6 @@
         {
             if (result.Success && result.State is not null)
             {
-                _monitoringStates[result.Id] = result.State.MonitoringEnabled;
-                _forwardingStates[result.Id] = result.State.ForwardingEnabled;
                 _localPipelineStates[result.Id] = result.State.LocalPipelinesEnabled;
                 _deviceLifecycleStates[result.Id] = result.State.DeviceStates;
             }
@@ -2308,11 +2346,8 @@
     {
         try
         {
-            // Database-first persistence: Update central database first
-            var centralClient = ImageClients.CreateClient("TimeseriesApi");
-            var centralUrl = Configuration["TimeseriesApi:BaseUrl"] ?? "http://localhost:5000";
-            var requestUri = $"{centralUrl}/api/structures/{id}/monitoring";
-            var response = await centralClient.PutAsJsonAsync(requestUri, new { enabled });
+            var centralClient = ImageClients.CreateClient("timeseries-api");
+            var response = await centralClient.PutAsJsonAsync($"api/structures/{id}/monitoring", new { enabled });
             
             if (!response.IsSuccessStatusCode)
             {
@@ -2352,11 +2387,8 @@
 
         try
         {
-            // Database-first persistence: Update central database first
-            var centralClient = ImageClients.CreateClient("TimeseriesApi");
-            var centralUrl = Configuration["TimeseriesApi:BaseUrl"] ?? "http://localhost:5000";
-            var requestUri = $"{centralUrl}/api/structures/{structureId}/forwarding";
-            var response = await centralClient.PutAsJsonAsync(requestUri, new { enabled });
+            var centralClient = ImageClients.CreateClient("timeseries-api");
+            var response = await centralClient.PutAsJsonAsync($"api/structures/{structureId}/forwarding", new { enabled });
             
             if (!response.IsSuccessStatusCode)
             {

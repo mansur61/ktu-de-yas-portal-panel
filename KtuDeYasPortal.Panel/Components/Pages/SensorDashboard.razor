@@ -6,6 +6,7 @@
 @inject SensorDashboardUseCases DashboardUC
 @inject IOptions<GrafanaOptions> GrafanaOpts
 @inject IJSRuntime JS
+@inject IHttpClientFactory Clients
 @inject PanelAccess Access
 @using DeYas.Contracts.Authorization
 
@@ -499,7 +500,11 @@ else
                         </div>
                     </div>
                     <div class="card-body p-0">
-                        <DeYas.DigitalTwin.AnalysisFrame Src="@_iframeSrc" />
+                        @if (_routing?.ReadsField == true)
+                        {
+                            <AnalysisFrame Src="@TelemetryRouting.LiveUrl(GrafanaOpts.Value.BaseUrl, _selectedStructure?.StructureType.ToString(), _selectedStructureId, _grafanaDevice)" />
+                        }
+                        <AnalysisFrame Src="@_iframeSrc" />
                     </div>
                 </div>
             }
@@ -526,6 +531,7 @@ else
     private Guid? _selectedSensorId;
 
     // Grafana iframe
+    private TelemetryRouting? _routing;
     private string _iframeSrc     = string.Empty;
     private string _grafanaDevice = string.Empty;
     private string _grafanaMetric = string.Empty;
@@ -684,6 +690,7 @@ else
     private void UpdateGrafanaUrl()
     {
         if (!_structureSensors.Any(s => s.DeviceId == _grafanaDevice && !IsMediaSensor(s))) { CloseGrafana(); return; }
+        if (_routing is null) { _iframeSrc = string.Empty; return; }
         var isSamples = _grafanaMetric == "samples";
         _iframeSrc = GrafanaOpts.Value.BuildPanelUrl(
             panelId: isSamples ? 84 : 10,
@@ -729,6 +736,8 @@ else
 
         try
         {
+            using var client = Clients.CreateClient("timeseries-api");
+            var routing = await TelemetryRouting.ReadAsync(client, structureId, ct);
             var latest = await DashboardUC.GetLatestPerDeviceAsync(
                 _structureSensors.Select(sensor => sensor.DeviceId),
                 structureId,
@@ -738,6 +747,8 @@ else
                 if (generation != _structureGeneration || structureId != _selectedStructureId)
                     return;
 
+                _routing = routing;
+                if (!string.IsNullOrEmpty(_grafanaDevice)) UpdateGrafanaUrl();
                 _routedLatestData = latest.ToDictionary(
                     point => point.DeviceId,
                     StringComparer.OrdinalIgnoreCase);
@@ -773,6 +784,9 @@ else
         {
             if (generation != _structureGeneration || structureId != _selectedStructureId)
                 return;
+            _routing = null;
+            _iframeSrc = string.Empty;
+            _routedLatestData.Clear();
             _routedDataError = message;
             StateHasChanged();
         });
@@ -985,7 +999,7 @@ else
         return csv.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
                   .Where(m => !string.IsNullOrWhiteSpace(m) &&
                               !string.Equals(m, "label", StringComparison.OrdinalIgnoreCase) &&
-                              !string.Equals(m, "value", StringComparison.OrdinalIgnoreCase))
+                              (!string.IsNullOrWhiteSpace(sensor.Metrics) || !string.Equals(m, "value", StringComparison.OrdinalIgnoreCase)))
                   .ToList();
     }
 

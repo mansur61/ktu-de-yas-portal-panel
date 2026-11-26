@@ -238,11 +238,11 @@
                                 @if (s.SensorCount > 0) {
                                     var monitoring = _monitoringStates.GetValueOrDefault(s.Id);
                                     var forwardingKnown = _forwardingStates.TryGetValue(s.Id, out var fwActive);
-                                    <IconActionButton Icon="@(monitoring == true ? "bi-eye-fill" : "bi-eye")" Label="@(monitoring == true ? "Merkezden izlemeyi durdur" : "Merkezden izle")" Tone="@(monitoring == true ? "success" : "neutral")" Disabled="@(!monitoring.HasValue || string.IsNullOrWhiteSpace(s.EdgeApiUrl))" OnClick="() => SetMonitoringAsync(s.Id, s.EdgeApiUrl!, monitoring != true)" />
+                                    <IconActionButton Icon="@(monitoring == true ? "bi-eye-fill" : "bi-eye")" Label="@(monitoring == true ? "Merkezden izlemeyi durdur" : "Merkezden izle")" Tone="@(monitoring == true ? "success" : "neutral")" Disabled="@(_savingMonitoring.Contains(s.Id) || !monitoring.HasValue || string.IsNullOrWhiteSpace(s.EdgeApiUrl))" OnClick="() => SetMonitoringAsync(s.Id, s.EdgeApiUrl!, monitoring != true)" />
                                     @if (forwardingKnown && fwActive) {
-                                        <IconActionButton Icon="bi-cloud-slash" Label="Merkezde tutmayı durdur" Tone="warning" OnClick="() => SetStructureForwardingAsync(s.Id, false)" />
+                                        <IconActionButton Icon="bi-cloud-slash" Label="Merkezde tutmayı durdur" Tone="warning" Disabled="_savingForwarding.Contains(s.Id)" OnClick="() => SetStructureForwardingAsync(s.Id, false)" />
                                     } else {
-                                        <IconActionButton Icon="bi-cloud-arrow-up" Label="@(forwardingKnown ? "Merkezde tut" : "Merkez durumu okunamadı")" Tone="primary" Disabled="@(!forwardingKnown || string.IsNullOrWhiteSpace(s.EdgeApiUrl))" OnClick="() => SetStructureForwardingAsync(s.Id, true)" />
+                                        <IconActionButton Icon="bi-cloud-arrow-up" Label="@(forwardingKnown ? "Merkezde tut" : "Merkez durumu okunamadı")" Tone="primary" Disabled="@(_savingForwarding.Contains(s.Id) || !forwardingKnown || string.IsNullOrWhiteSpace(s.EdgeApiUrl))" OnClick="() => SetStructureForwardingAsync(s.Id, true)" />
                                     }
                                 }
                                 <IconActionButton Icon="bi-file-earmark-zip" Label="Saha ZIP’ini indir" Tone="neutral" OnClick="() => DownloadSavedPackageAsync(s.Id)" />
@@ -1480,6 +1480,11 @@
     private HashSet<Guid>    _telemetryRunningStructureIds = new();
     private readonly Dictionary<Guid, bool?> _monitoringStates = new();
     private Dictionary<Guid, bool> _forwardingStates = new();
+    private long _configurationReadVersion;
+    private readonly HashSet<Guid> _userModifiedForwarding = new();
+    private readonly HashSet<Guid> _savingForwarding = new();
+    private readonly HashSet<Guid> _userModifiedMonitoring = new();
+    private readonly HashSet<Guid> _savingMonitoring = new();
     private Dictionary<Guid, bool> _localPipelineStates = new();
     private Dictionary<Guid, Dictionary<string, EdgeDeviceLifecycleState>> _deviceLifecycleStates = new();
     private sealed record StructureRoutingConfiguration(bool MonitoringEnabled, bool ForwardingEnabled);
@@ -2036,6 +2041,9 @@
 
     private async Task LoadStructuresAsync()
     {
+        ++_configurationReadVersion;
+        _userModifiedMonitoring.Clear();
+        _userModifiedForwarding.Clear();
         if (_structureLoadFailed) _simulationErrorMessage = null;
         _structureLoadFailed = false;
         try
@@ -2121,9 +2129,6 @@
         if (_structures is null)
             return;
 
-        // Preserve user toggle states - do not clear
-        // _monitoringStates.Clear();
-        // _forwardingStates.Clear();
         _localPipelineStates.Clear();
         _deviceLifecycleStates.Clear();
         var edgeStructures = _structures
@@ -2131,6 +2136,7 @@
             .ToList();
         var semaphore = new SemaphoreSlim(12);
         var centralClient = ImageClients.CreateClient("timeseries-api");
+        var configurationVersion = ++_configurationReadVersion;
         var configurationChecks = edgeStructures.Select(async structure =>
         {
             await semaphore.WaitAsync();
@@ -2148,13 +2154,20 @@
         });
 
         var configurationResults = await Task.WhenAll(configurationChecks);
+        if (configurationVersion != _configurationReadVersion) return;
         var configurationErrors = new List<(Guid Id, string Message)>();
         foreach (var result in configurationResults)
         {
             if (result.Configuration is not null)
             {
-                _monitoringStates[result.Id] = result.Configuration.MonitoringEnabled;
-                _forwardingStates[result.Id] = result.Configuration.ForwardingEnabled;
+                if (_monitoringStates.GetValueOrDefault(result.Id) == result.Configuration.MonitoringEnabled)
+                    _userModifiedMonitoring.Remove(result.Id);
+                if (!_userModifiedMonitoring.Contains(result.Id))
+                    _monitoringStates[result.Id] = result.Configuration.MonitoringEnabled;
+                if (_forwardingStates.GetValueOrDefault(result.Id) == result.Configuration.ForwardingEnabled)
+                    _userModifiedForwarding.Remove(result.Id);
+                if (!_userModifiedForwarding.Contains(result.Id))
+                    _forwardingStates[result.Id] = result.Configuration.ForwardingEnabled;
             }
             else
             {
@@ -2345,6 +2358,7 @@
 
     private async Task SetMonitoringAsync(Guid id, string edgeUrl, bool enabled)
     {
+        if (!_savingMonitoring.Add(id)) return;
         try
         {
             var centralClient = ImageClients.CreateClient("timeseries-api");
@@ -2356,6 +2370,10 @@
                 return;
             }
 
+            _monitoringStates[id] = enabled;
+            _userModifiedMonitoring.Add(id);
+            ++_configurationReadVersion;
+
             // Then synchronize with Edge API (graceful degradation on failure)
             try
             {
@@ -2364,17 +2382,16 @@
             catch (Exception edgeEx)
             {
                 SetStatus($"Merkezden canlı izleme {(enabled ? "açıldı" : "kapatıldı")}. Edge senkronizasyonu başarısız: {edgeEx.Message}. Ayar veritabanına kaydedildi.", "warning");
-                _monitoringStates[id] = enabled;
                 return;
             }
 
-            _monitoringStates[id] = enabled;
             SetStatus($"Merkezden canlı izleme {(enabled ? "açıldı" : "durduruldu")}.", "info");
         }
         catch (Exception ex) 
         { 
             _simulationErrorMessage = $"Merkezden izleme değiştirilemedi: {ex.Message}"; 
         }
+        finally { _savingMonitoring.Remove(id); }
     }
 
     private async Task SetStructureForwardingAsync(Guid structureId, bool enabled)
@@ -2386,6 +2403,7 @@
             return;
         }
 
+        if (!_savingForwarding.Add(structureId)) return;
         try
         {
             var centralClient = ImageClients.CreateClient("timeseries-api");
@@ -2397,6 +2415,10 @@
                 return;
             }
 
+            _forwardingStates[structureId] = enabled;
+            _userModifiedForwarding.Add(structureId);
+            ++_configurationReadVersion;
+
             // Then synchronize with Edge API (graceful degradation on failure)
             try
             {
@@ -2405,17 +2427,16 @@
             catch (Exception edgeEx)
             {
                 SetStatus($"{structure.Name} için merkezde kayıt {(enabled ? "açıldı" : "durduruldu")}. Edge senkronizasyonu başarısız: {edgeEx.Message}. Ayar veritabanına kaydedildi. Yerel saha akışı değişmedi.", "warning");
-                _forwardingStates[structureId] = enabled;
                 return;
             }
 
-            _forwardingStates[structureId] = enabled;
             SetStatus($"{structure.Name} için merkezde kayıt {(enabled ? "açıldı" : "durduruldu")}. Yerel saha akışı değişmedi.", "info");
         }
         catch (Exception ex)
         {
             _simulationErrorMessage = $"Merkeze aktarım değiştirilemedi: {ex.Message}";
         }
+        finally { _savingForwarding.Remove(structureId); }
     }
 
     /// <summary>

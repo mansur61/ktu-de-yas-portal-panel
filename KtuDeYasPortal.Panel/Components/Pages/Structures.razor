@@ -2121,8 +2121,9 @@
         if (_structures is null)
             return;
 
-        _monitoringStates.Clear();
-        _forwardingStates.Clear();
+        // Preserve user toggle states - do not clear
+        // _monitoringStates.Clear();
+        // _forwardingStates.Clear();
         _localPipelineStates.Clear();
         _deviceLifecycleStates.Clear();
         var edgeStructures = _structures
